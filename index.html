@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Project Manager Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <main class="main-content">
+        <header class="topbar" id="overview">
+          <div>
+            <p class="eyebrow">Executive view</p>
+            <h2>Project status at a glance</h2>
+          </div>
+          <div class="topbar-actions">
+            <button id="addProjectBtn" class="secondary-btn">Add new project</button>
+            <button id="exportBtn" class="primary-btn">Export report</button>
+          </div>
+        </header>
+
+        <section class="stats-grid">
+          <article class="stat-card accent-blue">
+            <p>Total projects</p>
+            <h3 id="totalProjects">0</h3>
+            <span>Active initiatives</span>
+          </article>
+          <article class="stat-card accent-green">
+            <p>On track</p>
+            <h3 id="onTrackCount">0</h3>
+            <span>Healthy delivery</span>
+          </article>
+          <article class="stat-card accent-amber">
+            <p>At risk</p>
+            <h3 id="atRiskCount">0</h3>
+            <span>Needs review</span>
+          </article>
+          <article class="stat-card accent-purple">
+            <p>Completion rate</p>
+            <h3 id="completionRate">0%</h3>
+            <span>Average progress</span>
+          </article>
+        </section>
+
+        <section class="dashboard-grid top-priority">
+          <article class="panel" id="projects">
+            <div class="panel-header">
+              <div>
+                <p class="eyebrow">Live portfolio</p>
+                <h3>Projects</h3>
+              </div>
+              <span class="pill">Updated today</span>
+            </div>
+            <div class="filter-row">
+              <input id="searchInput" type="search" placeholder="Search project or PM" />
+              <select id="pmFilter">
+                <option value="All">All PMs</option>
+              </select>
+              <select id="healthFilter">
+                <option value="All">All health</option>
+                <option value="Green">Green</option>
+                <option value="Yellow">Yellow</option>
+                <option value="Red">Red</option>
+              </select>
+              <select id="progressFilter">
+                <option value="All">All progress</option>
+                <option value="0-39">0–39%</option>
+                <option value="40-69">40–69%</option>
+                <option value="70-100">70–100%</option>
+              </select>
+              <select id="statusFilter">
+                <option value="All">All statuses</option>
+                <option value="On Track">On Track</option>
+                <option value="At Risk">At Risk</option>
+                <option value="Delayed">Delayed</option>
+                <option value="Completed">Completed</option>
+              </select>
+            </div>
+            <div class="table-wrap">
+              <div id="portfolioGroups" class="portfolio-groups"></div>
+            </div>
+          </article>
+
+        </section>
+      </main>
+    </div>
+
+    <div id="editProjectModal" class="modal hidden" aria-hidden="true">
+      <div class="modal-card">
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Edit project</p>
+            <h3>Project Manager Update</h3>
+          </div>
+          <button id="closeEditModalBtn" class="ghost-btn" type="button" aria-label="Close">×</button>
+        </div>
+        <form id="editProjectForm" class="status-form modal-form">
+          <label>
+            Customer name
+            <input id="editCustomerName" type="text" readonly />
+          </label>
+          <label>
+            Project Name
+            <input id="editProjectName" type="text" readonly />
+          </label>
+          <label>Project Status</label>
+          <div class="editor-toolbar">
+            <button type="button" class="ghost-btn small-btn" data-rich-command="bold">B</button>
+            <button type="button" class="ghost-btn small-btn" data-rich-command="italic">I</button>
+            <button type="button" class="ghost-btn small-btn" data-rich-command="underline">U</button>
+            <button type="button" class="ghost-btn small-btn" data-rich-command="insertUnorderedList">• List</button>
+          </div>
+          <div id="editStatusEditor" class="rich-editor" contenteditable="true" spellcheck="true"></div>
+          <div class="modal-actions">
+            <button type="button" id="cancelEditModalBtn" class="ghost-btn">Cancel</button>
+            <button type="submit" class="primary-btn">Save changes</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div id="projectModal" class="modal hidden" aria-hidden="true">
+      <div class="modal-card">
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">New project</p>
+            <h3>Add a project</h3>
+          </div>
+          <button id="closeModalBtn" class="ghost-btn" type="button" aria-label="Close">×</button>
+        </div>
+        <form id="modalProjectForm" class="status-form modal-form">
+          <label>
+            Customer name
+            <input id="modalProjectCustomer" type="text" placeholder="e.g. Acme Corp" />
+          </label>
+          <label>
+            Project name
+            <input id="modalProjectName" type="text" required placeholder="e.g. CRM Migration" />
+          </label>
+          <label>
+            PM name
+            <input id="modalProjectPm" list="pmList" type="text" required placeholder="Select or type PM" />
+          </label>
+          <label>
+            CSM name
+            <input id="modalProjectCsm" list="csmList" type="text" placeholder="Select or type CSM" />
+          </label>
+          <label>
+            Sales name
+            <input id="modalProjectSales" list="salesList" type="text" placeholder="Select or type Sales" />
+          </label>
+          <label>
+            Jira URL
+            <input id="modalProjectJira" type="url" placeholder="https://jira.example.com/PROJ" />
+          </label>
+          <label>
+            NRR (hours)
+            <input id="modalProjectNrr" type="number" min="0" step="0.1" placeholder="e.g. 10" required />
+          </label>
+          <label>
+            Start Date
+            <input id="modalProjectStartDate" type="date" required />
+          </label>
+          <label>
+            Due Date
+            <input id="modalProjectDueDate" type="date" required />
+          </label>
+          <label>
+            NRR value
+            <input id="modalProjectNrrValue" type="text" placeholder="e.g. $120" required />
+          </label>
+          <label>
+            MRR value
+            <input id="modalProjectMrrValue" type="text" placeholder="e.g. $8,000" required />
+          </label>
+          <div class="modal-actions">
+            <button type="button" id="cancelModalBtn" class="ghost-btn">Cancel</button>
+            <button type="submit" class="primary-btn">Save</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <datalist id="pmList"></datalist>
+    <datalist id="csmList"></datalist>
+    <datalist id="salesList"></datalist>
+
+    <script src="app.js"></script>
+  </body>
+</html>

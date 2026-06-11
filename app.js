@@ -1,0 +1,426 @@
+const STORAGE_KEY = 'project-dashboard-projects-v1';
+
+const defaultProjects = [
+  { customer: 'Client Customer', name: 'Client Portal', manager: 'Ava', jira: 'https://jira.example.com/CP', nrr: 120, startDate: '2026-05-05', dueDate: '2026-06-30', status: 'On Track', statusText: 'Backend APIs are stable and user testing is in progress.', health: 'Green', progress: 78, comments: 'NRR: 120h, MRR: 8k, CSM: John, Sales: Sara' },
+  { customer: 'Mobile Customer', name: 'Mobile Launch', manager: 'Noah', jira: 'https://jira.example.com/ML', nrr: 85, startDate: '2026-04-20', dueDate: '2026-06-18', status: 'At Risk', statusText: 'Vendor dependency delayed design approvals.', health: 'Yellow', progress: 54, comments: 'NRR: 85h, MRR: 6k, CSM: Maya, Sales: Leo' },
+  { customer: 'Data Customer', name: 'Data Sync Upgrade', manager: 'Mia', jira: 'https://jira.example.com/DS', nrr: 140, startDate: '2026-05-12', dueDate: '2026-07-05', status: 'Delayed', statusText: 'Data mapping needs a second review cycle.', health: 'Red', progress: 38, comments: 'NRR: 140h, MRR: 10k, CSM: Emma, Sales: Omar' },
+  { customer: 'Reporting Customer', name: 'Reporting Hub', manager: 'Liam', jira: 'https://jira.example.com/RH', nrr: 60, startDate: '2026-03-10', dueDate: '2026-06-10', status: 'Completed', statusText: 'All stakeholders have approved the final dashboard.', health: 'Green', progress: 100, comments: 'NRR: 60h, MRR: 4k, CSM: Alex, Sales: Nina' },
+];
+
+let projects = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null') || defaultProjects;
+
+const statusClasses = {
+  'On Track': 'status-ontrack',
+  'At Risk': 'status-risk',
+  'Delayed': 'status-delayed',
+  'Completed': 'status-completed',
+};
+
+const portfolioGroups = document.getElementById('portfolioGroups');
+const projectSelect = document.getElementById('projectSelect');
+const editProjectModal = document.getElementById('editProjectModal');
+const closeEditModalBtn = document.getElementById('closeEditModalBtn');
+const cancelEditModalBtn = document.getElementById('cancelEditModalBtn');
+const editProjectForm = document.getElementById('editProjectForm');
+const editCustomerName = document.getElementById('editCustomerName');
+const editProjectName = document.getElementById('editProjectName');
+const editStatusEditor = document.getElementById('editStatusEditor');
+const riskList = document.getElementById('riskList');
+const exportBtn = document.getElementById('exportBtn');
+const addProjectBtn = document.getElementById('addProjectBtn');
+const projectModal = document.getElementById('projectModal');
+const closeModalBtn = document.getElementById('closeModalBtn');
+const cancelModalBtn = document.getElementById('cancelModalBtn');
+const closeSaveBtn = document.getElementById('closeSaveBtn');
+const modalProjectForm = document.getElementById('modalProjectForm');
+const searchInput = document.getElementById('searchInput');
+const pmFilter = document.getElementById('pmFilter');
+const pmList = document.getElementById('pmList');
+const csmList = document.getElementById('csmList');
+const salesList = document.getElementById('salesList');
+const healthFilter = document.getElementById('healthFilter');
+const progressFilter = document.getElementById('progressFilter');
+const statusFilter = document.getElementById('statusFilter');
+
+function saveProjects() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
+}
+
+function getJiraLabel(jira) {
+  if (!jira) return '-';
+
+  const browseMatch = jira.match(/\/browse\/([A-Za-z0-9-]+)/i);
+  if (browseMatch) return browseMatch[1];
+
+  const pathParts = jira.split('/').filter(Boolean);
+  const lastPart = pathParts[pathParts.length - 1];
+
+  return lastPart && lastPart !== 'browse' ? lastPart : jira;
+}
+
+function getJiraIssueKey(jira) {
+  if (!jira) return '';
+
+  const browseMatch = jira.match(/\/browse\/([A-Za-z0-9-]+)/i);
+  if (browseMatch) return browseMatch[1];
+
+  const pathMatch = jira.match(/\/([A-Z]+-[0-9]+)(?:\/|$)/);
+  return pathMatch ? pathMatch[1] : '';
+}
+
+function normalizeProgress(value) {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) return null;
+  return Math.max(0, Math.min(100, Math.round(numericValue)));
+}
+
+function getProgressTone(value) {
+  const numericValue = normalizeProgress(value);
+  if (numericValue === null) return 'progress-neutral';
+  if (numericValue < 50) return 'progress-green';
+  if (numericValue <= 75) return 'progress-yellow';
+  return 'progress-red';
+}
+
+function getProgressFillTone(value) {
+  const numericValue = normalizeProgress(value);
+  if (numericValue === null) return 'progress-fill-neutral';
+  if (numericValue < 50) return 'progress-fill-green';
+  if (numericValue <= 75) return 'progress-fill-yellow';
+  return 'progress-fill-red';
+}
+
+async function syncProjectProgressFromJira() {
+  const issueKeys = projects
+    .map((project) => getJiraIssueKey(project.jira))
+    .filter(Boolean);
+
+  if (!issueKeys.length) return;
+
+  let progressFieldId = '';
+
+  try {
+    const fieldsResponse = await fetch('https://kaltura.atlassian.net/rest/api/3/field', {
+      credentials: 'include',
+      headers: { Accept: 'application/json' },
+    });
+
+    if (fieldsResponse.ok) {
+      const fields = await fieldsResponse.json();
+      const matchedField = fields.find((field) => field.name === 'Project Progress Percentage');
+      if (matchedField) progressFieldId = matchedField.id;
+    }
+  } catch (error) {
+    console.warn('Jira field lookup failed', error);
+  }
+
+  const fieldsParam = progressFieldId ? `progress,${progressFieldId}` : 'progress';
+
+  for (const key of [...new Set(issueKeys)]) {
+    try {
+      const response = await fetch(`https://kaltura.atlassian.net/rest/api/3/issue/${key}?fields=${fieldsParam}`, {
+        credentials: 'include',
+        headers: { Accept: 'application/json' },
+      });
+
+      if (!response.ok) continue;
+
+      const data = await response.json();
+      const customPercent = progressFieldId ? data?.fields?.[progressFieldId] : null;
+      const fallbackPercent = data?.fields?.progress?.percent ?? data?.fields?.progress;
+      const percent = normalizeProgress(customPercent ?? fallbackPercent);
+
+      if (percent !== null) {
+        projects.forEach((project) => {
+          if (getJiraIssueKey(project.jira) === key) {
+            project.progress = percent;
+          }
+        });
+      }
+    } catch (error) {
+      console.warn(`Jira progress fetch failed for ${key}`, error);
+    }
+  }
+
+  saveProjects();
+  renderAll();
+}
+
+function getFilteredProjects() {
+  const term = searchInput.value.toLowerCase().trim();
+  const selectedPm = pmFilter.value;
+  const selectedHealth = healthFilter.value;
+  const selectedProgress = progressFilter.value;
+  const selectedStatus = statusFilter.value;
+
+  return projects.filter((project) => {
+    const matchesPm = selectedPm === 'All' || project.manager === selectedPm;
+    const matchesHealth = selectedHealth === 'All' || project.health === selectedHealth;
+    const matchesStatus = selectedStatus === 'All' || project.status === selectedStatus;
+    const matchesSearch = !term || `${project.name} ${project.manager || ''} ${project.jira || ''}`.toLowerCase().includes(term);
+
+    let matchesProgress = true;
+    if (selectedProgress === '0-39') matchesProgress = project.progress < 40;
+    if (selectedProgress === '40-69') matchesProgress = project.progress >= 40 && project.progress < 70;
+    if (selectedProgress === '70-100') matchesProgress = project.progress >= 70;
+
+    return matchesPm && matchesHealth && matchesStatus && matchesSearch && matchesProgress;
+  });
+}
+
+function renderTable() {
+  const filteredProjects = getFilteredProjects();
+  const grouped = filteredProjects.reduce((acc, project) => {
+    const key = project.manager || 'Unassigned';
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(project);
+    return acc;
+  }, {});
+
+  portfolioGroups.innerHTML = '';
+
+  Object.keys(grouped).sort((a, b) => a.localeCompare(b)).forEach((manager) => {
+    const section = document.createElement('section');
+    section.className = 'pm-group';
+
+    const header = document.createElement('div');
+    header.className = 'pm-group-header';
+    header.innerHTML = `<h4>${manager}</h4><span>${grouped[manager].length} project${grouped[manager].length === 1 ? '' : 's'}</span>`;
+    section.appendChild(header);
+
+    const table = document.createElement('table');
+    table.className = 'pm-table';
+    table.innerHTML = `
+      <thead>
+        <tr>
+          <th>Customer name</th>
+          <th>Project</th>
+          <th>Jira</th>
+          <th>NRR(h)</th>
+          <th>Start</th>
+          <th>Due</th>
+          <th>Status</th>
+          <th>Health</th>
+          <th>Progress</th>
+          <th>PM Update</th>
+          <th>Manager Notes</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${grouped[manager].map((project) => {
+          const progressValue = normalizeProgress(project.progress) ?? 0;
+          const progressTone = getProgressTone(progressValue);
+          const progressFillTone = getProgressFillTone(progressValue);
+          return `
+          <tr>
+            <td>${project.customer || '-'}</td>
+            <td>${project.name}</td>
+            <td><a href="${project.jira || '#'}" target="_blank" rel="noreferrer">${getJiraLabel(project.jira)}</a></td>
+            <td>${project.nrr} hrs</td>
+            <td>${project.startDate || '-'}</td>
+            <td>${project.dueDate || '-'}</td>
+            <td><span class="status-badge ${statusClasses[project.status] || ''}">${project.status}</span></td>
+            <td><span class="health-pill health-${(project.health || 'green').toLowerCase()}">${project.health || 'Green'}</span></td>
+            <td>
+              <div class="progress-bar"><div class="progress-fill ${progressFillTone}" style="width:${progressValue}%"></div></div>
+              <small class="progress-label ${progressTone}">${progressValue}%</small>
+            </td>
+            <td><div class="cell-scroll">${project.statusText || '-'}</div></td>
+            <td><div class="cell-scroll">${(project.comments || '-').split(', ').join('<br>')}</div></td>
+            <td><button type="button" class="secondary-btn small-btn" data-edit-project="${projects.indexOf(project)}">Edit</button></td>
+          </tr>
+        `;
+        }).join('')}
+      </tbody>
+    `;
+    section.appendChild(table);
+    portfolioGroups.appendChild(section);
+  });
+
+  if (!Object.keys(grouped).length) {
+    portfolioGroups.innerHTML = '<p class="muted">No projects match the current filters.</p>';
+  }
+}
+
+function renderSelect() {
+  projectSelect.innerHTML = projects
+    .map((project, index) => `<option value="${index}">${project.name}</option>`)
+    .join('');
+
+  const uniqueManagers = [...new Set(projects.map((project) => project.manager).filter(Boolean))];
+  const uniqueCsms = [...new Set(projects.map((project) => project.csm).filter(Boolean))];
+  const uniqueSales = [...new Set(projects.map((project) => project.sales).filter(Boolean))];
+
+  pmFilter.innerHTML = ['<option value="All">All PMs</option>', ...uniqueManagers.map((manager) => `<option value="${manager}">${manager}</option>`)].join('');
+  pmList.innerHTML = uniqueManagers.map((manager) => `<option value="${manager}"></option>`).join('');
+  csmList.innerHTML = uniqueCsms.map((csm) => `<option value="${csm}"></option>`).join('');
+  salesList.innerHTML = uniqueSales.map((sales) => `<option value="${sales}"></option>`).join('');
+
+}
+
+function renderSummary() {
+  const total = projects.length;
+  const onTrack = projects.filter((project) => project.status === 'On Track').length;
+  const atRisk = projects.filter((project) => project.status === 'At Risk' || project.status === 'Delayed').length;
+  const completionRate = Math.round(projects.reduce((sum, project) => sum + project.progress, 0) / total);
+
+  document.getElementById('totalProjects').textContent = total;
+  document.getElementById('onTrackCount').textContent = onTrack;
+  document.getElementById('atRiskCount').textContent = atRisk;
+  document.getElementById('completionRate').textContent = `${completionRate}%`;
+}
+
+function openEditProjectModal(projectIndex) {
+  const project = projects[projectIndex];
+  if (!project) return;
+
+  editCustomerName.value = project.customer || '';
+  editProjectName.value = project.name;
+  editStatusEditor.innerHTML = project.statusText || '';
+  editProjectForm.dataset.projectIndex = String(projectIndex);
+
+  editProjectModal.classList.remove('hidden');
+  editProjectModal.setAttribute('aria-hidden', 'false');
+}
+
+function closeEditProjectModal() {
+  editProjectModal.classList.add('hidden');
+  editProjectModal.setAttribute('aria-hidden', 'true');
+  editProjectForm.reset();
+  editStatusEditor.innerHTML = '';
+}
+
+function renderRiskList() {
+  const atRiskProjects = projects.filter((project) => project.status === 'At Risk' || project.status === 'Delayed');
+  riskList.innerHTML = atRiskProjects.length
+    ? atRiskProjects
+        .map(
+          (project) => `<li><strong>${project.name}</strong>${project.comments || 'Needs attention.'}</li>`
+        )
+        .join('')
+    : '<li><strong>No critical risks</strong>All projects are currently on track or completed.</li>';
+}
+
+function renderAll() {
+  renderTable();
+  renderSelect();
+  renderSummary();
+  renderRiskList();
+}
+
+function openModal() {
+  projectModal.classList.remove('hidden');
+  projectModal.setAttribute('aria-hidden', 'false');
+}
+
+function closeModal() {
+  projectModal.classList.add('hidden');
+  projectModal.setAttribute('aria-hidden', 'true');
+  modalProjectForm.reset();
+}
+
+editProjectForm.addEventListener('submit', (event) => {
+  event.preventDefault();
+
+  const selectedIndex = Number(editProjectForm.dataset.projectIndex ?? -1);
+  const selectedProject = projects[selectedIndex];
+  if (!selectedProject) return;
+
+  selectedProject.statusText = editStatusEditor.innerHTML.trim() || selectedProject.statusText;
+
+  saveProjects();
+  renderAll();
+  closeEditProjectModal();
+  alert(`Status updated for ${selectedProject.name}`);
+});
+
+modalProjectForm.addEventListener('submit', (event) => {
+  event.preventDefault();
+
+  const pmName = document.getElementById('modalProjectPm').value.trim();
+  const csmName = document.getElementById('modalProjectCsm').value.trim();
+  const salesName = document.getElementById('modalProjectSales').value.trim();
+  const nrrValue = document.getElementById('modalProjectNrrValue').value.trim();
+  const mrrValue = document.getElementById('modalProjectMrrValue').value.trim();
+
+  projects.unshift({
+    customer: document.getElementById('modalProjectCustomer').value.trim() || 'Unknown',
+    name: document.getElementById('modalProjectName').value.trim(),
+    manager: pmName || 'Unassigned',
+    jira: document.getElementById('modalProjectJira').value.trim(),
+    nrr: Number(document.getElementById('modalProjectNrr').value),
+    startDate: document.getElementById('modalProjectStartDate').value,
+    dueDate: document.getElementById('modalProjectDueDate').value,
+    status: 'On Track',
+    health: 'Green',
+    progress: 0,
+    statusText: 'New project created.',
+    csm: csmName || '',
+    sales: salesName || '',
+    comments: `NRR: ${nrrValue || '0h'}, MRR: ${mrrValue || '0'}, CSM: ${csmName || '-'}, Sales: ${salesName || '-'}`,
+  });
+
+  saveProjects();
+  renderAll();
+  closeModal();
+  alert('Project created successfully.');
+});
+
+addProjectBtn.addEventListener('click', openModal);
+closeModalBtn.addEventListener('click', closeModal);
+cancelModalBtn.addEventListener('click', closeModal);
+closeEditModalBtn.addEventListener('click', closeEditProjectModal);
+cancelEditModalBtn.addEventListener('click', closeEditProjectModal);
+projectModal.addEventListener('click', (event) => {
+  if (event.target === projectModal) closeModal();
+});
+
+editProjectModal.addEventListener('click', (event) => {
+  if (event.target === editProjectModal) closeEditProjectModal();
+});
+
+portfolioGroups.addEventListener('click', (event) => {
+  const editButton = event.target.closest('[data-edit-project]');
+  if (!editButton) return;
+
+  openEditProjectModal(Number(editButton.dataset.editProject));
+});
+
+editProjectModal.addEventListener('click', (event) => {
+  const toolbarButton = event.target.closest('[data-rich-command]');
+  if (!toolbarButton) return;
+
+  event.preventDefault();
+  document.execCommand(toolbarButton.dataset.richCommand, false, null);
+  editStatusEditor.focus();
+});
+
+searchInput.addEventListener('input', renderTable);
+pmFilter.addEventListener('change', renderTable);
+healthFilter.addEventListener('change', renderTable);
+progressFilter.addEventListener('change', renderTable);
+statusFilter.addEventListener('change', renderTable);
+
+exportBtn.addEventListener('click', () => {
+  const lines = [
+    'Project Dashboard Report',
+    'Generated on: ' + new Date().toLocaleDateString(),
+    '',
+    'Customer name,Project,PM,Jira,NRR,Start Date,Due Date,Status,Health,Progress,PM Update,Manager Notes',
+    ...projects.map((project) =>
+      [project.customer || '', project.name, project.manager || '', getJiraLabel(project.jira), project.nrr || 0, project.startDate || '', project.dueDate || '', project.status, project.health || 'Green', `${project.progress}%`, project.statusText || '', project.comments || ''].join(',')
+    ),
+  ];
+
+  const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'project-dashboard-report.csv';
+  link.click();
+  URL.revokeObjectURL(url);
+});
+
+renderAll();
+syncProjectProgressFromJira();
