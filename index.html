@@ -146,15 +146,24 @@
           </label>
           <label>
             PM name
-            <input id="modalProjectPm" list="pmList" type="text" required placeholder="Select or type PM" />
+            <div class="autocomplete-wrap">
+              <input id="modalProjectPm" type="text" required placeholder="Select or type PM" autocomplete="off" />
+              <ul class="autocomplete-list hidden"></ul>
+            </div>
           </label>
           <label>
             CSM name
-            <input id="modalProjectCsm" list="csmList" type="text" placeholder="Select or type CSM" />
+            <div class="autocomplete-wrap">
+              <input id="modalProjectCsm" type="text" placeholder="Select or type CSM" autocomplete="off" />
+              <ul class="autocomplete-list hidden"></ul>
+            </div>
           </label>
           <label>
             Sales name
-            <input id="modalProjectSales" list="salesList" type="text" placeholder="Select or type Sales" />
+            <div class="autocomplete-wrap">
+              <input id="modalProjectSales" type="text" placeholder="Select or type Sales" autocomplete="off" />
+              <ul class="autocomplete-list hidden"></ul>
+            </div>
           </label>
           <label>
             Jira URL
@@ -188,9 +197,7 @@
       </div>
     </div>
 
-    <datalist id="pmList"></datalist>
-    <datalist id="csmList"></datalist>
-    <datalist id="salesList"></datalist>
+
 
     <script src="app.js"></script>
   </body>

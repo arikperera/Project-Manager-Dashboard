@@ -35,15 +35,66 @@ const closeSaveBtn = document.getElementById('closeSaveBtn');
 const modalProjectForm = document.getElementById('modalProjectForm');
 const searchInput = document.getElementById('searchInput');
 const pmFilter = document.getElementById('pmFilter');
-const pmList = document.getElementById('pmList');
-const csmList = document.getElementById('csmList');
-const salesList = document.getElementById('salesList');
+const pmList = null;
+const csmList = null;
+const salesList = null;
 const healthFilter = document.getElementById('healthFilter');
 const progressFilter = document.getElementById('progressFilter');
 const statusFilter = document.getElementById('statusFilter');
 
 function saveProjects() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
+}
+
+function setupAutocomplete(input, getOptions) {
+  const list = input.closest('.autocomplete-wrap').querySelector('.autocomplete-list');
+  let activeIndex = -1;
+
+  function showList(items) {
+    list.innerHTML = items.map(item => `<li>${item}</li>`).join('');
+    activeIndex = -1;
+    list.classList.toggle('hidden', items.length === 0);
+  }
+
+  function hideList() {
+    list.classList.add('hidden');
+    activeIndex = -1;
+  }
+
+  function setActive(index) {
+    const items = list.querySelectorAll('li');
+    items.forEach(li => li.classList.remove('active'));
+    if (index >= 0 && index < items.length) {
+      items[index].classList.add('active');
+      items[index].scrollIntoView({ block: 'nearest' });
+    }
+    activeIndex = index;
+  }
+
+  input.addEventListener('input', () => {
+    const term = input.value.trim().toLowerCase();
+    const matches = getOptions().filter(o => o.toLowerCase().includes(term));
+    showList(matches);
+  });
+
+  input.addEventListener('keydown', (e) => {
+    const items = list.querySelectorAll('li');
+    if (e.key === 'ArrowDown') { e.preventDefault(); setActive(Math.min(activeIndex + 1, items.length - 1)); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setActive(Math.max(activeIndex - 1, 0)); }
+    else if (e.key === 'Enter' && activeIndex >= 0) { e.preventDefault(); input.value = items[activeIndex].textContent; hideList(); }
+    else if (e.key === 'Escape') { hideList(); }
+  });
+
+  list.addEventListener('mousedown', (e) => {
+    const li = e.target.closest('li');
+    if (!li) return;
+    input.value = li.textContent;
+    hideList();
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!input.closest('.autocomplete-wrap').contains(e.target)) hideList();
+  });
 }
 
 function getJiraLabel(jira) {
@@ -199,10 +250,9 @@ function renderTable() {
           <th>NRR(h)</th>
           <th>Start</th>
           <th>Due</th>
-          <th>Status</th>
           <th>Health</th>
           <th>Progress</th>
-          <th>PM Update</th>
+          <th>Project Status</th>
           <th>Manager Notes</th>
           <th>Actions</th>
         </tr>
@@ -220,7 +270,6 @@ function renderTable() {
             <td>${project.nrr} hrs</td>
             <td>${project.startDate || '-'}</td>
             <td>${project.dueDate || '-'}</td>
-            <td><span class="status-badge ${statusClasses[project.status] || ''}">${project.status}</span></td>
             <td><span class="health-pill health-${(project.health || 'green').toLowerCase()}">${project.health || 'Green'}</span></td>
             <td>
               <div class="progress-bar"><div class="progress-fill ${progressFillTone}" style="width:${progressValue}%"></div></div>
@@ -253,9 +302,9 @@ function renderSelect() {
   const uniqueSales = [...new Set(projects.map((project) => project.sales).filter(Boolean))];
 
   pmFilter.innerHTML = ['<option value="All">All PMs</option>', ...uniqueManagers.map((manager) => `<option value="${manager}">${manager}</option>`)].join('');
-  pmList.innerHTML = uniqueManagers.map((manager) => `<option value="${manager}"></option>`).join('');
-  csmList.innerHTML = uniqueCsms.map((csm) => `<option value="${csm}"></option>`).join('');
-  salesList.innerHTML = uniqueSales.map((sales) => `<option value="${sales}"></option>`).join('');
+  setupAutocomplete(document.getElementById('modalProjectPm'), () => [...new Set(projects.map(p => p.manager).filter(Boolean))]);
+  setupAutocomplete(document.getElementById('modalProjectCsm'), () => [...new Set(projects.map(p => p.csm).filter(Boolean))]);
+  setupAutocomplete(document.getElementById('modalProjectSales'), () => [...new Set(projects.map(p => p.sales).filter(Boolean))]);
 
 }
 
@@ -332,7 +381,6 @@ editProjectForm.addEventListener('submit', (event) => {
   saveProjects();
   renderAll();
   closeEditProjectModal();
-  alert(`Status updated for ${selectedProject.name}`);
 });
 
 modalProjectForm.addEventListener('submit', (event) => {
@@ -364,7 +412,6 @@ modalProjectForm.addEventListener('submit', (event) => {
   saveProjects();
   renderAll();
   closeModal();
-  alert('Project created successfully.');
 });
 
 addProjectBtn.addEventListener('click', openModal);
