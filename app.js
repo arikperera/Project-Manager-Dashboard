@@ -118,6 +118,12 @@ const addUserBtn = document.getElementById('addUserBtn');
 const addUserForm = document.getElementById('addUserForm');
 const cancelAddUserBtn = document.getElementById('cancelAddUserBtn');
 const saveAddUserBtn = document.getElementById('saveAddUserBtn');
+const createBackupBtn = document.getElementById('createBackupBtn');
+const backupsPanelBtn = document.getElementById('backupsPanelBtn');
+const backupsModal = document.getElementById('backupsModal');
+const closeBackupsModalBtn = document.getElementById('closeBackupsModalBtn');
+const backupMain = document.getElementById('backupMain');
+const backupSidebar = document.getElementById('backupSidebar');
 const addProjectBtn = document.getElementById('addProjectBtn');
 const projectModal = document.getElementById('projectModal');
 const closeModalBtn = document.getElementById('closeModalBtn');
@@ -526,6 +532,141 @@ function renderUsersModal() {
     : '<p class="muted">No users added yet. Click Add user to get started.</p>';
 }
 
+let selectedBackupId = null;
+
+function renderBackupsPanel() {
+  if (!backups.length) {
+    backupSidebar.innerHTML = '<p class="muted" style="font-size:0.88rem;">No backups yet.</p>';
+    backupMain.innerHTML = '<p class="muted">No backups yet. Click Create backup to save your first snapshot.</p>';
+    return;
+  }
+
+  if (!selectedBackupId || !backups.find(b => b.id === selectedBackupId)) {
+    selectedBackupId = backups[0].id;
+  }
+
+  backupSidebar.innerHTML = backups.map(b => `
+    <div class="backup-entry${b.id === selectedBackupId ? ' selected' : ''}" data-backup-id="${escapeHtml(b.id)}">
+      ${escapeHtml(b.label)}
+    </div>
+  `).join('');
+
+  const backup = backups.find(b => b.id === selectedBackupId);
+  renderBackupMain(backup);
+}
+
+function renderBackupMain(backup) {
+  const grouped = backup.projects.reduce((acc, p) => {
+    const key = p.manager || 'Unassigned';
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(p);
+    return acc;
+  }, {});
+
+  const tableRows = Object.keys(grouped).sort((a, b) => a.localeCompare(b)).map(manager => `
+    <div class="pm-group" style="margin-bottom:10px;">
+      <div class="pm-group-header"><h4>${escapeHtml(manager)}</h4><span>${grouped[manager].length} project${grouped[manager].length === 1 ? '' : 's'}</span></div>
+      <div style="overflow-x:auto;">
+        <table class="pm-table">
+          <thead><tr>
+            <th>Customer</th><th>Project</th><th>Jira</th><th>NRR(h)</th>
+            <th>Start</th><th>End</th><th>Health</th><th>Progress</th>
+            <th>Project Status</th><th>Manager Notes</th>
+          </tr></thead>
+          <tbody>
+            ${grouped[manager].map(p => {
+              const pv = Math.max(0, Math.min(100, Math.round(Number(p.progress) || 0)));
+              return `<tr>
+                <td>${escapeHtml(p.customer || '-')}</td>
+                <td>${escapeHtml(p.name)}</td>
+                <td><a href="${escapeHtml(p.jira || '#')}" target="_blank" rel="noreferrer">${escapeHtml(getJiraLabel(p.jira))}</a></td>
+                <td>${escapeHtml(String(p.nrr || 0))} hrs</td>
+                <td>${escapeHtml(formatDate(p.startDate))}</td>
+                <td>${escapeHtml(formatDate(p.dueDate))}</td>
+                <td><span class="health-pill health-${escapeHtml((p.health || 'green').toLowerCase())}">${escapeHtml(p.health || 'Green')}</span></td>
+                <td>
+                  <div class="progress-bar"><div class="progress-fill" style="width:${pv}%;background:linear-gradient(90deg,#38bdf8,#a78bfa)"></div></div>
+                  <small>${pv}%</small>
+                </td>
+                <td><div class="cell-scroll">${p.statusText || '-'}</div></td>
+                <td><div class="cell-scroll">${escapeHtml((p.comments || '-').split(', ').join('\n'))}</div></td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `).join('');
+
+  const roleGroups = ['PM', 'CSM', 'Sales'].map(role => {
+    const members = backup.users.filter(u => u.role === role);
+    if (!members.length) return '';
+    return `<div style="margin-bottom:10px;">
+      <p class="eyebrow" style="margin-bottom:6px;">${escapeHtml(role)}</p>
+      ${members.map(u => `<div class="user-row"><span>${escapeHtml(getUserDisplayName(u))}</span></div>`).join('')}
+    </div>`;
+  }).join('');
+
+  backupMain.innerHTML = `
+    <div class="backup-action-bar">
+      <h4>${escapeHtml(backup.label)}</h4>
+      <button type="button" class="secondary-btn small-btn" id="restoreBackupBtn">Restore</button>
+      <button type="button" class="ghost-btn small-btn" id="deleteBackupBtn">Delete</button>
+    </div>
+    <div id="restoreConfirm" style="display:none;" class="backup-restore-confirm">
+      <label><input type="checkbox" id="restoreProjects" checked> Restore projects</label>
+      <label><input type="checkbox" id="restoreUsers" checked> Restore users</label>
+      <button type="button" class="primary-btn small-btn" id="confirmRestoreBtn">Confirm</button>
+      <button type="button" class="ghost-btn small-btn" id="cancelRestoreBtn">Cancel</button>
+    </div>
+    <div>${tableRows || '<p class="muted">No projects in this backup.</p>'}</div>
+    <div class="backup-users-section">
+      <h4>Users</h4>
+      ${roleGroups || '<p class="muted">No users in this backup.</p>'}
+    </div>
+  `;
+
+  document.getElementById('restoreBackupBtn').addEventListener('click', () => {
+    document.getElementById('restoreConfirm').style.display = 'flex';
+  });
+
+  document.getElementById('cancelRestoreBtn').addEventListener('click', () => {
+    document.getElementById('restoreConfirm').style.display = 'none';
+  });
+
+  document.getElementById('confirmRestoreBtn').addEventListener('click', () => {
+    if (document.getElementById('restoreProjects').checked) {
+      projects = JSON.parse(JSON.stringify(backup.projects));
+      saveProjects();
+    }
+    if (document.getElementById('restoreUsers').checked) {
+      users = JSON.parse(JSON.stringify(backup.users));
+      saveUsers();
+    }
+    renderAll();
+    closeBackupsModal();
+  });
+
+  document.getElementById('deleteBackupBtn').addEventListener('click', () => {
+    backups = backups.filter(b => b.id !== backup.id);
+    saveBackups();
+    selectedBackupId = backups.length ? backups[0].id : null;
+    renderBackupsPanel();
+  });
+}
+
+function openBackupsModal() {
+  selectedBackupId = backups.length ? backups[0].id : null;
+  renderBackupsPanel();
+  backupsModal.classList.remove('hidden');
+  backupsModal.setAttribute('aria-hidden', 'false');
+}
+
+function closeBackupsModal() {
+  backupsModal.classList.add('hidden');
+  backupsModal.setAttribute('aria-hidden', 'true');
+}
+
 function openUsersModal() {
   renderUsersModal();
   addUserForm.style.display = 'none';
@@ -772,6 +913,18 @@ usersModalBody.addEventListener('click', (e) => {
     renderAll();
     renderUsersModal();
   }
+});
+
+createBackupBtn.addEventListener('click', () => createBackup(createBackupBtn));
+backupsPanelBtn.addEventListener('click', openBackupsModal);
+closeBackupsModalBtn.addEventListener('click', closeBackupsModal);
+backupsModal.addEventListener('click', (e) => { if (e.target === backupsModal) closeBackupsModal(); });
+
+backupSidebar.addEventListener('click', (e) => {
+  const entry = e.target.closest('[data-backup-id]');
+  if (!entry) return;
+  selectedBackupId = entry.dataset.backupId;
+  renderBackupsPanel();
 });
 
 renderAll();
