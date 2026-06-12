@@ -22,6 +22,7 @@
           </div>
           <div class="topbar-actions">
             <button id="addProjectBtn" class="secondary-btn">Add new project</button>
+            <button id="manageUsersBtn" class="secondary-btn">Manage users</button>
             <button id="exportBtn" class="primary-btn">Export report</button>
           </div>
         </header>
@@ -110,6 +111,14 @@
             Project Name
             <input id="editProjectName" type="text" readonly />
           </label>
+          <label>
+            Health
+            <select id="editHealth">
+              <option value="Green">Green</option>
+              <option value="Yellow">Yellow</option>
+              <option value="Red">Red</option>
+            </select>
+          </label>
           <label>Project Status</label>
           <div class="editor-toolbar">
             <button type="button" class="ghost-btn small-btn" data-rich-command="bold">B</button>
@@ -178,7 +187,7 @@
             <input id="modalProjectStartDate" type="date" required />
           </label>
           <label>
-            Due Date
+            End Date
             <input id="modalProjectDueDate" type="date" required />
           </label>
           <label>
