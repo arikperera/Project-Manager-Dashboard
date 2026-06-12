@@ -823,6 +823,7 @@ modalProjectForm.addEventListener('submit', (event) => {
   projects.unshift({
     customer: document.getElementById('modalProjectCustomer').value.trim() || 'Unknown',
     name: document.getElementById('modalProjectName').value.trim(),
+    oppLink: document.getElementById('modalProjectOppLink').value.trim(),
     manager: pmName || 'Unassigned',
     jira: document.getElementById('modalProjectJira').value.trim(),
     nrr: Number(document.getElementById('modalProjectNrr').value),
