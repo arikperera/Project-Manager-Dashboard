@@ -119,6 +119,7 @@ const editCustomerName = document.getElementById('editCustomerName');
 const editProjectName = document.getElementById('editProjectName');
 const editStatusEditor = document.getElementById('editStatusEditor');
 const editHealth = document.getElementById('editHealth');
+const editProgress = document.getElementById('editProgress');
 const riskList = document.getElementById('riskList');
 const exportBtn = document.getElementById('exportBtn');
 const manageUsersBtn = document.getElementById('manageUsersBtn');
@@ -334,12 +335,13 @@ function formatDate(dateStr) {
 function normalizeProgress(value) {
   const numericValue = Number(value);
   if (!Number.isFinite(numericValue)) return null;
-  return Math.max(0, Math.min(100, Math.round(numericValue)));
+  return Math.max(0, Math.round(numericValue));
 }
 
 function getProgressTone(value) {
   const numericValue = normalizeProgress(value);
   if (numericValue === null) return 'progress-neutral';
+  if (numericValue > 100) return 'progress-overrun';
   if (numericValue < 50) return 'progress-green';
   if (numericValue <= 75) return 'progress-yellow';
   return 'progress-red';
@@ -348,6 +350,7 @@ function getProgressTone(value) {
 function getProgressFillTone(value) {
   const numericValue = normalizeProgress(value);
   if (numericValue === null) return 'progress-fill-neutral';
+  if (numericValue > 100) return 'progress-fill-overrun';
   if (numericValue < 50) return 'progress-fill-green';
   if (numericValue <= 75) return 'progress-fill-yellow';
   return 'progress-fill-red';
@@ -482,8 +485,8 @@ function renderTable() {
             <td>${formatDate(project.dueDate)}</td>
             <td><span class="health-pill health-${(project.health || 'green').toLowerCase()}">${project.health || 'Green'}</span></td>
             <td>
-              <div class="progress-bar"><div class="progress-fill ${progressFillTone}" style="width:${progressValue}%"></div></div>
-              <small class="progress-label ${progressTone}">${progressValue}%</small>
+              <div class="progress-bar"><div class="progress-fill ${progressFillTone}" style="width:${Math.min(progressValue, 100)}%"></div></div>
+              <small class="progress-label ${progressTone}">${progressValue}%${progressValue > 100 ? ' ⚠' : ''}</small>
             </td>
             <td><div class="cell-scroll">${project.statusText || '-'}</div></td>
             <td><div class="cell-scroll">${(project.comments || '-').split(', ').join('<br>')}</div></td>
@@ -533,6 +536,7 @@ function openEditProjectModal(projectIndex) {
 
   editCustomerName.value = project.customer || '';
   editProjectName.value = project.name;
+  editProgress.value = project.progress ?? '';
   editHealth.value = project.health || 'Green';
   editStatusEditor.innerHTML = project.statusText || '';
   editProjectForm.dataset.projectIndex = String(projectIndex);
@@ -545,6 +549,7 @@ function closeEditProjectModal() {
   editProjectModal.classList.add('hidden');
   editProjectModal.setAttribute('aria-hidden', 'true');
   editProjectForm.reset();
+  editProgress.value = '';
   editStatusEditor.innerHTML = '';
 }
 
@@ -804,6 +809,8 @@ editProjectForm.addEventListener('submit', (event) => {
   if (!selectedProject) return;
 
   selectedProject.health = editHealth.value;
+  const manualProgress = normalizeProgress(editProgress.value);
+  if (manualProgress !== null) selectedProject.progress = manualProgress;
   selectedProject.statusText = editStatusEditor.innerHTML.trim() || selectedProject.statusText;
 
   saveProjects();

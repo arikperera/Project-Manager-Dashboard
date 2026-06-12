@@ -122,6 +122,8 @@ th { color: #bfdbfe; font-weight:600; }
 .progress-yellow { color: #fde68a; }
 .progress-red { color: #fecaca; }
 .progress-neutral { color: #bfdbfe; }
+.progress-overrun { color: #f97316; }
+.progress-fill-overrun { background: linear-gradient(90deg, #f97316, #fb923c); }
 .status-form { display:grid; gap: 12px; }
 .status-form label { display:grid; gap: 6px; color:#dbeafe; font-size:0.95rem; }
 .status-form input, .status-form select, .status-form textarea { width:100%; border:1px solid var(--line); background:#0b1220; color:var(--text); border-radius:12px; padding:10px 12px; }
