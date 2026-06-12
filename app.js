@@ -474,8 +474,8 @@ function renderTable() {
           const progressFillTone = getProgressFillTone(progressValue);
           return `
           <tr>
-            <td>${project.customer || '-'}</td>
-            <td>${project.name}</td>
+            <td>${(() => { const cust = customers.find(c => c.name === project.customer); return cust && cust.sfLink ? `<a href="${escapeHtml(cust.sfLink)}" target="_blank" rel="noreferrer">${escapeHtml(project.customer || '-')}</a>` : escapeHtml(project.customer || '-'); })()}</td>
+            <td>${project.oppLink ? `<a href="${escapeHtml(project.oppLink)}" target="_blank" rel="noreferrer">${escapeHtml(project.name)}</a>` : escapeHtml(project.name)}</td>
             <td><a href="${project.jira || '#'}" target="_blank" rel="noreferrer">${getJiraLabel(project.jira)}</a></td>
             <td>${project.nrr} hrs</td>
             <td>${formatDate(project.startDate)}</td>
