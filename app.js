@@ -7,6 +7,13 @@ function saveUsers() {
   localStorage.setItem(USERS_KEY, JSON.stringify(users));
 }
 
+const SETTINGS_KEY = 'project-dashboard-settings-v1';
+let settings = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
+
+function saveSettings() {
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+}
+
 const CUSTOMERS_KEY = 'project-dashboard-customers-v1';
 let customers = JSON.parse(localStorage.getItem(CUSTOMERS_KEY) || '[]');
 
@@ -134,6 +141,11 @@ const addCustomerModal = document.getElementById('addCustomerModal');
 const closeAddCustomerModalBtn = document.getElementById('closeAddCustomerModalBtn');
 const cancelAddCustomerBtn = document.getElementById('cancelAddCustomerBtn');
 const saveAddCustomerBtn = document.getElementById('saveAddCustomerBtn');
+const settingsBtn = document.getElementById('settingsBtn');
+const settingsModal = document.getElementById('settingsModal');
+const closeSettingsBtn = document.getElementById('closeSettingsBtn');
+const cancelSettingsBtn = document.getElementById('cancelSettingsBtn');
+const saveSettingsBtn = document.getElementById('saveSettingsBtn');
 const manageCustomersBtn = document.getElementById('manageCustomersBtn');
 const customersModal = document.getElementById('customersModal');
 const closeCustomersModalBtn = document.getElementById('closeCustomersModalBtn');
@@ -365,9 +377,15 @@ async function syncProjectProgressFromJira() {
 
   for (const key of [...new Set(issueKeys)]) {
     try {
+      const fetchOpts = { headers: { Accept: 'application/json' } };
+      if (settings.jiraEmail && settings.jiraToken) {
+        fetchOpts.headers['Authorization'] = 'Basic ' + btoa(`${settings.jiraEmail}:${settings.jiraToken}`);
+      } else {
+        fetchOpts.credentials = 'include';
+      }
       const response = await fetch(
         `https://kaltura.atlassian.net/rest/api/3/issue/${key}?fields=*all&expand=names`,
-        { credentials: 'include', headers: { Accept: 'application/json' } }
+        fetchOpts
       );
 
       if (!response.ok) continue;
@@ -886,6 +904,27 @@ saveAddCustomerBtn.addEventListener('click', () => {
     projectModal.classList.remove('hidden');
     projectModal.setAttribute('aria-hidden', 'false');
   }
+});
+
+settingsBtn.addEventListener('click', () => {
+  document.getElementById('settingsJiraEmail').value = settings.jiraEmail || '';
+  document.getElementById('settingsJiraToken').value = settings.jiraToken || '';
+  settingsModal.classList.remove('hidden');
+  settingsModal.setAttribute('aria-hidden', 'false');
+});
+function closeSettingsModal() {
+  settingsModal.classList.add('hidden');
+  settingsModal.setAttribute('aria-hidden', 'true');
+}
+closeSettingsBtn.addEventListener('click', closeSettingsModal);
+cancelSettingsBtn.addEventListener('click', closeSettingsModal);
+settingsModal.addEventListener('click', (e) => { if (e.target === settingsModal) closeSettingsModal(); });
+saveSettingsBtn.addEventListener('click', () => {
+  settings.jiraEmail = document.getElementById('settingsJiraEmail').value.trim();
+  settings.jiraToken = document.getElementById('settingsJiraToken').value.trim();
+  saveSettings();
+  closeSettingsModal();
+  syncProjectProgressFromJira();
 });
 
 manageCustomersBtn.addEventListener('click', openCustomersModal);
