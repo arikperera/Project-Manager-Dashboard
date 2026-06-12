@@ -1,5 +1,29 @@
 const STORAGE_KEY = 'project-dashboard-projects-v1';
 
+const USERS_KEY = 'project-dashboard-users-v1';
+let users = JSON.parse(localStorage.getItem(USERS_KEY) || '[]');
+
+function saveUsers() {
+  localStorage.setItem(USERS_KEY, JSON.stringify(users));
+}
+
+function getUserDisplayName(user) {
+  return `${user.firstName} ${user.lastName}`.trim();
+}
+
+function getUsersByRole(role) {
+  return users.filter(u => u.role === role).map(getUserDisplayName);
+}
+
+function propagateUserRename(oldName, newName) {
+  if (oldName === newName) return;
+  projects.forEach(project => {
+    if (project.manager === oldName) project.manager = newName;
+    if (project.csm === oldName) project.csm = newName;
+    if (project.sales === oldName) project.sales = newName;
+  });
+}
+
 const defaultProjects = [
   { customer: 'Client Customer', name: 'Client Portal', manager: 'Ava', jira: 'https://jira.example.com/CP', nrr: 120, startDate: '2026-05-05', dueDate: '2026-06-30', status: 'On Track', statusText: 'Backend APIs are stable and user testing is in progress.', health: 'Green', progress: 78, comments: 'NRR: 120h, MRR: 8k, CSM: John, Sales: Sara' },
   { customer: 'Mobile Customer', name: 'Mobile Launch', manager: 'Noah', jira: 'https://jira.example.com/ML', nrr: 85, startDate: '2026-04-20', dueDate: '2026-06-18', status: 'At Risk', statusText: 'Vendor dependency delayed design approvals.', health: 'Yellow', progress: 54, comments: 'NRR: 85h, MRR: 6k, CSM: Maya, Sales: Leo' },
@@ -25,6 +49,7 @@ const editProjectForm = document.getElementById('editProjectForm');
 const editCustomerName = document.getElementById('editCustomerName');
 const editProjectName = document.getElementById('editProjectName');
 const editStatusEditor = document.getElementById('editStatusEditor');
+const editHealth = document.getElementById('editHealth');
 const riskList = document.getElementById('riskList');
 const exportBtn = document.getElementById('exportBtn');
 const addProjectBtn = document.getElementById('addProjectBtn');
@@ -71,9 +96,17 @@ function setupAutocomplete(input, getOptions) {
     activeIndex = index;
   }
 
+  input.addEventListener('focus', () => {
+    const term = input.value.trim().toLowerCase();
+    const opts = getOptions();
+    const matches = term ? opts.filter(o => o.toLowerCase().includes(term)) : opts;
+    showList(matches);
+  });
+
   input.addEventListener('input', () => {
     const term = input.value.trim().toLowerCase();
-    const matches = getOptions().filter(o => o.toLowerCase().includes(term));
+    const opts = getOptions();
+    const matches = term ? opts.filter(o => o.toLowerCase().includes(term)) : opts;
     showList(matches);
   });
 
@@ -97,6 +130,12 @@ function setupAutocomplete(input, getOptions) {
   });
 }
 
+function initAutocompletes() {
+  setupAutocomplete(document.getElementById('modalProjectPm'), () => [...new Set(projects.map(p => p.manager).filter(Boolean))]);
+  setupAutocomplete(document.getElementById('modalProjectCsm'), () => [...new Set(projects.map(p => p.csm).filter(Boolean))]);
+  setupAutocomplete(document.getElementById('modalProjectSales'), () => [...new Set(projects.map(p => p.sales).filter(Boolean))]);
+}
+
 function getJiraLabel(jira) {
   if (!jira) return '-';
 
@@ -117,6 +156,13 @@ function getJiraIssueKey(jira) {
 
   const pathMatch = jira.match(/\/([A-Z]+-[0-9]+)(?:\/|$)/);
   return pathMatch ? pathMatch[1] : '';
+}
+
+function formatDate(dateStr) {
+  if (!dateStr) return '-';
+  const [y, m, d] = dateStr.split('-');
+  if (!y || !m || !d) return dateStr;
+  return `${d}/${m}/${y.slice(2)}`;
 }
 
 function normalizeProgress(value) {
@@ -148,38 +194,39 @@ async function syncProjectProgressFromJira() {
 
   if (!issueKeys.length) return;
 
-  let progressFieldId = '';
-
-  try {
-    const fieldsResponse = await fetch('https://kaltura.atlassian.net/rest/api/3/field', {
-      credentials: 'include',
-      headers: { Accept: 'application/json' },
-    });
-
-    if (fieldsResponse.ok) {
-      const fields = await fieldsResponse.json();
-      const matchedField = fields.find((field) => field.name === 'Project Progress Percentage');
-      if (matchedField) progressFieldId = matchedField.id;
-    }
-  } catch (error) {
-    console.warn('Jira field lookup failed', error);
-  }
-
-  const fieldsParam = progressFieldId ? `progress,${progressFieldId}` : 'progress';
-
   for (const key of [...new Set(issueKeys)]) {
     try {
-      const response = await fetch(`https://kaltura.atlassian.net/rest/api/3/issue/${key}?fields=${fieldsParam}`, {
-        credentials: 'include',
-        headers: { Accept: 'application/json' },
-      });
+      const response = await fetch(
+        `https://kaltura.atlassian.net/rest/api/3/issue/${key}?fields=*all&expand=names`,
+        { credentials: 'include', headers: { Accept: 'application/json' } }
+      );
 
       if (!response.ok) continue;
 
       const data = await response.json();
-      const customPercent = progressFieldId ? data?.fields?.[progressFieldId] : null;
-      const fallbackPercent = data?.fields?.progress?.percent ?? data?.fields?.progress;
-      const percent = normalizeProgress(customPercent ?? fallbackPercent);
+
+      // Resolve custom field ID from the names map returned in the same response
+      let percent = null;
+      if (data.names) {
+        const fieldEntry = Object.entries(data.names).find(([, name]) => name === 'Project Progress Percentage');
+        console.log(`[Jira sync] ${key} — field entry:`, fieldEntry);
+        if (fieldEntry) {
+          const [fieldId] = fieldEntry;
+          const rawValue = data.fields?.[fieldId];
+          console.log(`[Jira sync] ${key} — raw field value:`, rawValue);
+          // Handle plain number, object with .value, or object with .percent
+          const extracted = (rawValue !== null && typeof rawValue === 'object')
+            ? (rawValue.value ?? rawValue.percent ?? null)
+            : rawValue;
+          percent = normalizeProgress(extracted);
+        }
+      }
+      console.log(`[Jira sync] ${key} — resolved percent:`, percent);
+
+      // Fall back to built-in Jira progress (subtask-based)
+      if (percent === null) {
+        percent = normalizeProgress(data?.fields?.progress?.percent ?? data?.fields?.progress);
+      }
 
       if (percent !== null) {
         projects.forEach((project) => {
@@ -249,7 +296,7 @@ function renderTable() {
           <th>Jira</th>
           <th>NRR(h)</th>
           <th>Start</th>
-          <th>Due</th>
+          <th>End</th>
           <th>Health</th>
           <th>Progress</th>
           <th>Project Status</th>
@@ -268,8 +315,8 @@ function renderTable() {
             <td>${project.name}</td>
             <td><a href="${project.jira || '#'}" target="_blank" rel="noreferrer">${getJiraLabel(project.jira)}</a></td>
             <td>${project.nrr} hrs</td>
-            <td>${project.startDate || '-'}</td>
-            <td>${project.dueDate || '-'}</td>
+            <td>${formatDate(project.startDate)}</td>
+            <td>${formatDate(project.dueDate)}</td>
             <td><span class="health-pill health-${(project.health || 'green').toLowerCase()}">${project.health || 'Green'}</span></td>
             <td>
               <div class="progress-bar"><div class="progress-fill ${progressFillTone}" style="width:${progressValue}%"></div></div>
@@ -293,18 +340,17 @@ function renderTable() {
 }
 
 function renderSelect() {
-  projectSelect.innerHTML = projects
-    .map((project, index) => `<option value="${index}">${project.name}</option>`)
-    .join('');
+  if (projectSelect) {
+    projectSelect.innerHTML = projects
+      .map((project, index) => `<option value="${index}">${project.name}</option>`)
+      .join('');
+  }
 
   const uniqueManagers = [...new Set(projects.map((project) => project.manager).filter(Boolean))];
   const uniqueCsms = [...new Set(projects.map((project) => project.csm).filter(Boolean))];
   const uniqueSales = [...new Set(projects.map((project) => project.sales).filter(Boolean))];
 
   pmFilter.innerHTML = ['<option value="All">All PMs</option>', ...uniqueManagers.map((manager) => `<option value="${manager}">${manager}</option>`)].join('');
-  setupAutocomplete(document.getElementById('modalProjectPm'), () => [...new Set(projects.map(p => p.manager).filter(Boolean))]);
-  setupAutocomplete(document.getElementById('modalProjectCsm'), () => [...new Set(projects.map(p => p.csm).filter(Boolean))]);
-  setupAutocomplete(document.getElementById('modalProjectSales'), () => [...new Set(projects.map(p => p.sales).filter(Boolean))]);
 
 }
 
@@ -326,6 +372,7 @@ function openEditProjectModal(projectIndex) {
 
   editCustomerName.value = project.customer || '';
   editProjectName.value = project.name;
+  editHealth.value = project.health || 'Green';
   editStatusEditor.innerHTML = project.statusText || '';
   editProjectForm.dataset.projectIndex = String(projectIndex);
 
@@ -341,6 +388,7 @@ function closeEditProjectModal() {
 }
 
 function renderRiskList() {
+  if (!riskList) return;
   const atRiskProjects = projects.filter((project) => project.status === 'At Risk' || project.status === 'Delayed');
   riskList.innerHTML = atRiskProjects.length
     ? atRiskProjects
@@ -376,6 +424,7 @@ editProjectForm.addEventListener('submit', (event) => {
   const selectedProject = projects[selectedIndex];
   if (!selectedProject) return;
 
+  selectedProject.health = editHealth.value;
   selectedProject.statusText = editStatusEditor.innerHTML.trim() || selectedProject.statusText;
 
   saveProjects();
@@ -454,7 +503,7 @@ exportBtn.addEventListener('click', () => {
     'Project Dashboard Report',
     'Generated on: ' + new Date().toLocaleDateString(),
     '',
-    'Customer name,Project,PM,Jira,NRR,Start Date,Due Date,Status,Health,Progress,PM Update,Manager Notes',
+    'Customer name,Project,PM,Jira,NRR,Start Date,End Date,Status,Health,Progress,Project Status,Manager Notes',
     ...projects.map((project) =>
       [project.customer || '', project.name, project.manager || '', getJiraLabel(project.jira), project.nrr || 0, project.startDate || '', project.dueDate || '', project.status, project.health || 'Green', `${project.progress}%`, project.statusText || '', project.comments || ''].join(',')
     ),
@@ -470,4 +519,5 @@ exportBtn.addEventListener('click', () => {
 });
 
 renderAll();
+initAutocompletes();
 syncProjectProgressFromJira();
