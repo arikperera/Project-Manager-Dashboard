@@ -913,6 +913,9 @@ settingsBtn.addEventListener('click', () => {
   settingsModal.setAttribute('aria-hidden', 'false');
 });
 function closeSettingsModal() {
+  if (document.activeElement && settingsModal.contains(document.activeElement)) {
+    document.activeElement.blur();
+  }
   settingsModal.classList.add('hidden');
   settingsModal.setAttribute('aria-hidden', 'true');
 }
