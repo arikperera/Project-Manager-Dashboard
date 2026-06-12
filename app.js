@@ -7,6 +7,56 @@ function saveUsers() {
   localStorage.setItem(USERS_KEY, JSON.stringify(users));
 }
 
+const BACKUPS_KEY = 'project-dashboard-backups-v1';
+let backups = JSON.parse(localStorage.getItem(BACKUPS_KEY) || '[]');
+
+function saveBackups() {
+  localStorage.setItem(BACKUPS_KEY, JSON.stringify(backups));
+}
+
+function formatBackupLabel(ts) {
+  const d = new Date(ts);
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const yy = String(d.getFullYear()).slice(2);
+  const hh = String(d.getHours()).padStart(2, '0');
+  const min = String(d.getMinutes()).padStart(2, '0');
+  return `Backup ${dd}/${mm}/${yy} ${hh}:${min}`;
+}
+
+function createBackup(btn) {
+  const ts = Date.now();
+  const backup = {
+    id: `bk_${ts}`,
+    label: formatBackupLabel(ts),
+    timestamp: ts,
+    projects: JSON.parse(JSON.stringify(projects)),
+    users: JSON.parse(JSON.stringify(users)),
+  };
+  backups.unshift(backup);
+  saveBackups();
+
+  const dd = String(new Date(ts).getDate()).padStart(2, '0');
+  const mm = String(new Date(ts).getMonth() + 1).padStart(2, '0');
+  const yy = String(new Date(ts).getFullYear()).slice(2);
+  const hh = String(new Date(ts).getHours()).padStart(2, '0');
+  const min = String(new Date(ts).getMinutes()).padStart(2, '0');
+  const filename = `dashboard-backup-${dd}-${mm}-${yy}-${hh}-${min}.json`;
+  const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+
+  if (btn) {
+    const original = btn.textContent;
+    btn.textContent = '✓ Saved';
+    setTimeout(() => { btn.textContent = original; }, 2000);
+  }
+}
+
 function getUserDisplayName(user) {
   return `${user.firstName} ${user.lastName}`.trim();
 }
