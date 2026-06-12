@@ -87,12 +87,19 @@ function saveProjects() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
 }
 
-function setupAutocomplete(input, getOptions) {
+let addUserReturnContext = null;
+
+function setupAutocomplete(input, getOptions, role) {
   const list = input.closest('.autocomplete-wrap').querySelector('.autocomplete-list');
   let activeIndex = -1;
 
-  function showList(items) {
-    list.innerHTML = items.map(item => `<li>${item}</li>`).join('');
+  function buildList(matches, typedTerm) {
+    const items = matches.map(item => `<li>${escapeHtml(item)}</li>`);
+    const exactMatch = matches.some(m => m.toLowerCase() === typedTerm.toLowerCase());
+    if (role && typedTerm && !exactMatch) {
+      items.push(`<li class="autocomplete-add" data-add-name="${escapeHtml(typedTerm)}" data-add-role="${escapeHtml(role)}">➕ Add "${escapeHtml(typedTerm)}" as new ${escapeHtml(role)}</li>`);
+    }
+    list.innerHTML = items.join('');
     activeIndex = -1;
     list.classList.toggle('hidden', items.length === 0);
   }
@@ -113,31 +120,44 @@ function setupAutocomplete(input, getOptions) {
   }
 
   input.addEventListener('focus', () => {
-    const term = input.value.trim().toLowerCase();
+    const term = input.value.trim();
     const opts = getOptions();
-    const matches = term ? opts.filter(o => o.toLowerCase().includes(term)) : opts;
-    showList(matches);
+    const matches = term ? opts.filter(o => o.toLowerCase().includes(term.toLowerCase())) : opts;
+    buildList(matches, term);
   });
 
   input.addEventListener('input', () => {
-    const term = input.value.trim().toLowerCase();
+    const term = input.value.trim();
     const opts = getOptions();
-    const matches = term ? opts.filter(o => o.toLowerCase().includes(term)) : opts;
-    showList(matches);
+    const matches = term ? opts.filter(o => o.toLowerCase().includes(term.toLowerCase())) : opts;
+    buildList(matches, term);
   });
 
   input.addEventListener('keydown', (e) => {
     const items = list.querySelectorAll('li');
     if (e.key === 'ArrowDown') { e.preventDefault(); setActive(Math.min(activeIndex + 1, items.length - 1)); }
     else if (e.key === 'ArrowUp') { e.preventDefault(); setActive(Math.max(activeIndex - 1, 0)); }
-    else if (e.key === 'Enter' && activeIndex >= 0) { e.preventDefault(); input.value = items[activeIndex].textContent; hideList(); }
+    else if (e.key === 'Enter' && activeIndex >= 0) {
+      e.preventDefault();
+      const active = items[activeIndex];
+      if (active.classList.contains('autocomplete-add')) {
+        triggerAddUserFromAutocomplete(active.dataset.addName, active.dataset.addRole, input);
+      } else {
+        input.value = active.textContent;
+      }
+      hideList();
+    }
     else if (e.key === 'Escape') { hideList(); }
   });
 
   list.addEventListener('mousedown', (e) => {
     const li = e.target.closest('li');
     if (!li) return;
-    input.value = li.textContent;
+    if (li.classList.contains('autocomplete-add')) {
+      triggerAddUserFromAutocomplete(li.dataset.addName, li.dataset.addRole, input);
+    } else {
+      input.value = li.textContent;
+    }
     hideList();
   });
 
@@ -146,10 +166,29 @@ function setupAutocomplete(input, getOptions) {
   });
 }
 
+function triggerAddUserFromAutocomplete(name, role, returnInput) {
+  const parts = name.trim().split(/\s+/);
+  const firstName = parts[0] || '';
+  const lastName = parts.slice(1).join(' ') || '';
+
+  document.getElementById('newUserFirstName').value = firstName;
+  document.getElementById('newUserLastName').value = lastName;
+  document.getElementById('newUserRole').value = role;
+  addUserForm.style.display = 'grid';
+  addUserBtn.style.display = 'none';
+
+  addUserReturnContext = { inputEl: returnInput, fullName: name };
+
+  projectModal.classList.add('hidden');
+  projectModal.setAttribute('aria-hidden', 'true');
+  usersModal.classList.remove('hidden');
+  usersModal.setAttribute('aria-hidden', 'false');
+}
+
 function initAutocompletes() {
-  setupAutocomplete(document.getElementById('modalProjectPm'), () => getUsersByRole('PM'));
-  setupAutocomplete(document.getElementById('modalProjectCsm'), () => getUsersByRole('CSM'));
-  setupAutocomplete(document.getElementById('modalProjectSales'), () => getUsersByRole('Sales'));
+  setupAutocomplete(document.getElementById('modalProjectPm'), () => getUsersByRole('PM'), 'PM');
+  setupAutocomplete(document.getElementById('modalProjectCsm'), () => getUsersByRole('CSM'), 'CSM');
+  setupAutocomplete(document.getElementById('modalProjectSales'), () => getUsersByRole('Sales'), 'Sales');
 }
 
 function getJiraLabel(jira) {
@@ -609,6 +648,15 @@ saveAddUserBtn.addEventListener('click', () => {
   document.getElementById('newUserLastName').value = '';
   document.getElementById('newUserRole').value = 'PM';
   renderUsersModal();
+
+  if (addUserReturnContext) {
+    const { inputEl } = addUserReturnContext;
+    inputEl.value = `${firstName} ${lastName}`.trim();
+    addUserReturnContext = null;
+    closeUsersModal();
+    projectModal.classList.remove('hidden');
+    projectModal.setAttribute('aria-hidden', 'false');
+  }
 });
 
 usersModalBody.addEventListener('click', (e) => {

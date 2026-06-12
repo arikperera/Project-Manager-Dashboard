@@ -130,6 +130,7 @@ th { color: #bfdbfe; font-weight:600; }
 .autocomplete-list.hidden { display: none; }
 .autocomplete-list li { padding: 8px 14px; cursor: pointer; font-size: 0.95rem; color: var(--text); }
 .autocomplete-list li:hover, .autocomplete-list li.active { background: rgba(56,189,248,0.12); color: #7dd3fc; }
+.autocomplete-list li.autocomplete-add { color: #a78bfa; border-top: 1px solid var(--line); margin-top: 2px; padding-top: 8px; }
 .rich-editor { min-height: 120px; border: 1px solid var(--line); border-radius: 12px; background: #0b1220; color: var(--text); padding: 10px 12px; line-height: 1.5; }
 .rich-editor:focus { outline: 2px solid rgba(56, 189, 248, 0.35); border-color: rgba(56, 189, 248, 0.45); }
 .editor-toolbar { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:6px; }
