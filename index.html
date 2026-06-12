@@ -208,6 +208,41 @@
 
 
 
+    <div id="usersModal" class="modal hidden" aria-hidden="true">
+      <div class="modal-card">
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Team</p>
+            <h3>Manage users</h3>
+          </div>
+          <button id="closeUsersModalBtn" class="ghost-btn" type="button" aria-label="Close">×</button>
+        </div>
+        <div id="usersModalBody">
+          <!-- rendered by renderUsersModal() -->
+        </div>
+        <div style="margin-top:12px;">
+          <button id="addUserBtn" class="secondary-btn small-btn" type="button">+ Add user</button>
+        </div>
+        <div id="addUserForm" class="status-form" style="display:none; margin-top:12px;">
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+            <label>First name<input id="newUserFirstName" type="text" required placeholder="e.g. Janina" /></label>
+            <label>Last name<input id="newUserLastName" type="text" required placeholder="e.g. Pomme" /></label>
+          </div>
+          <label>Role
+            <select id="newUserRole">
+              <option value="PM">PM</option>
+              <option value="CSM">CSM</option>
+              <option value="Sales">Sales</option>
+            </select>
+          </label>
+          <div class="modal-actions">
+            <button type="button" id="cancelAddUserBtn" class="ghost-btn">Cancel</button>
+            <button type="button" id="saveAddUserBtn" class="primary-btn">Save</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <script src="app.js"></script>
   </body>
 </html>
