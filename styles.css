@@ -94,10 +94,10 @@ h1 { font-size: 1.9rem; margin-bottom: 8px; }
 .pm-table th { color:#bfdbfe; font-weight:600; }
 .pm-table th:nth-child(1), .pm-table td:nth-child(1) { width: 12%; }
 .pm-table th:nth-child(2), .pm-table td:nth-child(2) { width: 14%; }
-.pm-table th:nth-child(3), .pm-table td:nth-child(3) { width: 10%; }
-.pm-table th:nth-child(4), .pm-table td:nth-child(4) { width: 7%; }
-.pm-table th:nth-child(5), .pm-table td:nth-child(5) { width: 8%; }
-.pm-table th:nth-child(6), .pm-table td:nth-child(6) { width: 8%; }
+.pm-table th:nth-child(3), .pm-table td:nth-child(3) { width: 14%; }
+.pm-table th:nth-child(4), .pm-table td:nth-child(4) { width: 5%; }
+.pm-table th:nth-child(5), .pm-table td:nth-child(5) { width: 6%; }
+.pm-table th:nth-child(6), .pm-table td:nth-child(6) { width: 6%; }
 .pm-table th:nth-child(7), .pm-table td:nth-child(7) { width: 8%; }
 .pm-table th:nth-child(8), .pm-table td:nth-child(8) { width: 11%; }
 .pm-table th:nth-child(9), .pm-table td:nth-child(9) { width: 37%; }
