@@ -602,6 +602,71 @@ saveAddUserBtn.addEventListener('click', () => {
   renderUsersModal();
 });
 
+usersModalBody.addEventListener('click', (e) => {
+  const editBtn = e.target.closest('[data-edit-user]');
+  const deleteBtn = e.target.closest('[data-delete-user]');
+
+  if (deleteBtn) {
+    const userId = deleteBtn.dataset.deleteUser;
+    users = users.filter(u => u.id !== userId);
+    saveUsers();
+    renderUsersModal();
+    return;
+  }
+
+  if (editBtn) {
+    const userId = editBtn.dataset.editUser;
+    const user = users.find(u => u.id === userId);
+    if (!user) return;
+
+    const row = editBtn.closest('.user-row');
+    row.outerHTML = `
+      <div class="user-row-edit" data-editing-id="${userId}">
+        <label style="grid-column:1">First name<input type="text" class="edit-first" value="${user.firstName}" /></label>
+        <label style="grid-column:2">Last name<input type="text" class="edit-last" value="${user.lastName}" /></label>
+        <label style="grid-column:1">Role
+          <select class="edit-role">
+            <option value="PM"${user.role === 'PM' ? ' selected' : ''}>PM</option>
+            <option value="CSM"${user.role === 'CSM' ? ' selected' : ''}>CSM</option>
+            <option value="Sales"${user.role === 'Sales' ? ' selected' : ''}>Sales</option>
+          </select>
+        </label>
+        <div class="modal-actions" style="grid-column:2; align-self:end;">
+          <button type="button" class="ghost-btn small-btn cancel-edit-user">Cancel</button>
+          <button type="button" class="primary-btn small-btn save-edit-user">Save</button>
+        </div>
+      </div>`;
+    return;
+  }
+
+  const saveEditBtn = e.target.closest('.save-edit-user');
+  const cancelEditBtn = e.target.closest('.cancel-edit-user');
+
+  if (cancelEditBtn) {
+    renderUsersModal();
+    return;
+  }
+
+  if (saveEditBtn) {
+    const editingRow = saveEditBtn.closest('[data-editing-id]');
+    const userId = editingRow.dataset.editingId;
+    const user = users.find(u => u.id === userId);
+    if (!user) return;
+
+    const oldName = getUserDisplayName(user);
+    user.firstName = editingRow.querySelector('.edit-first').value.trim() || user.firstName;
+    user.lastName = editingRow.querySelector('.edit-last').value.trim() || user.lastName;
+    user.role = editingRow.querySelector('.edit-role').value;
+    const newName = getUserDisplayName(user);
+
+    propagateUserRename(oldName, newName);
+    saveUsers();
+    saveProjects();
+    renderAll();
+    renderUsersModal();
+  }
+});
+
 renderAll();
 initAutocompletes();
 syncProjectProgressFromJira();
