@@ -139,9 +139,9 @@ function setupAutocomplete(input, getOptions) {
 }
 
 function initAutocompletes() {
-  setupAutocomplete(document.getElementById('modalProjectPm'), () => [...new Set(projects.map(p => p.manager).filter(Boolean))]);
-  setupAutocomplete(document.getElementById('modalProjectCsm'), () => [...new Set(projects.map(p => p.csm).filter(Boolean))]);
-  setupAutocomplete(document.getElementById('modalProjectSales'), () => [...new Set(projects.map(p => p.sales).filter(Boolean))]);
+  setupAutocomplete(document.getElementById('modalProjectPm'), () => getUsersByRole('PM'));
+  setupAutocomplete(document.getElementById('modalProjectCsm'), () => getUsersByRole('CSM'));
+  setupAutocomplete(document.getElementById('modalProjectSales'), () => getUsersByRole('Sales'));
 }
 
 function getJiraLabel(jira) {
