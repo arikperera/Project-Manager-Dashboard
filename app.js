@@ -375,18 +375,17 @@ async function syncProjectProgressFromJira() {
 
   if (!issueKeys.length) return;
 
+  const useProxy = settings.jiraEmail && settings.jiraToken;
+
   for (const key of [...new Set(issueKeys)]) {
     try {
-      const fetchOpts = { headers: { Accept: 'application/json' } };
-      if (settings.jiraEmail && settings.jiraToken) {
-        fetchOpts.headers['Authorization'] = 'Basic ' + btoa(`${settings.jiraEmail}:${settings.jiraToken}`);
-      } else {
-        fetchOpts.credentials = 'include';
-      }
-      const response = await fetch(
-        `https://kaltura.atlassian.net/rest/api/3/issue/${key}?fields=*all&expand=names`,
-        fetchOpts
-      );
+      const url = useProxy
+        ? `http://localhost:8081/jira/issue/${key}?fields=*all&expand=names`
+        : `https://kaltura.atlassian.net/rest/api/3/issue/${key}?fields=*all&expand=names`;
+      const fetchOpts = useProxy
+        ? { headers: { Accept: 'application/json' } }
+        : { credentials: 'include', headers: { Accept: 'application/json' } };
+      const response = await fetch(url, fetchOpts);
 
       if (!response.ok) continue;
 
@@ -922,10 +921,19 @@ function closeSettingsModal() {
 closeSettingsBtn.addEventListener('click', closeSettingsModal);
 cancelSettingsBtn.addEventListener('click', closeSettingsModal);
 settingsModal.addEventListener('click', (e) => { if (e.target === settingsModal) closeSettingsModal(); });
-saveSettingsBtn.addEventListener('click', () => {
+saveSettingsBtn.addEventListener('click', async () => {
   settings.jiraEmail = document.getElementById('settingsJiraEmail').value.trim();
   settings.jiraToken = document.getElementById('settingsJiraToken').value.trim();
   saveSettings();
+  try {
+    await fetch('http://localhost:8081/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jiraEmail: settings.jiraEmail, jiraToken: settings.jiraToken }),
+    });
+  } catch (e) {
+    console.warn('Proxy not running — start proxy.ps1 for Jira sync to work.', e);
+  }
   closeSettingsModal();
   syncProjectProgressFromJira();
 });
