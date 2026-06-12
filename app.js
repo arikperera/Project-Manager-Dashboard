@@ -841,6 +841,7 @@ modalProjectForm.addEventListener('submit', (event) => {
   saveProjects();
   renderAll();
   closeModal();
+  syncProjectProgressFromJira();
 });
 
 closeAddCustomerModalBtn.addEventListener('click', () => {
