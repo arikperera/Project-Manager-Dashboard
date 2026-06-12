@@ -133,6 +133,14 @@ const addCustomerModal = document.getElementById('addCustomerModal');
 const closeAddCustomerModalBtn = document.getElementById('closeAddCustomerModalBtn');
 const cancelAddCustomerBtn = document.getElementById('cancelAddCustomerBtn');
 const saveAddCustomerBtn = document.getElementById('saveAddCustomerBtn');
+const manageCustomersBtn = document.getElementById('manageCustomersBtn');
+const customersModal = document.getElementById('customersModal');
+const closeCustomersModalBtn = document.getElementById('closeCustomersModalBtn');
+const customersModalBody = document.getElementById('customersModalBody');
+const addCustomerListBtn = document.getElementById('addCustomerListBtn');
+const addCustomerListForm = document.getElementById('addCustomerListForm');
+const cancelCustomerListBtn = document.getElementById('cancelCustomerListBtn');
+const saveCustomerListBtn = document.getElementById('saveCustomerListBtn');
 const createBackupBtn = document.getElementById('createBackupBtn');
 const backupsPanelBtn = document.getElementById('backupsPanelBtn');
 const backupsModal = document.getElementById('backupsModal');
@@ -734,6 +742,42 @@ function closeUsersModal() {
   document.getElementById('newUserRole').value = 'PM';
 }
 
+function renderCustomersModal() {
+  if (!customers.length) {
+    customersModalBody.innerHTML = '<p class="muted">No customers added yet. Click Add customer to get started.</p>';
+    return;
+  }
+  customersModalBody.innerHTML = customers.map(c => `
+    <div class="user-row" data-customer-id="${escapeHtml(c.id)}">
+      <div>
+        <span>${escapeHtml(c.name)}</span>
+        ${c.sfLink ? `<br><a href="${escapeHtml(c.sfLink)}" target="_blank" rel="noreferrer" style="font-size:0.82rem;color:#7dd3fc;">SF link</a>` : ''}
+      </div>
+      <div>
+        <button type="button" class="ghost-btn small-btn" data-edit-customer="${escapeHtml(c.id)}">Edit</button>
+        <button type="button" class="ghost-btn small-btn" data-delete-customer="${escapeHtml(c.id)}">Delete</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function openCustomersModal() {
+  renderCustomersModal();
+  addCustomerListForm.style.display = 'none';
+  addCustomerListBtn.style.display = '';
+  customersModal.classList.remove('hidden');
+  customersModal.setAttribute('aria-hidden', 'false');
+}
+
+function closeCustomersModal() {
+  customersModal.classList.add('hidden');
+  customersModal.setAttribute('aria-hidden', 'true');
+  addCustomerListForm.style.display = 'none';
+  addCustomerListBtn.style.display = '';
+  document.getElementById('listNewCustomerName').value = '';
+  document.getElementById('listNewCustomerSfLink').value = '';
+}
+
 function renderAll() {
   renderTable();
   renderSelect();
@@ -832,6 +876,92 @@ saveAddCustomerBtn.addEventListener('click', () => {
     addCustomerReturnContext = null;
     projectModal.classList.remove('hidden');
     projectModal.setAttribute('aria-hidden', 'false');
+  }
+});
+
+manageCustomersBtn.addEventListener('click', openCustomersModal);
+closeCustomersModalBtn.addEventListener('click', closeCustomersModal);
+customersModal.addEventListener('click', (e) => { if (e.target === customersModal) closeCustomersModal(); });
+
+addCustomerListBtn.addEventListener('click', () => {
+  addCustomerListForm.style.display = 'grid';
+  addCustomerListBtn.style.display = 'none';
+});
+
+cancelCustomerListBtn.addEventListener('click', () => {
+  addCustomerListForm.style.display = 'none';
+  addCustomerListBtn.style.display = '';
+  document.getElementById('listNewCustomerName').value = '';
+  document.getElementById('listNewCustomerSfLink').value = '';
+});
+
+saveCustomerListBtn.addEventListener('click', () => {
+  const name = document.getElementById('listNewCustomerName').value.trim();
+  const sfLink = document.getElementById('listNewCustomerSfLink').value.trim();
+  if (!name) return;
+  if (customers.some(c => c.name.toLowerCase() === name.toLowerCase())) {
+    alert(`A customer named "${name}" already exists.`);
+    return;
+  }
+  customers.push({ id: `cust_${Date.now()}`, name, sfLink });
+  saveCustomers();
+  addCustomerListForm.style.display = 'none';
+  addCustomerListBtn.style.display = '';
+  document.getElementById('listNewCustomerName').value = '';
+  document.getElementById('listNewCustomerSfLink').value = '';
+  renderCustomersModal();
+});
+
+customersModalBody.addEventListener('click', (e) => {
+  const deleteBtn = e.target.closest('[data-delete-customer]');
+  const editBtn = e.target.closest('[data-edit-customer]');
+  const saveEditBtn = e.target.closest('.save-edit-customer');
+  const cancelEditBtn = e.target.closest('.cancel-edit-customer');
+
+  if (deleteBtn) {
+    const id = deleteBtn.dataset.deleteCustomer;
+    customers = customers.filter(c => c.id !== id);
+    saveCustomers();
+    renderCustomersModal();
+    return;
+  }
+
+  if (editBtn) {
+    const id = editBtn.dataset.editCustomer;
+    const cust = customers.find(c => c.id === id);
+    if (!cust) return;
+    const row = editBtn.closest('.user-row');
+    row.outerHTML = `
+      <div class="user-row-edit" data-editing-customer-id="${escapeHtml(id)}">
+        <label style="grid-column:1/3">Customer name<input type="text" class="edit-cust-name" value="${escapeHtml(cust.name)}" /></label>
+        <label style="grid-column:1/3">Salesforce link<input type="url" class="edit-cust-sf" value="${escapeHtml(cust.sfLink || '')}" /></label>
+        <div class="modal-actions" style="grid-column:1/3;">
+          <button type="button" class="ghost-btn small-btn cancel-edit-customer">Cancel</button>
+          <button type="button" class="primary-btn small-btn save-edit-customer">Save</button>
+        </div>
+      </div>`;
+    return;
+  }
+
+  if (cancelEditBtn) { renderCustomersModal(); return; }
+
+  if (saveEditBtn) {
+    const row = saveEditBtn.closest('[data-editing-customer-id]');
+    const id = row.dataset.editingCustomerId;
+    const cust = customers.find(c => c.id === id);
+    if (!cust) return;
+    const newName = row.querySelector('.edit-cust-name').value.trim() || cust.name;
+    const newSf = row.querySelector('.edit-cust-sf').value.trim();
+    const oldName = cust.name;
+    cust.name = newName;
+    cust.sfLink = newSf;
+    if (oldName !== newName) {
+      projects.forEach(p => { if (p.customer === oldName) p.customer = newName; });
+      saveProjects();
+      renderAll();
+    }
+    saveCustomers();
+    renderCustomersModal();
   }
 });
 

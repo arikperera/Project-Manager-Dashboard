@@ -23,6 +23,7 @@
           <div class="topbar-actions">
             <button id="addProjectBtn" class="secondary-btn">Add new project</button>
             <button id="manageUsersBtn" class="secondary-btn">Manage users</button>
+            <button id="manageCustomersBtn" class="secondary-btn">Manage customers</button>
             <button id="createBackupBtn" class="secondary-btn">Create backup</button>
             <button id="backupsPanelBtn" class="secondary-btn">Backups</button>
             <button id="exportBtn" class="primary-btn">Export report</button>
@@ -243,6 +244,32 @@
           <div class="modal-actions">
             <button type="button" id="cancelAddUserBtn" class="ghost-btn">Cancel</button>
             <button type="button" id="saveAddUserBtn" class="primary-btn">Save</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="customersModal" class="modal hidden" aria-hidden="true">
+      <div class="modal-card">
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Customers</p>
+            <h3>Manage customers</h3>
+          </div>
+          <button id="closeCustomersModalBtn" class="ghost-btn" type="button" aria-label="Close">×</button>
+        </div>
+        <div id="customersModalBody">
+          <!-- rendered by renderCustomersModal() -->
+        </div>
+        <div style="margin-top:12px;">
+          <button id="addCustomerListBtn" class="secondary-btn small-btn" type="button">+ Add customer</button>
+        </div>
+        <div id="addCustomerListForm" class="status-form" style="display:none; margin-top:12px;">
+          <label>Customer name<input id="listNewCustomerName" type="text" required placeholder="e.g. Acme Corp" /></label>
+          <label>Salesforce link<input id="listNewCustomerSfLink" type="url" placeholder="https://kaltura.lightning.force.com/..." /></label>
+          <div class="modal-actions">
+            <button type="button" id="cancelCustomerListBtn" class="ghost-btn">Cancel</button>
+            <button type="button" id="saveCustomerListBtn" class="primary-btn">Save</button>
           </div>
         </div>
       </div>
