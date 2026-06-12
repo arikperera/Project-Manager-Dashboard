@@ -15,6 +15,14 @@ function getUsersByRole(role) {
   return users.filter(u => u.role === role).map(getUserDisplayName);
 }
 
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 function propagateUserRename(oldName, newName) {
   if (oldName === newName) return;
   projects.forEach(project => {
@@ -217,11 +225,9 @@ async function syncProjectProgressFromJira() {
       let percent = null;
       if (data.names) {
         const fieldEntry = Object.entries(data.names).find(([, name]) => name === 'Project Progress Percentage');
-        console.log(`[Jira sync] ${key} — field entry:`, fieldEntry);
         if (fieldEntry) {
           const [fieldId] = fieldEntry;
           const rawValue = data.fields?.[fieldId];
-          console.log(`[Jira sync] ${key} — raw field value:`, rawValue);
           // Handle plain number, object with .value, or object with .percent
           const extracted = (rawValue !== null && typeof rawValue === 'object')
             ? (rawValue.value ?? rawValue.percent ?? null)
@@ -229,7 +235,6 @@ async function syncProjectProgressFromJira() {
           percent = normalizeProgress(extracted);
         }
       }
-      console.log(`[Jira sync] ${key} — resolved percent:`, percent);
 
       // Fall back to built-in Jira progress (subtask-based)
       if (percent === null) {
@@ -355,8 +360,6 @@ function renderSelect() {
   }
 
   const uniqueManagers = [...new Set(projects.map((project) => project.manager).filter(Boolean))];
-  const uniqueCsms = [...new Set(projects.map((project) => project.csm).filter(Boolean))];
-  const uniqueSales = [...new Set(projects.map((project) => project.sales).filter(Boolean))];
 
   pmFilter.innerHTML = ['<option value="All">All PMs</option>', ...uniqueManagers.map((manager) => `<option value="${manager}">${manager}</option>`)].join('');
 
@@ -421,11 +424,11 @@ function renderUsersModal() {
         <div style="margin-bottom:14px;">
           <p class="eyebrow" style="margin-bottom:6px;">${role}</p>
           ${members.map(u => `
-            <div class="user-row" data-user-id="${u.id}">
-              <span>${getUserDisplayName(u)}</span>
+            <div class="user-row" data-user-id="${escapeHtml(u.id)}">
+              <span>${escapeHtml(getUserDisplayName(u))}</span>
               <div>
-                <button type="button" class="ghost-btn small-btn" data-edit-user="${u.id}">Edit</button>
-                <button type="button" class="ghost-btn small-btn" data-delete-user="${u.id}">Delete</button>
+                <button type="button" class="ghost-btn small-btn" data-edit-user="${escapeHtml(u.id)}">Edit</button>
+                <button type="button" class="ghost-btn small-btn" data-delete-user="${escapeHtml(u.id)}">Delete</button>
               </div>
             </div>
           `).join('')}
@@ -445,6 +448,7 @@ function closeUsersModal() {
   usersModal.classList.add('hidden');
   usersModal.setAttribute('aria-hidden', 'true');
   addUserForm.style.display = 'none';
+  addUserBtn.style.display = '';
   document.getElementById('newUserFirstName').value = '';
   document.getElementById('newUserLastName').value = '';
   document.getElementById('newUserRole').value = 'PM';
@@ -592,6 +596,11 @@ saveAddUserBtn.addEventListener('click', () => {
   const role = document.getElementById('newUserRole').value;
   if (!firstName || !lastName) return;
 
+  const displayName = `${firstName} ${lastName}`.trim();
+  if (users.some(u => getUserDisplayName(u) === displayName)) {
+    alert(`A user named "${displayName}" already exists.`);
+    return;
+  }
   users.push({ id: `u_${Date.now()}_${users.length}`, firstName, lastName, role });
   saveUsers();
   addUserForm.style.display = 'none';
@@ -621,9 +630,9 @@ usersModalBody.addEventListener('click', (e) => {
 
     const row = editBtn.closest('.user-row');
     row.outerHTML = `
-      <div class="user-row-edit" data-editing-id="${userId}">
-        <label style="grid-column:1">First name<input type="text" class="edit-first" value="${user.firstName}" /></label>
-        <label style="grid-column:2">Last name<input type="text" class="edit-last" value="${user.lastName}" /></label>
+      <div class="user-row-edit" data-editing-id="${escapeHtml(userId)}">
+        <label style="grid-column:1">First name<input type="text" class="edit-first" value="${escapeHtml(user.firstName)}" /></label>
+        <label style="grid-column:2">Last name<input type="text" class="edit-last" value="${escapeHtml(user.lastName)}" /></label>
         <label style="grid-column:1">Role
           <select class="edit-role">
             <option value="PM"${user.role === 'PM' ? ' selected' : ''}>PM</option>
