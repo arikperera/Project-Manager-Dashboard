@@ -245,6 +245,26 @@
       </div>
     </div>
 
+    <div id="backupsModal" class="modal hidden" aria-hidden="true">
+      <div class="backups-modal-card">
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">History</p>
+            <h3>Backups</h3>
+          </div>
+          <button id="closeBackupsModalBtn" class="ghost-btn" type="button" aria-label="Close">×</button>
+        </div>
+        <div class="backups-layout">
+          <div class="backup-main" id="backupMain">
+            <!-- rendered by renderBackupsPanel() -->
+          </div>
+          <div class="backup-sidebar" id="backupSidebar">
+            <!-- rendered by renderBackupsPanel() -->
+          </div>
+        </div>
+      </div>
+    </div>
+
     <script src="app.js"></script>
   </body>
 </html>
