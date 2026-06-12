@@ -52,6 +52,14 @@ const editStatusEditor = document.getElementById('editStatusEditor');
 const editHealth = document.getElementById('editHealth');
 const riskList = document.getElementById('riskList');
 const exportBtn = document.getElementById('exportBtn');
+const manageUsersBtn = document.getElementById('manageUsersBtn');
+const usersModal = document.getElementById('usersModal');
+const closeUsersModalBtn = document.getElementById('closeUsersModalBtn');
+const usersModalBody = document.getElementById('usersModalBody');
+const addUserBtn = document.getElementById('addUserBtn');
+const addUserForm = document.getElementById('addUserForm');
+const cancelAddUserBtn = document.getElementById('cancelAddUserBtn');
+const saveAddUserBtn = document.getElementById('saveAddUserBtn');
 const addProjectBtn = document.getElementById('addProjectBtn');
 const projectModal = document.getElementById('projectModal');
 const closeModalBtn = document.getElementById('closeModalBtn');
@@ -399,6 +407,49 @@ function renderRiskList() {
     : '<li><strong>No critical risks</strong>All projects are currently on track or completed.</li>';
 }
 
+function renderUsersModal() {
+  const roles = ['PM', 'CSM', 'Sales'];
+  const grouped = roles.map(role => ({
+    role,
+    members: users.filter(u => u.role === role),
+  }));
+
+  const hasUsers = users.length > 0;
+
+  usersModalBody.innerHTML = hasUsers
+    ? grouped.map(({ role, members }) => members.length === 0 ? '' : `
+        <div style="margin-bottom:14px;">
+          <p class="eyebrow" style="margin-bottom:6px;">${role}</p>
+          ${members.map(u => `
+            <div class="user-row" data-user-id="${u.id}">
+              <span>${getUserDisplayName(u)}</span>
+              <div>
+                <button type="button" class="ghost-btn small-btn" data-edit-user="${u.id}">Edit</button>
+                <button type="button" class="ghost-btn small-btn" data-delete-user="${u.id}">Delete</button>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      `).join('')
+    : '<p class="muted">No users added yet. Click Add user to get started.</p>';
+}
+
+function openUsersModal() {
+  renderUsersModal();
+  addUserForm.style.display = 'none';
+  usersModal.classList.remove('hidden');
+  usersModal.setAttribute('aria-hidden', 'false');
+}
+
+function closeUsersModal() {
+  usersModal.classList.add('hidden');
+  usersModal.setAttribute('aria-hidden', 'true');
+  addUserForm.style.display = 'none';
+  document.getElementById('newUserFirstName').value = '';
+  document.getElementById('newUserLastName').value = '';
+  document.getElementById('newUserRole').value = 'PM';
+}
+
 function renderAll() {
   renderTable();
   renderSelect();
@@ -516,6 +567,39 @@ exportBtn.addEventListener('click', () => {
   link.download = 'project-dashboard-report.csv';
   link.click();
   URL.revokeObjectURL(url);
+});
+
+manageUsersBtn.addEventListener('click', openUsersModal);
+closeUsersModalBtn.addEventListener('click', closeUsersModal);
+usersModal.addEventListener('click', (e) => { if (e.target === usersModal) closeUsersModal(); });
+
+addUserBtn.addEventListener('click', () => {
+  addUserForm.style.display = 'grid';
+  addUserBtn.style.display = 'none';
+});
+
+cancelAddUserBtn.addEventListener('click', () => {
+  addUserForm.style.display = 'none';
+  addUserBtn.style.display = '';
+  document.getElementById('newUserFirstName').value = '';
+  document.getElementById('newUserLastName').value = '';
+  document.getElementById('newUserRole').value = 'PM';
+});
+
+saveAddUserBtn.addEventListener('click', () => {
+  const firstName = document.getElementById('newUserFirstName').value.trim();
+  const lastName = document.getElementById('newUserLastName').value.trim();
+  const role = document.getElementById('newUserRole').value;
+  if (!firstName || !lastName) return;
+
+  users.push({ id: `u_${Date.now()}_${users.length}`, firstName, lastName, role });
+  saveUsers();
+  addUserForm.style.display = 'none';
+  addUserBtn.style.display = '';
+  document.getElementById('newUserFirstName').value = '';
+  document.getElementById('newUserLastName').value = '';
+  document.getElementById('newUserRole').value = 'PM';
+  renderUsersModal();
 });
 
 renderAll();
