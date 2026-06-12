@@ -7,6 +7,17 @@ function saveUsers() {
   localStorage.setItem(USERS_KEY, JSON.stringify(users));
 }
 
+const CUSTOMERS_KEY = 'project-dashboard-customers-v1';
+let customers = JSON.parse(localStorage.getItem(CUSTOMERS_KEY) || '[]');
+
+function saveCustomers() {
+  localStorage.setItem(CUSTOMERS_KEY, JSON.stringify(customers));
+}
+
+function getCustomerNames() {
+  return customers.map(c => c.name);
+}
+
 const BACKUPS_KEY = 'project-dashboard-backups-v1';
 let backups = JSON.parse(localStorage.getItem(BACKUPS_KEY) || '[]');
 
@@ -118,6 +129,10 @@ const addUserBtn = document.getElementById('addUserBtn');
 const addUserForm = document.getElementById('addUserForm');
 const cancelAddUserBtn = document.getElementById('cancelAddUserBtn');
 const saveAddUserBtn = document.getElementById('saveAddUserBtn');
+const addCustomerModal = document.getElementById('addCustomerModal');
+const closeAddCustomerModalBtn = document.getElementById('closeAddCustomerModalBtn');
+const cancelAddCustomerBtn = document.getElementById('cancelAddCustomerBtn');
+const saveAddCustomerBtn = document.getElementById('saveAddCustomerBtn');
 const createBackupBtn = document.getElementById('createBackupBtn');
 const backupsPanelBtn = document.getElementById('backupsPanelBtn');
 const backupsModal = document.getElementById('backupsModal');
@@ -145,15 +160,19 @@ function saveProjects() {
 
 let addUserReturnContext = null;
 
-function setupAutocomplete(input, getOptions, role) {
+function setupAutocomplete(input, getOptions, role, addCallback) {
   const list = input.closest('.autocomplete-wrap').querySelector('.autocomplete-list');
   let activeIndex = -1;
 
   function buildList(matches, typedTerm) {
     const items = matches.map(item => `<li>${escapeHtml(item)}</li>`);
     const exactMatch = matches.some(m => m.toLowerCase() === typedTerm.toLowerCase());
-    if (role && typedTerm && !exactMatch) {
-      items.push(`<li class="autocomplete-add" data-add-name="${escapeHtml(typedTerm)}" data-add-role="${escapeHtml(role)}">➕ Add "${escapeHtml(typedTerm)}" as new ${escapeHtml(role)}</li>`);
+    if (typedTerm && !exactMatch) {
+      if (role) {
+        items.push(`<li class="autocomplete-add" data-add-name="${escapeHtml(typedTerm)}" data-add-role="${escapeHtml(role)}">➕ Add "${escapeHtml(typedTerm)}" as new ${escapeHtml(role)}</li>`);
+      } else if (addCallback) {
+        items.push(`<li class="autocomplete-add" data-add-name="${escapeHtml(typedTerm)}">➕ Add "${escapeHtml(typedTerm)}" as new customer</li>`);
+      }
     }
     list.innerHTML = items.join('');
     activeIndex = -1;
@@ -197,7 +216,11 @@ function setupAutocomplete(input, getOptions, role) {
       e.preventDefault();
       const active = items[activeIndex];
       if (active.classList.contains('autocomplete-add')) {
-        triggerAddUserFromAutocomplete(active.dataset.addName, active.dataset.addRole, input);
+        if (active.dataset.addRole) {
+          triggerAddUserFromAutocomplete(active.dataset.addName, active.dataset.addRole, input);
+        } else if (addCallback) {
+          addCallback(active.dataset.addName, input);
+        }
       } else {
         input.value = active.textContent;
       }
@@ -210,7 +233,11 @@ function setupAutocomplete(input, getOptions, role) {
     const li = e.target.closest('li');
     if (!li) return;
     if (li.classList.contains('autocomplete-add')) {
-      triggerAddUserFromAutocomplete(li.dataset.addName, li.dataset.addRole, input);
+      if (li.dataset.addRole) {
+        triggerAddUserFromAutocomplete(li.dataset.addName, li.dataset.addRole, input);
+      } else if (addCallback) {
+        addCallback(li.dataset.addName, input);
+      }
     } else {
       input.value = li.textContent;
     }
@@ -220,6 +247,25 @@ function setupAutocomplete(input, getOptions, role) {
   document.addEventListener('click', (e) => {
     if (!input.closest('.autocomplete-wrap').contains(e.target)) hideList();
   });
+}
+
+let addCustomerReturnContext = null;
+
+function triggerAddCustomerFromAutocomplete(name, returnInput) {
+  document.getElementById('newCustomerName').value = name;
+  document.getElementById('newCustomerSfLink').value = '';
+  addCustomerReturnContext = { inputEl: returnInput };
+  projectModal.classList.add('hidden');
+  projectModal.setAttribute('aria-hidden', 'true');
+  addCustomerModal.classList.remove('hidden');
+  addCustomerModal.setAttribute('aria-hidden', 'false');
+}
+
+function closeAddCustomerModal() {
+  addCustomerModal.classList.add('hidden');
+  addCustomerModal.setAttribute('aria-hidden', 'true');
+  document.getElementById('newCustomerName').value = '';
+  document.getElementById('newCustomerSfLink').value = '';
 }
 
 function triggerAddUserFromAutocomplete(name, role, returnInput) {
@@ -245,6 +291,7 @@ function initAutocompletes() {
   setupAutocomplete(document.getElementById('modalProjectPm'), () => getUsersByRole('PM'), 'PM');
   setupAutocomplete(document.getElementById('modalProjectCsm'), () => getUsersByRole('CSM'), 'CSM');
   setupAutocomplete(document.getElementById('modalProjectSales'), () => getUsersByRole('Sales'), 'Sales');
+  setupAutocomplete(document.getElementById('modalProjectCustomer'), () => getCustomerNames(), null, triggerAddCustomerFromAutocomplete);
 }
 
 function getJiraLabel(jira) {
@@ -749,6 +796,43 @@ modalProjectForm.addEventListener('submit', (event) => {
   saveProjects();
   renderAll();
   closeModal();
+});
+
+closeAddCustomerModalBtn.addEventListener('click', () => {
+  closeAddCustomerModal();
+  if (addCustomerReturnContext) {
+    addCustomerReturnContext = null;
+    projectModal.classList.remove('hidden');
+    projectModal.setAttribute('aria-hidden', 'false');
+  }
+});
+cancelAddCustomerBtn.addEventListener('click', () => {
+  closeAddCustomerModal();
+  if (addCustomerReturnContext) {
+    addCustomerReturnContext = null;
+    projectModal.classList.remove('hidden');
+    projectModal.setAttribute('aria-hidden', 'false');
+  }
+});
+addCustomerModal.addEventListener('click', (e) => { if (e.target === addCustomerModal) cancelAddCustomerBtn.click(); });
+
+saveAddCustomerBtn.addEventListener('click', () => {
+  const name = document.getElementById('newCustomerName').value.trim();
+  const sfLink = document.getElementById('newCustomerSfLink').value.trim();
+  if (!name) return;
+  if (customers.some(c => c.name.toLowerCase() === name.toLowerCase())) {
+    alert(`A customer named "${name}" already exists.`);
+    return;
+  }
+  customers.push({ id: `cust_${Date.now()}`, name, sfLink });
+  saveCustomers();
+  closeAddCustomerModal();
+  if (addCustomerReturnContext) {
+    addCustomerReturnContext.inputEl.value = name;
+    addCustomerReturnContext = null;
+    projectModal.classList.remove('hidden');
+    projectModal.setAttribute('aria-hidden', 'false');
+  }
 });
 
 addProjectBtn.addEventListener('click', openModal);
