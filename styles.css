@@ -95,7 +95,7 @@ h1 { font-size: 1.9rem; margin-bottom: 8px; }
 .pm-table th:nth-child(1), .pm-table td:nth-child(1) { width: 12%; }
 .pm-table th:nth-child(2), .pm-table td:nth-child(2) { width: 14%; }
 .pm-table th:nth-child(3), .pm-table td:nth-child(3) { width: 14%; }
-.pm-table th:nth-child(4), .pm-table td:nth-child(4) { width: 7%; }
+.pm-table th:nth-child(4), .pm-table td:nth-child(4) { width: 7%; white-space: nowrap; }
 .pm-table th:nth-child(5), .pm-table td:nth-child(5) { width: 6%; }
 .pm-table th:nth-child(6), .pm-table td:nth-child(6) { width: 6%; }
 .pm-table th:nth-child(7), .pm-table td:nth-child(7) { width: 8%; }

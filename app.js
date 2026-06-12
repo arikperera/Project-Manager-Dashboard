@@ -477,7 +477,7 @@ function renderTable() {
           <th>Customer name</th>
           <th>Project</th>
           <th>Jira</th>
-          <th>NRR</th>
+          <th>NRR(h)</th>
           <th>Start</th>
           <th>End</th>
           <th>Health</th>
