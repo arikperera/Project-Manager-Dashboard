@@ -635,11 +635,14 @@ function renderBackupMain(backup) {
   });
 
   document.getElementById('confirmRestoreBtn').addEventListener('click', () => {
-    if (document.getElementById('restoreProjects').checked) {
+    const restoreProjectsEl = document.getElementById('restoreProjects');
+    const restoreUsersEl = document.getElementById('restoreUsers');
+    if (!restoreProjectsEl.checked && !restoreUsersEl.checked) return;
+    if (restoreProjectsEl.checked) {
       projects = JSON.parse(JSON.stringify(backup.projects));
       saveProjects();
     }
-    if (document.getElementById('restoreUsers').checked) {
+    if (restoreUsersEl.checked) {
       users = JSON.parse(JSON.stringify(backup.users));
       saveUsers();
     }

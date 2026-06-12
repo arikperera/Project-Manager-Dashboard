@@ -147,7 +147,7 @@ th { color: #bfdbfe; font-weight:600; }
 .backups-modal-card {
   width: calc(100vw - 48px);
   max-width: calc(100vw - 48px);
-  max-height: calc(100vh - 48px);
+  height: calc(100vh - 48px);
   overflow: hidden;
   display: flex;
   flex-direction: column;
