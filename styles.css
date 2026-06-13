@@ -138,8 +138,12 @@ th { color: #bfdbfe; font-weight:600; }
 .autocomplete-list li.autocomplete-add { color: #a78bfa; border-top: 1px solid var(--line); margin-top: 2px; padding-top: 8px; }
 .rich-editor { min-height: 120px; border: 1px solid var(--line); border-radius: 12px; background: #0b1220; color: var(--text); padding: 10px 12px; line-height: 1.5; }
 .rich-editor:focus { outline: 2px solid rgba(56, 189, 248, 0.35); border-color: rgba(56, 189, 248, 0.45); }
-.editor-toolbar { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:6px; }
+.editor-toolbar { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:6px; align-items:center; }
 .editor-toolbar .small-btn { padding: 6px 10px; border-radius: 10px; }
+.toolbar-sep { width:1px; height:20px; background:var(--line); margin:0 2px; }
+.toolbar-color-label { display:inline-flex; align-items:center; gap:3px; cursor:pointer; padding:5px 8px; border:1px solid var(--line); border-radius:10px; background:rgba(15,23,42,0.95); font-size:0.88rem; color:var(--text); }
+.toolbar-color-label:hover { background:rgba(30,41,59,0.95); }
+.toolbar-color-input { width:20px; height:18px; border:none; background:none; cursor:pointer; padding:0; }
 .health-pill { display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:999px; font-size:0.82rem; font-weight:700; }
 .health-green { background: rgba(74, 222, 128, 0.14); color: #bbf7d0; }
 .health-yellow { background: rgba(251, 191, 36, 0.16); color: #fde68a; }

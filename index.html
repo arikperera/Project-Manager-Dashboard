@@ -126,10 +126,23 @@
           </label>
           <label>Project Status</label>
           <div class="editor-toolbar">
-            <button type="button" class="ghost-btn small-btn" data-rich-command="bold">B</button>
-            <button type="button" class="ghost-btn small-btn" data-rich-command="italic">I</button>
-            <button type="button" class="ghost-btn small-btn" data-rich-command="underline">U</button>
-            <button type="button" class="ghost-btn small-btn" data-rich-command="insertUnorderedList">• List</button>
+            <button type="button" class="ghost-btn small-btn" data-rich-command="bold" title="Bold"><b>B</b></button>
+            <button type="button" class="ghost-btn small-btn" data-rich-command="italic" title="Italic"><i>I</i></button>
+            <button type="button" class="ghost-btn small-btn" data-rich-command="underline" title="Underline"><u>U</u></button>
+            <span class="toolbar-sep"></span>
+            <button type="button" class="ghost-btn small-btn" data-rich-command="insertUnorderedList" title="Bullet list">• List</button>
+            <button type="button" class="ghost-btn small-btn" data-rich-command="insertOrderedList" title="Numbered list">1. List</button>
+            <span class="toolbar-sep"></span>
+            <button type="button" class="ghost-btn small-btn" data-rich-command="outdent" title="Decrease indent">⇤</button>
+            <button type="button" class="ghost-btn small-btn" data-rich-command="indent" title="Increase indent">⇥</button>
+            <span class="toolbar-sep"></span>
+            <label class="toolbar-color-label" title="Font color">
+              A <input type="color" id="fontColorPicker" value="#ffffff" class="toolbar-color-input" />
+            </label>
+            <label class="toolbar-color-label" title="Highlight color">
+              <span style="background:#ff0;color:#000;padding:0 3px;">H</span>
+              <input type="color" id="highlightColorPicker" value="#ffff00" class="toolbar-color-input" />
+            </label>
           </div>
           <div id="editStatusEditor" class="rich-editor" contenteditable="true" spellcheck="true"></div>
           <div class="modal-actions">

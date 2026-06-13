@@ -1135,10 +1135,19 @@ portfolioGroups.addEventListener('click', (event) => {
 editProjectModal.addEventListener('click', (event) => {
   const toolbarButton = event.target.closest('[data-rich-command]');
   if (!toolbarButton) return;
-
   event.preventDefault();
   document.execCommand(toolbarButton.dataset.richCommand, false, null);
   editStatusEditor.focus();
+});
+
+document.getElementById('fontColorPicker').addEventListener('input', (e) => {
+  editStatusEditor.focus();
+  document.execCommand('foreColor', false, e.target.value);
+});
+
+document.getElementById('highlightColorPicker').addEventListener('input', (e) => {
+  editStatusEditor.focus();
+  document.execCommand('hiliteColor', false, e.target.value);
 });
 
 searchInput.addEventListener('input', renderTable);
