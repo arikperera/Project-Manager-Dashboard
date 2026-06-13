@@ -1205,6 +1205,7 @@ backupSidebar.addEventListener('click', (e) => {
 
 const atRiskCard = document.getElementById('atRiskCard');
 const atRiskPopup = document.getElementById('atRiskPopup');
+const atRiskTrigger = document.getElementById('atRiskTrigger');
 
 let atRiskHideTimer = null;
 
@@ -1222,8 +1223,8 @@ function hideAtRiskPopup() {
   atRiskHideTimer = setTimeout(() => atRiskPopup.classList.add('hidden'), 150);
 }
 
-atRiskCard.addEventListener('mouseenter', showAtRiskPopup);
-atRiskCard.addEventListener('mouseleave', hideAtRiskPopup);
+atRiskTrigger.addEventListener('mouseenter', showAtRiskPopup);
+atRiskTrigger.addEventListener('mouseleave', hideAtRiskPopup);
 atRiskPopup.addEventListener('mouseenter', () => clearTimeout(atRiskHideTimer));
 atRiskPopup.addEventListener('mouseleave', hideAtRiskPopup);
 
