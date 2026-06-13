@@ -369,6 +369,17 @@ function formatDate(dateStr) {
   return `${d}/${m}/${y.slice(2)}`;
 }
 
+function parseDateInput(val) {
+  if (!val) return '';
+  const parts = val.trim().split('/');
+  if (parts.length === 3) {
+    const [d, m, y] = parts;
+    const fullYear = y.length === 2 ? `20${y}` : y;
+    return `${fullYear}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
+  }
+  return val;
+}
+
 function normalizeProgress(value) {
   const numericValue = Number(value);
   if (!Number.isFinite(numericValue)) return null;
@@ -923,8 +934,8 @@ modalProjectForm.addEventListener('submit', (event) => {
     manager: pmName || 'Unassigned',
     jira: document.getElementById('modalProjectJira').value.trim(),
     nrr: Number(document.getElementById('modalProjectNrr').value),
-    startDate: document.getElementById('modalProjectStartDate').value,
-    dueDate: document.getElementById('modalProjectDueDate').value,
+    startDate: parseDateInput(document.getElementById('modalProjectStartDate').value),
+    dueDate: parseDateInput(document.getElementById('modalProjectDueDate').value),
     status: 'On Track',
     health: 'Green',
     progress: 0,
