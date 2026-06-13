@@ -97,6 +97,9 @@ function propagateUserRename(oldName, newName) {
     if (project.manager === oldName) project.manager = newName;
     if (project.csm === oldName) project.csm = newName;
     if (project.sales === oldName) project.sales = newName;
+    if (project.comments) {
+      project.comments = project.comments.split(oldName).join(newName);
+    }
   });
 }
 
