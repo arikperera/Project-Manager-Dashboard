@@ -520,7 +520,7 @@ function renderTable() {
 
     const header = document.createElement('div');
     header.className = 'pm-group-header';
-    header.innerHTML = `<h4>${manager} <span style="font-size:0.88rem;font-weight:400;color:#bfdbfe;">— Number Of Projects: ${grouped[manager].length}</span></h4>`;
+    header.innerHTML = `<h4>${manager} <span style="font-size:0.88rem;font-weight:400;">(Number Of Projects: ${grouped[manager].length})</span></h4>`;
     section.appendChild(header);
 
     const table = document.createElement('table');
