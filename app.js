@@ -135,7 +135,6 @@ const editCustomerName = document.getElementById('editCustomerName');
 const editProjectName = document.getElementById('editProjectName');
 const editStatusEditor = document.getElementById('editStatusEditor');
 const editHealth = document.getElementById('editHealth');
-const editProgress = document.getElementById('editProgress');
 const riskList = document.getElementById('riskList');
 const exportBtn = document.getElementById('exportBtn');
 const manageUsersBtn = document.getElementById('manageUsersBtn');
@@ -635,7 +634,6 @@ function closeEditProjectModal() {
   editProjectModal.classList.add('hidden');
   editProjectModal.setAttribute('aria-hidden', 'true');
   editProjectForm.reset();
-  editProgress.value = '';
   editStatusEditor.innerHTML = '';
 }
 
@@ -908,9 +906,11 @@ editProjectForm.addEventListener('submit', (event) => {
   const selectedProject = projects[selectedIndex];
   if (!selectedProject) return;
 
+  const newCustomer = editCustomerName.value.trim();
+  const newName = editProjectName.value.trim();
+  if (newCustomer) selectedProject.customer = newCustomer;
+  if (newName) selectedProject.name = newName;
   selectedProject.health = editHealth.value;
-  const manualProgress = normalizeProgress(editProgress.value);
-  if (manualProgress !== null) selectedProject.progress = manualProgress;
   selectedProject.statusText = editStatusEditor.innerHTML.trim() || selectedProject.statusText;
 
   saveProjects();
