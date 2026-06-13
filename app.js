@@ -538,7 +538,7 @@ function renderSelect() {
 function renderSummary() {
   const total = projects.length;
   const onTrack = projects.filter((project) => project.status === 'On Track').length;
-  const atRisk = projects.filter((project) => project.status === 'At Risk' || project.status === 'Delayed').length;
+  const atRisk = projects.filter((project) => project.health === 'Yellow' || project.health === 'Red').length;
   const completionRate = Math.round(projects.reduce((sum, project) => sum + project.progress, 0) / total);
 
   document.getElementById('totalProjects').textContent = total;
@@ -1211,7 +1211,7 @@ let atRiskHideTimer = null;
 
 function showAtRiskPopup() {
   clearTimeout(atRiskHideTimer);
-  const atRiskProjects = projects.filter(p => p.status === 'At Risk' || p.status === 'Delayed');
+  const atRiskProjects = projects.filter(p => p.health === 'Yellow' || p.health === 'Red');
   if (!atRiskProjects.length) return;
   atRiskPopup.innerHTML = atRiskProjects.map(p =>
     `<a href="#" data-scroll-project="${escapeHtml(p.name)}">${escapeHtml(p.customer ? p.customer + ' — ' : '')}${escapeHtml(p.name)}</a>`
