@@ -351,6 +351,17 @@ function getJiraIssueKey(jira) {
   return pathMatch ? pathMatch[1] : '';
 }
 
+function formatCurrency(val) {
+  if (!val) return '0';
+  const str = String(val).trim();
+  const prefix = str.match(/^[^0-9.]*/)?.[0] || '';
+  const num = parseFloat(str.replace(/[^0-9.]/g, ''));
+  if (isNaN(num)) return str;
+  const k = num / 1000;
+  const rounded = Math.round(k * 10) / 10;
+  return `${prefix}${rounded}K`;
+}
+
 function formatDate(dateStr) {
   if (!dateStr) return '-';
   const [y, m, d] = dateStr.split('-');
@@ -890,7 +901,7 @@ modalProjectForm.addEventListener('submit', (event) => {
     statusText: 'New project created.',
     csm: csmName || '',
     sales: salesName || '',
-    comments: `NRR: ${nrrValue || '0h'}, MRR: ${mrrValue || '0'}, CSM: ${csmName || '-'}, Sales: ${salesName || '-'}`,
+    comments: `NRR: ${formatCurrency(nrrValue || '0')}, MRR: ${formatCurrency(mrrValue || '0')}, CSM: ${csmName || '-'}, Sales: ${salesName || '-'}`,
   });
 
   saveProjects();
