@@ -1146,11 +1146,14 @@ saveAddUserBtn.addEventListener('click', () => {
   if (!roles.length) { alert('Please select at least one role.'); return; }
 
   const displayName = `${firstName} ${lastName}`.trim();
-  if (users.some(u => getUserDisplayName(u) === displayName)) {
-    alert(`A user named "${displayName}" already exists.`);
-    return;
+  const existingUser = users.find(u => getUserDisplayName(u) === displayName);
+  if (existingUser) {
+    const existingRoles = getUserRoles(existingUser);
+    const merged = [...new Set([...existingRoles, ...roles])];
+    existingUser.roles = merged;
+  } else {
+    users.push({ id: `u_${Date.now()}_${users.length}`, firstName, lastName, roles });
   }
-  users.push({ id: `u_${Date.now()}_${users.length}`, firstName, lastName, roles });
   saveUsers();
   addUserForm.style.display = 'none';
   addUserBtn.style.display = '';
