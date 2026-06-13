@@ -161,7 +161,7 @@ th { color: #bfdbfe; font-weight:600; }
 }
 .backups-layout { display: flex; gap: 12px; flex: 1; overflow: hidden; min-height: 0; }
 .backup-sidebar { width: 190px; flex-shrink: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
-.atrisk-popup { position:absolute; top:0; bottom:0; left:40%; right:0; background:#111c30; border:1px solid rgba(56,189,248,0.3); border-radius:14px; padding:10px 14px; box-shadow:0 8px 24px rgba(2,6,23,0.5); z-index:200; overflow-y:auto; }
+.atrisk-popup { position:absolute; top:50%; transform:translateY(-50%); left:70%; right:0; background:#111c30; border:1px solid rgba(56,189,248,0.3); border-radius:14px; padding:10px 14px; box-shadow:0 8px 24px rgba(2,6,23,0.5); z-index:200; }
 .atrisk-popup.hidden { display:none; }
 .atrisk-popup a { display:block; padding:5px 0; color:#7dd3fc; text-decoration:none; font-size:0.92rem; border-bottom:1px solid var(--line); }
 .atrisk-popup a:last-child { border-bottom:none; }
