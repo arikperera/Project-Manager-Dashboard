@@ -149,6 +149,11 @@ const settingsModal = document.getElementById('settingsModal');
 const closeSettingsBtn = document.getElementById('closeSettingsBtn');
 const cancelSettingsBtn = document.getElementById('cancelSettingsBtn');
 const saveSettingsBtn = document.getElementById('saveSettingsBtn');
+const deleteProjectModal = document.getElementById('deleteProjectModal');
+const deleteProjectModalTitle = document.getElementById('deleteProjectModalTitle');
+const cancelDeleteProjectBtn = document.getElementById('cancelDeleteProjectBtn');
+const deleteProjectBtn = document.getElementById('deleteProjectBtn');
+const backupAndDeleteProjectBtn = document.getElementById('backupAndDeleteProjectBtn');
 const manageCustomersBtn = document.getElementById('manageCustomersBtn');
 const customersModal = document.getElementById('customersModal');
 const closeCustomersModalBtn = document.getElementById('closeCustomersModalBtn');
@@ -750,6 +755,23 @@ function closeBackupsModal() {
   backupsModal.setAttribute('aria-hidden', 'true');
 }
 
+let deleteProjectIndex = -1;
+
+function openDeleteProjectModal(projectIndex) {
+  const project = projects[projectIndex];
+  if (!project) return;
+  deleteProjectIndex = projectIndex;
+  deleteProjectModalTitle.textContent = project.name;
+  deleteProjectModal.classList.remove('hidden');
+  deleteProjectModal.setAttribute('aria-hidden', 'false');
+}
+
+function closeDeleteProjectModal() {
+  deleteProjectModal.classList.add('hidden');
+  deleteProjectModal.setAttribute('aria-hidden', 'true');
+  deleteProjectIndex = -1;
+}
+
 function openUsersModal() {
   renderUsersModal();
   addUserForm.style.display = 'none';
@@ -1247,6 +1269,38 @@ atRiskPopup.addEventListener('click', (e) => {
     }
   }
   atRiskPopup.classList.add('hidden');
+});
+
+cancelDeleteProjectBtn.addEventListener('click', closeDeleteProjectModal);
+deleteProjectModal.addEventListener('click', (e) => { if (e.target === deleteProjectModal) closeDeleteProjectModal(); });
+
+deleteProjectBtn.addEventListener('click', () => {
+  if (deleteProjectIndex < 0) return;
+  projects.splice(deleteProjectIndex, 1);
+  saveProjects();
+  renderAll();
+  closeDeleteProjectModal();
+});
+
+backupAndDeleteProjectBtn.addEventListener('click', () => {
+  if (deleteProjectIndex < 0) return;
+  if (!backups.length) {
+    alert('No backup exists yet. Please create a backup first before deleting.');
+    return;
+  }
+  const project = projects[deleteProjectIndex];
+  const latestBackup = backups[0];
+  const existingIndex = latestBackup.projects.findIndex(p => p.name === project.name);
+  if (existingIndex >= 0) {
+    latestBackup.projects[existingIndex] = JSON.parse(JSON.stringify(project));
+  } else {
+    latestBackup.projects.push(JSON.parse(JSON.stringify(project)));
+  }
+  saveBackups();
+  projects.splice(deleteProjectIndex, 1);
+  saveProjects();
+  renderAll();
+  closeDeleteProjectModal();
 });
 
 renderAll();
