@@ -790,6 +790,11 @@ function closeUsersModal() {
   document.getElementById('newUserFirstName').value = '';
   document.getElementById('newUserLastName').value = '';
   document.getElementById('newUserRole').value = 'PM';
+  if (addUserReturnContext) {
+    addUserReturnContext = null;
+    projectModal.classList.remove('hidden');
+    projectModal.setAttribute('aria-hidden', 'false');
+  }
 }
 
 function renderCustomersModal() {
@@ -844,6 +849,8 @@ function closeModal() {
   projectModal.classList.add('hidden');
   projectModal.setAttribute('aria-hidden', 'true');
   modalProjectForm.reset();
+  addUserReturnContext = null;
+  addCustomerReturnContext = null;
 }
 
 editProjectForm.addEventListener('submit', (event) => {
