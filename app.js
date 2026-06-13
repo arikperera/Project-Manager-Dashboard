@@ -1206,28 +1206,36 @@ backupSidebar.addEventListener('click', (e) => {
 const atRiskCard = document.getElementById('atRiskCard');
 const atRiskPopup = document.getElementById('atRiskPopup');
 
-atRiskCard.addEventListener('mouseenter', () => {
+let atRiskHideTimer = null;
+
+function showAtRiskPopup() {
+  clearTimeout(atRiskHideTimer);
   const atRiskProjects = projects.filter(p => p.status === 'At Risk' || p.status === 'Delayed');
   if (!atRiskProjects.length) return;
-  atRiskPopup.innerHTML = atRiskProjects.map(p => {
-    const id = `project-${escapeHtml(p.name.replace(/\s+/g, '-'))}`;
-    return `<a href="#projects" data-scroll-project="${escapeHtml(p.name)}">${escapeHtml(p.name)}</a>`;
-  }).join('');
+  atRiskPopup.innerHTML = atRiskProjects.map(p =>
+    `<a href="#" data-scroll-project="${escapeHtml(p.name)}">${escapeHtml(p.customer ? p.customer + ' — ' : '')}${escapeHtml(p.name)}</a>`
+  ).join('');
   atRiskPopup.classList.remove('hidden');
-});
+}
 
-atRiskCard.addEventListener('mouseleave', () => {
-  atRiskPopup.classList.add('hidden');
-});
+function hideAtRiskPopup() {
+  atRiskHideTimer = setTimeout(() => atRiskPopup.classList.add('hidden'), 150);
+}
+
+atRiskCard.addEventListener('mouseenter', showAtRiskPopup);
+atRiskCard.addEventListener('mouseleave', hideAtRiskPopup);
+atRiskPopup.addEventListener('mouseenter', () => clearTimeout(atRiskHideTimer));
+atRiskPopup.addEventListener('mouseleave', hideAtRiskPopup);
 
 atRiskPopup.addEventListener('click', (e) => {
   const link = e.target.closest('[data-scroll-project]');
   if (!link) return;
+  e.preventDefault();
   const projectName = link.dataset.scrollProject;
   const rows = portfolioGroups.querySelectorAll('tr');
   for (const row of rows) {
     const nameCell = row.querySelector('td:nth-child(2)');
-    if (nameCell && nameCell.textContent.trim() === projectName) {
+    if (nameCell && (nameCell.textContent.trim() === projectName || nameCell.querySelector('a')?.textContent.trim() === projectName)) {
       row.scrollIntoView({ behavior: 'smooth', block: 'center' });
       row.style.outline = '2px solid rgba(56,189,248,0.6)';
       setTimeout(() => { row.style.outline = ''; }, 2000);
