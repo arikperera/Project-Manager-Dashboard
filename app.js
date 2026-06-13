@@ -515,7 +515,10 @@ function renderTable() {
             </td>
             <td><div class="cell-scroll">${project.statusText || '-'}</div></td>
             <td><div class="cell-scroll">${(project.comments || '-').split(', ').join('<br>')}</div></td>
-            <td><button type="button" class="secondary-btn small-btn" data-edit-project="${projects.indexOf(project)}">Edit</button></td>
+            <td style="white-space:nowrap;">
+              <button type="button" class="secondary-btn small-btn" data-edit-project="${projects.indexOf(project)}">Edit</button>
+              <button type="button" class="ghost-btn small-btn" style="margin-top:4px;display:block;" data-delete-project="${projects.indexOf(project)}">Delete</button>
+            </td>
           </tr>
         `;
         }).join('')}
@@ -1064,9 +1067,14 @@ editProjectModal.addEventListener('click', (event) => {
 
 portfolioGroups.addEventListener('click', (event) => {
   const editButton = event.target.closest('[data-edit-project]');
-  if (!editButton) return;
-
-  openEditProjectModal(Number(editButton.dataset.editProject));
+  if (editButton) {
+    openEditProjectModal(Number(editButton.dataset.editProject));
+    return;
+  }
+  const deleteButton = event.target.closest('[data-delete-project]');
+  if (deleteButton) {
+    openDeleteProjectModal(Number(deleteButton.dataset.deleteProject));
+  }
 });
 
 editProjectModal.addEventListener('click', (event) => {
