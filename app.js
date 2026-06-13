@@ -1139,15 +1139,6 @@ editProjectModal.addEventListener('click', (event) => {
   editStatusEditor.focus();
 });
 
-document.getElementById('fontColorPicker').addEventListener('input', (e) => {
-  editStatusEditor.focus();
-  document.execCommand('foreColor', false, e.target.value);
-});
-
-document.getElementById('highlightColorPicker').addEventListener('input', (e) => {
-  editStatusEditor.focus();
-  document.execCommand('hiliteColor', false, e.target.value);
-});
 
 searchInput.addEventListener('input', renderTable);
 pmFilter.addEventListener('change', renderTable);
