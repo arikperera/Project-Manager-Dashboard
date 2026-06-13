@@ -358,6 +358,23 @@
       </div>
     </div>
 
+    <div id="deleteProjectModal" class="modal hidden" aria-hidden="true">
+      <div class="modal-card">
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Delete project</p>
+            <h3 id="deleteProjectModalTitle">Project name</h3>
+          </div>
+        </div>
+        <p class="muted" style="margin-bottom:16px;">This action cannot be undone. Would you like to back up this project to the latest backup record first?</p>
+        <div class="modal-actions">
+          <button type="button" id="cancelDeleteProjectBtn" class="ghost-btn">Cancel</button>
+          <button type="button" id="deleteProjectBtn" class="ghost-btn">Delete</button>
+          <button type="button" id="backupAndDeleteProjectBtn" class="primary-btn">Backup &amp; Delete</button>
+        </div>
+      </div>
+    </div>
+
     <script src="app.js"></script>
   </body>
 </html>
