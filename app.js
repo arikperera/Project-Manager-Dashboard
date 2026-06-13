@@ -436,10 +436,29 @@ async function syncProjectProgressFromJira() {
         percent = normalizeProgress(data?.fields?.progress?.percent ?? data?.fields?.progress);
       }
 
-      if (percent !== null) {
+      let estimatedHours = null;
+      let remainingHours = null;
+      if (data.names) {
+        const estEntry = Object.entries(data.names).find(([, n]) => n === 'Estimated PS Hours');
+        const remEntry = Object.entries(data.names).find(([, n]) => n === 'Remaining Effort');
+        if (estEntry) {
+          const raw = data.fields?.[estEntry[0]];
+          const v = (raw !== null && typeof raw === 'object') ? (raw.value ?? null) : raw;
+          if (v !== null && Number.isFinite(Number(v))) estimatedHours = Math.round(Number(v));
+        }
+        if (remEntry) {
+          const raw = data.fields?.[remEntry[0]];
+          const v = (raw !== null && typeof raw === 'object') ? (raw.value ?? null) : raw;
+          if (v !== null && Number.isFinite(Number(v))) remainingHours = Math.round(Number(v));
+        }
+      }
+
+      if (percent !== null || estimatedHours !== null || remainingHours !== null) {
         projects.forEach((project) => {
           if (getJiraIssueKey(project.jira) === key) {
-            project.progress = percent;
+            if (percent !== null) project.progress = percent;
+            if (estimatedHours !== null) project.estimatedHours = estimatedHours;
+            if (remainingHours !== null) project.remainingHours = remainingHours;
           }
         });
       }
@@ -527,8 +546,19 @@ function renderTable() {
             <td>${formatDate(project.dueDate)}</td>
             <td><span class="health-pill health-${(project.health || 'green').toLowerCase()}">${project.health || 'Green'}</span></td>
             <td>
-              <div class="progress-bar"><div class="progress-fill ${progressFillTone}" style="width:${Math.min(progressValue, 100)}%"></div></div>
-              <small class="progress-label ${progressTone}">${progressValue}%${progressValue > 100 ? ' ⚠' : ''}</small>
+              <div class="progress-wrap">
+                ${(() => {
+                  let tip = '';
+                  if (progressValue >= 100) {
+                    tip = 'No more hours for the project';
+                  } else if (project.estimatedHours != null && project.remainingHours != null) {
+                    tip = `${project.remainingHours} out of ${project.estimatedHours} remaining`;
+                  }
+                  return tip ? `<div class="progress-tooltip">${escapeHtml(tip)}</div>` : '';
+                })()}
+                <div class="progress-bar"><div class="progress-fill ${progressFillTone}" style="width:${Math.min(progressValue, 100)}%"></div></div>
+                <small class="progress-label ${progressTone}">${progressValue}%${progressValue > 100 ? ' ⚠' : ''}</small>
+              </div>
             </td>
             <td><div class="cell-scroll">${project.statusText || '-'}</div></td>
             <td><div class="cell-scroll">${(project.comments || '-').split(', ').join('<br>')}</div></td>
