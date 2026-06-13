@@ -520,7 +520,7 @@ function renderTable() {
 
     const header = document.createElement('div');
     header.className = 'pm-group-header';
-    header.innerHTML = `<h4>${manager}</h4><span>${grouped[manager].length} project${grouped[manager].length === 1 ? '' : 's'}</span>`;
+    header.innerHTML = `<h4>${manager} <span style="font-size:0.88rem;font-weight:400;color:#bfdbfe;">(${grouped[manager].length})</span></h4>`;
     section.appendChild(header);
 
     const table = document.createElement('table');
@@ -621,7 +621,6 @@ function openEditProjectModal(projectIndex) {
 
   editCustomerName.value = project.customer || '';
   editProjectName.value = project.name;
-  editProgress.value = project.progress ?? '';
   editHealth.value = project.health || 'Green';
   editStatusEditor.innerHTML = project.statusText || '';
   editProjectForm.dataset.projectIndex = String(projectIndex);
