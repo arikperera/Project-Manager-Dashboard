@@ -371,6 +371,16 @@ function formatDate(dateStr) {
   return `${d}/${m}/${y.slice(2)}`;
 }
 
+function setupDateInput(input) {
+  input.addEventListener('input', (e) => {
+    let val = e.target.value.replace(/[^0-9]/g, '');
+    if (val.length > 6) val = val.slice(0, 6);
+    if (val.length >= 5) val = val.slice(0,2) + '/' + val.slice(2,4) + '/' + val.slice(4);
+    else if (val.length >= 3) val = val.slice(0,2) + '/' + val.slice(2);
+    e.target.value = val;
+  });
+}
+
 function parseDateInput(val) {
   if (!val) return '';
   const parts = val.trim().split('/');
@@ -1371,4 +1381,6 @@ backupAndDeleteProjectBtn.addEventListener('click', () => {
 
 renderAll();
 initAutocompletes();
+setupDateInput(document.getElementById('modalProjectStartDate'));
+setupDateInput(document.getElementById('modalProjectDueDate'));
 syncProjectProgressFromJira();
