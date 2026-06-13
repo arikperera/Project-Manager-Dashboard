@@ -110,7 +110,10 @@
         <form id="editProjectForm" class="status-form modal-form">
           <label>
             Customer name
-            <input id="editCustomerName" type="text" />
+            <div class="autocomplete-wrap">
+              <input id="editCustomerName" type="text" autocomplete="off" />
+              <ul class="autocomplete-list hidden"></ul>
+            </div>
           </label>
           <label>
             Project Name

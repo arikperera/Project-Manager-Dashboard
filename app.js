@@ -285,12 +285,13 @@ function setupAutocomplete(input, getOptions, role, addCallback) {
 
 let addCustomerReturnContext = null;
 
-function triggerAddCustomerFromAutocomplete(name, returnInput) {
+function triggerAddCustomerFromAutocomplete(name, returnInput, sourceModal) {
   document.getElementById('newCustomerName').value = name;
   document.getElementById('newCustomerSfLink').value = '';
-  addCustomerReturnContext = { inputEl: returnInput };
-  projectModal.classList.add('hidden');
-  projectModal.setAttribute('aria-hidden', 'true');
+  const src = sourceModal || projectModal;
+  addCustomerReturnContext = { inputEl: returnInput, sourceModal: src };
+  src.classList.add('hidden');
+  src.setAttribute('aria-hidden', 'true');
   addCustomerModal.classList.remove('hidden');
   addCustomerModal.setAttribute('aria-hidden', 'false');
 }
@@ -326,6 +327,8 @@ function initAutocompletes() {
   setupAutocomplete(document.getElementById('modalProjectCsm'), () => getUsersByRole('CSM'), 'CSM');
   setupAutocomplete(document.getElementById('modalProjectSales'), () => getUsersByRole('Sales'), 'Sales');
   setupAutocomplete(document.getElementById('modalProjectCustomer'), () => getCustomerNames(), null, triggerAddCustomerFromAutocomplete);
+  setupAutocomplete(document.getElementById('editCustomerName'), () => getCustomerNames(), null,
+    (name, input) => triggerAddCustomerFromAutocomplete(name, input, editProjectModal));
 }
 
 function getJiraLabel(jira) {
@@ -950,22 +953,16 @@ modalProjectForm.addEventListener('submit', (event) => {
   syncProjectProgressFromJira();
 });
 
-closeAddCustomerModalBtn.addEventListener('click', () => {
-  closeAddCustomerModal();
+function restoreSourceModal() {
   if (addCustomerReturnContext) {
+    const src = addCustomerReturnContext.sourceModal || projectModal;
     addCustomerReturnContext = null;
-    projectModal.classList.remove('hidden');
-    projectModal.setAttribute('aria-hidden', 'false');
+    src.classList.remove('hidden');
+    src.setAttribute('aria-hidden', 'false');
   }
-});
-cancelAddCustomerBtn.addEventListener('click', () => {
-  closeAddCustomerModal();
-  if (addCustomerReturnContext) {
-    addCustomerReturnContext = null;
-    projectModal.classList.remove('hidden');
-    projectModal.setAttribute('aria-hidden', 'false');
-  }
-});
+}
+closeAddCustomerModalBtn.addEventListener('click', () => { closeAddCustomerModal(); restoreSourceModal(); });
+cancelAddCustomerBtn.addEventListener('click', () => { closeAddCustomerModal(); restoreSourceModal(); });
 addCustomerModal.addEventListener('click', (e) => { if (e.target === addCustomerModal) cancelAddCustomerBtn.click(); });
 
 saveAddCustomerBtn.addEventListener('click', () => {
@@ -978,13 +975,11 @@ saveAddCustomerBtn.addEventListener('click', () => {
   }
   customers.push({ id: `cust_${Date.now()}`, name, sfLink });
   saveCustomers();
-  closeAddCustomerModal();
   if (addCustomerReturnContext) {
     addCustomerReturnContext.inputEl.value = name;
-    addCustomerReturnContext = null;
-    projectModal.classList.remove('hidden');
-    projectModal.setAttribute('aria-hidden', 'false');
   }
+  closeAddCustomerModal();
+  restoreSourceModal();
 });
 
 settingsBtn.addEventListener('click', () => {
