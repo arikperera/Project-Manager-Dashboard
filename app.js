@@ -913,7 +913,7 @@ editProjectForm.addEventListener('submit', (event) => {
   if (newCustomer) selectedProject.customer = newCustomer;
   if (newName) selectedProject.name = newName;
   selectedProject.health = editHealth.value;
-  selectedProject.statusText = editStatusEditor.innerHTML.trim() || selectedProject.statusText;
+  selectedProject.statusText = editStatusEditor.innerHTML.trim();
 
   saveProjects();
   renderAll();
