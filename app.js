@@ -79,8 +79,14 @@ function getUserDisplayName(user) {
   return `${user.firstName} ${user.lastName}`.trim();
 }
 
+function getUserRoles(user) {
+  if (Array.isArray(user.roles)) return user.roles;
+  if (user.role) return [user.role];
+  return [];
+}
+
 function getUsersByRole(role) {
-  return users.filter(u => u.role === role).map(getUserDisplayName);
+  return users.filter(u => getUserRoles(u).includes(role)).map(getUserDisplayName);
 }
 
 function escapeHtml(str) {
@@ -304,7 +310,7 @@ function triggerAddUserFromAutocomplete(name, role, returnInput) {
 
   document.getElementById('newUserFirstName').value = firstName;
   document.getElementById('newUserLastName').value = lastName;
-  document.getElementById('newUserRole').value = role;
+  if (role) document.getElementById(`newUserRole${role}`).checked = true;
   addUserForm.style.display = 'grid';
   addUserBtn.style.display = 'none';
 
@@ -594,27 +600,19 @@ function renderRiskList() {
 }
 
 function renderUsersModal() {
-  const roles = ['PM', 'CSM', 'Sales'];
-  const grouped = roles.map(role => ({
-    role,
-    members: users.filter(u => u.role === role),
-  }));
-
   const hasUsers = users.length > 0;
 
   usersModalBody.innerHTML = hasUsers
-    ? grouped.map(({ role, members }) => members.length === 0 ? '' : `
-        <div style="margin-bottom:14px;">
-          <p class="eyebrow" style="margin-bottom:6px;">${role}</p>
-          ${members.map(u => `
-            <div class="user-row" data-user-id="${escapeHtml(u.id)}">
-              <span>${escapeHtml(getUserDisplayName(u))}</span>
-              <div>
-                <button type="button" class="ghost-btn small-btn" data-edit-user="${escapeHtml(u.id)}">Edit</button>
-                <button type="button" class="ghost-btn small-btn" data-delete-user="${escapeHtml(u.id)}">Delete</button>
-              </div>
-            </div>
-          `).join('')}
+    ? users.map(u => `
+        <div class="user-row" data-user-id="${escapeHtml(u.id)}">
+          <div>
+            <span>${escapeHtml(getUserDisplayName(u))}</span>
+            <small style="color:#a5b4fc;margin-left:8px;">${getUserRoles(u).join(', ')}</small>
+          </div>
+          <div>
+            <button type="button" class="ghost-btn small-btn" data-edit-user="${escapeHtml(u.id)}">Edit</button>
+            <button type="button" class="ghost-btn small-btn" data-delete-user="${escapeHtml(u.id)}">Delete</button>
+          </div>
         </div>
       `).join('')
     : '<p class="muted">No users added yet. Click Add user to get started.</p>';
@@ -787,9 +785,7 @@ function closeUsersModal() {
   usersModal.setAttribute('aria-hidden', 'true');
   addUserForm.style.display = 'none';
   addUserBtn.style.display = '';
-  document.getElementById('newUserFirstName').value = '';
-  document.getElementById('newUserLastName').value = '';
-  document.getElementById('newUserRole').value = 'PM';
+  resetAddUserForm();
   if (addUserReturnContext) {
     addUserReturnContext = null;
     projectModal.classList.remove('hidden');
@@ -1128,32 +1124,37 @@ addUserBtn.addEventListener('click', () => {
   addUserBtn.style.display = 'none';
 });
 
+function resetAddUserForm() {
+  document.getElementById('newUserFirstName').value = '';
+  document.getElementById('newUserLastName').value = '';
+  document.getElementById('newUserRolePM').checked = false;
+  document.getElementById('newUserRoleCSM').checked = false;
+  document.getElementById('newUserRoleSales').checked = false;
+}
+
 cancelAddUserBtn.addEventListener('click', () => {
   addUserForm.style.display = 'none';
   addUserBtn.style.display = '';
-  document.getElementById('newUserFirstName').value = '';
-  document.getElementById('newUserLastName').value = '';
-  document.getElementById('newUserRole').value = 'PM';
+  resetAddUserForm();
 });
 
 saveAddUserBtn.addEventListener('click', () => {
   const firstName = document.getElementById('newUserFirstName').value.trim();
   const lastName = document.getElementById('newUserLastName').value.trim();
-  const role = document.getElementById('newUserRole').value;
+  const roles = ['PM', 'CSM', 'Sales'].filter(r => document.getElementById(`newUserRole${r}`).checked);
   if (!firstName || !lastName) return;
+  if (!roles.length) { alert('Please select at least one role.'); return; }
 
   const displayName = `${firstName} ${lastName}`.trim();
   if (users.some(u => getUserDisplayName(u) === displayName)) {
     alert(`A user named "${displayName}" already exists.`);
     return;
   }
-  users.push({ id: `u_${Date.now()}_${users.length}`, firstName, lastName, role });
+  users.push({ id: `u_${Date.now()}_${users.length}`, firstName, lastName, roles });
   saveUsers();
   addUserForm.style.display = 'none';
   addUserBtn.style.display = '';
-  document.getElementById('newUserFirstName').value = '';
-  document.getElementById('newUserLastName').value = '';
-  document.getElementById('newUserRole').value = 'PM';
+  resetAddUserForm();
   renderUsersModal();
 
   if (addUserReturnContext) {
@@ -1188,12 +1189,12 @@ usersModalBody.addEventListener('click', (e) => {
       <div class="user-row-edit" data-editing-id="${escapeHtml(userId)}">
         <label style="grid-column:1">First name<input type="text" class="edit-first" value="${escapeHtml(user.firstName)}" /></label>
         <label style="grid-column:2">Last name<input type="text" class="edit-last" value="${escapeHtml(user.lastName)}" /></label>
-        <label style="grid-column:1">Role
-          <select class="edit-role">
-            <option value="PM"${user.role === 'PM' ? ' selected' : ''}>PM</option>
-            <option value="CSM"${user.role === 'CSM' ? ' selected' : ''}>CSM</option>
-            <option value="Sales"${user.role === 'Sales' ? ' selected' : ''}>Sales</option>
-          </select>
+        <label style="grid-column:1/3">Roles
+          <div style="display:flex;gap:14px;margin-top:4px;">
+            <label style="display:flex;align-items:center;gap:4px;color:#dbeafe;font-size:0.9rem;"><input type="checkbox" class="edit-role-cb" value="PM" ${getUserRoles(user).includes('PM') ? 'checked' : ''}> PM</label>
+            <label style="display:flex;align-items:center;gap:4px;color:#dbeafe;font-size:0.9rem;"><input type="checkbox" class="edit-role-cb" value="CSM" ${getUserRoles(user).includes('CSM') ? 'checked' : ''}> CSM</label>
+            <label style="display:flex;align-items:center;gap:4px;color:#dbeafe;font-size:0.9rem;"><input type="checkbox" class="edit-role-cb" value="Sales" ${getUserRoles(user).includes('Sales') ? 'checked' : ''}> Sales</label>
+          </div>
         </label>
         <div class="modal-actions" style="grid-column:2; align-self:end;">
           <button type="button" class="ghost-btn small-btn cancel-edit-user">Cancel</button>
@@ -1220,7 +1221,8 @@ usersModalBody.addEventListener('click', (e) => {
     const oldName = getUserDisplayName(user);
     user.firstName = editingRow.querySelector('.edit-first').value.trim() || user.firstName;
     user.lastName = editingRow.querySelector('.edit-last').value.trim() || user.lastName;
-    user.role = editingRow.querySelector('.edit-role').value;
+    const newRoles = [...editingRow.querySelectorAll('.edit-role-cb:checked')].map(cb => cb.value);
+    if (newRoles.length) user.roles = newRoles;
     const newName = getUserDisplayName(user);
 
     propagateUserRename(oldName, newName);

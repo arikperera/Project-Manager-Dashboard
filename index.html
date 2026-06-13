@@ -244,12 +244,12 @@
             <label>First name<input id="newUserFirstName" type="text" required placeholder="e.g. Janina" /></label>
             <label>Last name<input id="newUserLastName" type="text" required placeholder="e.g. Pomme" /></label>
           </div>
-          <label>Role
-            <select id="newUserRole">
-              <option value="PM">PM</option>
-              <option value="CSM">CSM</option>
-              <option value="Sales">Sales</option>
-            </select>
+          <label>Roles
+            <div style="display:flex;gap:16px;margin-top:4px;">
+              <label style="display:flex;align-items:center;gap:4px;color:#dbeafe;font-size:0.9rem;"><input type="checkbox" id="newUserRolePM" value="PM"> PM</label>
+              <label style="display:flex;align-items:center;gap:4px;color:#dbeafe;font-size:0.9rem;"><input type="checkbox" id="newUserRoleCSM" value="CSM"> CSM</label>
+              <label style="display:flex;align-items:center;gap:4px;color:#dbeafe;font-size:0.9rem;"><input type="checkbox" id="newUserRoleSales" value="Sales"> Sales</label>
+            </div>
           </label>
           <div class="modal-actions">
             <button type="button" id="cancelAddUserBtn" class="ghost-btn">Cancel</button>
