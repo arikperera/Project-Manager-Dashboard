@@ -573,7 +573,7 @@ function renderTable() {
                 <small class="progress-label ${progressTone}">${progressValue}%${progressValue > 100 ? ' ⚠' : ''}</small>
               </div>
             </td>
-            <td><div class="cell-scroll">${project.statusText || ''}</div></td>
+            <td><div class="cell-scroll">${project.statusText || '<span style="color:#f97316;font-style:italic;">No Status Yet</span>'}</div></td>
             <td><div class="cell-scroll">${(project.comments || '-').split(', ').join('<br>')}</div></td>
             <td style="white-space:nowrap;">
               <button type="button" class="secondary-btn small-btn" data-edit-project="${projects.indexOf(project)}">Edit</button>
@@ -625,7 +625,7 @@ function openEditProjectModal(projectIndex) {
   editCustomerName.value = project.customer || '';
   editProjectName.value = project.name;
   editHealth.value = project.health || 'Green';
-  editStatusEditor.innerHTML = project.statusText || '';
+  editStatusEditor.innerHTML = project.statusText || '<span style="color:#f97316;font-style:italic;">No Status Yet</span>';
   editProjectForm.dataset.projectIndex = String(projectIndex);
 
   editProjectModal.classList.remove('hidden');
@@ -726,7 +726,7 @@ function renderBackupMain(backup) {
                   <div class="progress-bar"><div class="progress-fill" style="width:${pv}%;background:linear-gradient(90deg,#38bdf8,#a78bfa)"></div></div>
                   <small>${pv}%</small>
                 </td>
-                <td><div class="cell-scroll">${p.statusText || ''}</div></td>
+                <td><div class="cell-scroll">${p.statusText || '<span style="color:#f97316;font-style:italic;">No Status Yet</span>'}</div></td>
                 <td><div class="cell-scroll">${escapeHtml((p.comments || '-').split(', ').join('\n'))}</div></td>
               </tr>`;
             }).join('')}
@@ -941,7 +941,7 @@ modalProjectForm.addEventListener('submit', (event) => {
     status: 'On Track',
     health: 'Green',
     progress: 0,
-    statusText: 'New project created.',
+    statusText: '',
     csm: csmName || '',
     sales: salesName || '',
     comments: `NRR: ${formatCurrency(nrrValue || '0')}, MRR: ${formatCurrency(mrrValue || '0')}, CSM: ${csmName || '-'}, Sales: ${salesName || '-'}`,
@@ -1148,7 +1148,7 @@ exportBtn.addEventListener('click', () => {
     '',
     'Customer name,Project,PM,Jira,NRR,Start Date,End Date,Status,Health,Progress,Project Status,Manager Notes',
     ...projects.map((project) =>
-      [project.customer || '', project.name, project.manager || '', getJiraLabel(project.jira), project.nrr || 0, project.startDate || '', project.dueDate || '', project.status, project.health || 'Green', `${project.progress}%`, project.statusText || '', project.comments || ''].join(',')
+      [project.customer || '', project.name, project.manager || '', getJiraLabel(project.jira), project.nrr || 0, project.startDate || '', project.dueDate || '', project.status, project.health || 'Green', `${project.progress}%`, project.statusText || '<span style="color:#f97316;font-style:italic;">No Status Yet</span>', project.comments || ''].join(',')
     ),
   ];
 
