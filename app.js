@@ -573,7 +573,7 @@ function renderTable() {
                 <small class="progress-label ${progressTone}">${progressValue}%${progressValue > 100 ? ' ⚠' : ''}</small>
               </div>
             </td>
-            <td><div class="cell-scroll">${project.statusText || '-'}</div></td>
+            <td><div class="cell-scroll">${project.statusText || ''}</div></td>
             <td><div class="cell-scroll">${(project.comments || '-').split(', ').join('<br>')}</div></td>
             <td style="white-space:nowrap;">
               <button type="button" class="secondary-btn small-btn" data-edit-project="${projects.indexOf(project)}">Edit</button>
@@ -726,7 +726,7 @@ function renderBackupMain(backup) {
                   <div class="progress-bar"><div class="progress-fill" style="width:${pv}%;background:linear-gradient(90deg,#38bdf8,#a78bfa)"></div></div>
                   <small>${pv}%</small>
                 </td>
-                <td><div class="cell-scroll">${p.statusText || '-'}</div></td>
+                <td><div class="cell-scroll">${p.statusText || ''}</div></td>
                 <td><div class="cell-scroll">${escapeHtml((p.comments || '-').split(', ').join('\n'))}</div></td>
               </tr>`;
             }).join('')}
