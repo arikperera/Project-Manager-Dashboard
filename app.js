@@ -1216,8 +1216,8 @@ function showAtRiskPopup() {
   clearTimeout(atRiskHideTimer);
   const atRiskProjects = projects.filter(p => p.health === 'Yellow' || p.health === 'Red');
   if (!atRiskProjects.length) return;
-  atRiskPopup.innerHTML = atRiskProjects.map(p =>
-    `<a href="#" data-scroll-project="${escapeHtml(p.name)}">${escapeHtml(p.customer ? p.customer + ' — ' : '')}${escapeHtml(p.name)}</a>`
+  atRiskPopup.innerHTML = atRiskProjects.map((p, i) =>
+    `<a href="#" data-scroll-project="${escapeHtml(p.name)}">${i + 1}. ${escapeHtml(p.customer ? p.customer + ' — ' : '')}${escapeHtml(p.name)}</a>`
   ).join('');
   atRiskPopup.classList.remove('hidden');
 }
