@@ -163,7 +163,7 @@ th { color: #bfdbfe; font-weight:600; }
 .backup-sidebar { width: 190px; flex-shrink: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
 .atrisk-popup { position:absolute; top:8px; right:8px; width:10cm; background:#111c30; border:1px solid rgba(56,189,248,0.3); border-radius:14px; padding:10px 14px; box-shadow:0 8px 24px rgba(2,6,23,0.5); z-index:200; }
 .atrisk-popup.hidden { display:none; }
-.atrisk-popup a { display:block; padding:5px 0; color:#7dd3fc; text-decoration:none; font-size:0.92rem; border-bottom:1px solid var(--line); }
+.atrisk-popup a { display:block; padding:5px 0 5px 0; color:#7dd3fc; text-decoration:none; font-size:0.92rem; border-bottom:1px solid var(--line); padding-left:1.4em; text-indent:-1.4em; }
 .atrisk-popup a:last-child { border-bottom:none; }
 .atrisk-popup a:hover { color:#bae6fd; }
 .backup-entry { padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; cursor: pointer; font-size: 0.88rem; color: var(--text); background: rgba(15,23,42,0.95); }
