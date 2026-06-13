@@ -1203,6 +1203,40 @@ backupSidebar.addEventListener('click', (e) => {
   renderBackupsPanel();
 });
 
+const atRiskCard = document.getElementById('atRiskCard');
+const atRiskPopup = document.getElementById('atRiskPopup');
+
+atRiskCard.addEventListener('mouseenter', () => {
+  const atRiskProjects = projects.filter(p => p.status === 'At Risk' || p.status === 'Delayed');
+  if (!atRiskProjects.length) return;
+  atRiskPopup.innerHTML = atRiskProjects.map(p => {
+    const id = `project-${escapeHtml(p.name.replace(/\s+/g, '-'))}`;
+    return `<a href="#projects" data-scroll-project="${escapeHtml(p.name)}">${escapeHtml(p.name)}</a>`;
+  }).join('');
+  atRiskPopup.classList.remove('hidden');
+});
+
+atRiskCard.addEventListener('mouseleave', () => {
+  atRiskPopup.classList.add('hidden');
+});
+
+atRiskPopup.addEventListener('click', (e) => {
+  const link = e.target.closest('[data-scroll-project]');
+  if (!link) return;
+  const projectName = link.dataset.scrollProject;
+  const rows = portfolioGroups.querySelectorAll('tr');
+  for (const row of rows) {
+    const nameCell = row.querySelector('td:nth-child(2)');
+    if (nameCell && nameCell.textContent.trim() === projectName) {
+      row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      row.style.outline = '2px solid rgba(56,189,248,0.6)';
+      setTimeout(() => { row.style.outline = ''; }, 2000);
+      break;
+    }
+  }
+  atRiskPopup.classList.add('hidden');
+});
+
 renderAll();
 initAutocompletes();
 syncProjectProgressFromJira();
