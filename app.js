@@ -591,7 +591,7 @@ function renderTable() {
                     tip = 'No more hours for the project';
                   } else if (project.estimatedHours != null && project.remainingHours != null) {
                     const used = project.actualHours != null ? project.actualHours : (project.estimatedHours - project.remainingHours);
-                    tip = `${used} hours used out of ${project.estimatedHours}\n${project.remainingHours} hours left out of ${project.estimatedHours}`;
+                    tip = `${used} hours have been completed out of ${project.estimatedHours}, with ${project.remainingHours} hours remaining`;
                   }
                   return tip ? `<div class="progress-tooltip">${escapeHtml(tip).replace(/\n/g,'<br>')}</div>` : '';
                 })()}
@@ -759,7 +759,7 @@ function renderBackupMain(backup) {
                 </td>
                 <td>
                   <div class="progress-wrap">
-                    ${(() => { let tip = ''; if (pv >= 100) { tip = 'No more hours for the project'; } else if (p.estimatedHours != null && p.remainingHours != null) { const used = p.actualHours != null ? p.actualHours : (p.estimatedHours - p.remainingHours); tip = `${used} hours used out of ${p.estimatedHours}\n${p.remainingHours} hours left out of ${p.estimatedHours}`; } return tip ? `<div class="progress-tooltip">${escapeHtml(tip).replace(/\n/g,'<br>')}</div>` : ''; })()}
+                    ${(() => { let tip = ''; if (pv >= 100) { tip = 'No more hours for the project'; } else if (p.estimatedHours != null && p.remainingHours != null) { const used = p.actualHours != null ? p.actualHours : (p.estimatedHours - p.remainingHours); tip = `${used} hours have been completed out of ${p.estimatedHours}, with ${p.remainingHours} hours remaining`; } return tip ? `<div class="progress-tooltip">${escapeHtml(tip)}</div>` : ''; })()}
                     <div class="progress-bar"><div class="progress-fill" style="width:${pv}%;background:linear-gradient(90deg,#38bdf8,#a78bfa)"></div></div>
                     <small>${pv}%</small>
                   </div>
@@ -1228,7 +1228,7 @@ function generateHTMLReport() {
     if (v >= 100) tip = 'No more hours for the project';
     else if (estimatedHours != null && remainingHours != null) {
       const used = actualHours != null ? actualHours : (estimatedHours - remainingHours);
-      tip = `${used} hours used out of ${estimatedHours}<br>${remainingHours} hours left out of ${estimatedHours}`;
+      tip = `${used} hours have been completed out of ${estimatedHours}, with ${remainingHours} hours remaining`;
     }
     const bar = `<div style="width:100%;background:#142033;border-radius:999px;overflow:hidden;height:8px;margin-bottom:4px"><div style="height:100%;border-radius:999px;width:${Math.min(v,100)}%;background:${fill}"></div></div><small style="color:${color};font-weight:700">${v}%${v>100?' ⚠':''}</small>`;
     if (tip) return `<span class="rpt-progress-wrap">${bar}<span class="rpt-tooltip">${tip}</span></span>`;
