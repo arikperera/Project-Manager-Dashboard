@@ -587,7 +587,7 @@ function renderTable() {
             <td><div class="cell-scroll">${(project.comments || '-').split(', ').join('<br>')}</div></td>
             <td style="white-space:nowrap;">
               <button type="button" class="secondary-btn small-btn" data-edit-project="${projects.indexOf(project)}">Edit</button>
-              <button type="button" class="ghost-btn small-btn" style="margin-top:4px;display:block;" data-delete-project="${projects.indexOf(project)}">Delete</button>
+              <button type="button" class="ghost-btn small-btn" style="margin-top:4px;display:block;" data-delete-project="${projects.indexOf(project)}">Complete/Delete</button>
             </td>
           </tr>
         `;
