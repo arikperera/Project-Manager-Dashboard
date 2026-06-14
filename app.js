@@ -463,9 +463,11 @@ async function syncProjectProgressFromJira() {
 
       let estimatedHours = null;
       let remainingHours = null;
+      let actualHours = null;
       if (data.names) {
         const estEntry = Object.entries(data.names).find(([, n]) => n === 'Estimated PS Hours');
         const remEntry = Object.entries(data.names).find(([, n]) => n === 'Remaining Effort');
+        const actEntry = Object.entries(data.names).find(([, n]) => n === 'Actual Effort(H)');
         if (estEntry) {
           const raw = data.fields?.[estEntry[0]];
           const v = (raw !== null && typeof raw === 'object') ? (raw.value ?? null) : raw;
@@ -476,14 +478,20 @@ async function syncProjectProgressFromJira() {
           const v = (raw !== null && typeof raw === 'object') ? (raw.value ?? null) : raw;
           if (v !== null && Number.isFinite(Number(v))) remainingHours = Math.round(Number(v));
         }
+        if (actEntry) {
+          const raw = data.fields?.[actEntry[0]];
+          const v = (raw !== null && typeof raw === 'object') ? (raw.value ?? null) : raw;
+          if (v !== null && Number.isFinite(Number(v))) actualHours = Math.round(Number(v));
+        }
       }
 
-      if (percent !== null || estimatedHours !== null || remainingHours !== null) {
+      if (percent !== null || estimatedHours !== null || remainingHours !== null || actualHours !== null) {
         projects.forEach((project) => {
           if (getJiraIssueKey(project.jira) === key) {
             if (percent !== null) project.progress = percent;
             if (estimatedHours !== null) project.estimatedHours = estimatedHours;
             if (remainingHours !== null) project.remainingHours = remainingHours;
+            if (actualHours !== null) project.actualHours = actualHours;
           }
         });
       }
@@ -582,9 +590,10 @@ function renderTable() {
                   if (progressValue >= 100) {
                     tip = 'No more hours for the project';
                   } else if (project.estimatedHours != null && project.remainingHours != null) {
-                    tip = `${project.remainingHours} out of ${project.estimatedHours} remaining`;
+                    const used = project.actualHours != null ? project.actualHours : (project.estimatedHours - project.remainingHours);
+                    tip = `${used} hours used out of ${project.estimatedHours}\n${project.remainingHours} hours left out of ${project.estimatedHours}`;
                   }
-                  return tip ? `<div class="progress-tooltip">${escapeHtml(tip)}</div>` : '';
+                  return tip ? `<div class="progress-tooltip">${escapeHtml(tip).replace(/\n/g,'<br>')}</div>` : '';
                 })()}
                 <div class="progress-bar"><div class="progress-fill ${progressFillTone}" style="width:${Math.min(progressValue, 100)}%"></div></div>
                 <small class="progress-label ${progressTone}">${progressValue}%${progressValue > 100 ? ' ⚠' : ''}</small>
@@ -750,7 +759,7 @@ function renderBackupMain(backup) {
                 </td>
                 <td>
                   <div class="progress-wrap">
-                    ${(() => { let tip = ''; if (pv >= 100) { tip = 'No more hours for the project'; } else if (p.estimatedHours != null && p.remainingHours != null) { tip = `${p.remainingHours} out of ${p.estimatedHours} remaining`; } return tip ? `<div class="progress-tooltip">${escapeHtml(tip)}</div>` : ''; })()}
+                    ${(() => { let tip = ''; if (pv >= 100) { tip = 'No more hours for the project'; } else if (p.estimatedHours != null && p.remainingHours != null) { const used = p.actualHours != null ? p.actualHours : (p.estimatedHours - p.remainingHours); tip = `${used} hours used out of ${p.estimatedHours}\n${p.remainingHours} hours left out of ${p.estimatedHours}`; } return tip ? `<div class="progress-tooltip">${escapeHtml(tip).replace(/\n/g,'<br>')}</div>` : ''; })()}
                     <div class="progress-bar"><div class="progress-fill" style="width:${pv}%;background:linear-gradient(90deg,#38bdf8,#a78bfa)"></div></div>
                     <small>${pv}%</small>
                   </div>
@@ -1211,15 +1220,18 @@ function generateHTMLReport() {
     return pill;
   }
 
-  function progressBar(val, estimatedHours, remainingHours) {
+  function progressBar(val, estimatedHours, remainingHours, actualHours) {
     const v = Math.max(0, Math.round(Number(val)||0));
     const fill = v > 100 ? 'linear-gradient(90deg,#f97316,#fb923c)' : v < 50 ? 'linear-gradient(90deg,#22c55e,#86efac)' : v <= 75 ? 'linear-gradient(90deg,#facc15,#fde68a)' : 'linear-gradient(90deg,#f87171,#fecaca)';
     const color = v > 100 ? '#f97316' : v < 50 ? '#bbf7d0' : v <= 75 ? '#fde68a' : '#fecaca';
     let tip = '';
     if (v >= 100) tip = 'No more hours for the project';
-    else if (estimatedHours != null && remainingHours != null) tip = `${remainingHours} out of ${estimatedHours} remaining`;
+    else if (estimatedHours != null && remainingHours != null) {
+      const used = actualHours != null ? actualHours : (estimatedHours - remainingHours);
+      tip = `${used} hours used out of ${estimatedHours}<br>${remainingHours} hours left out of ${estimatedHours}`;
+    }
     const bar = `<div style="width:100%;background:#142033;border-radius:999px;overflow:hidden;height:8px;margin-bottom:4px"><div style="height:100%;border-radius:999px;width:${Math.min(v,100)}%;background:${fill}"></div></div><small style="color:${color};font-weight:700">${v}%${v>100?' ⚠':''}</small>`;
-    if (tip) return `<span class="rpt-progress-wrap">${bar}<span class="rpt-tooltip">${esc(tip)}</span></span>`;
+    if (tip) return `<span class="rpt-progress-wrap">${bar}<span class="rpt-tooltip">${tip}</span></span>`;
     return bar;
   }
 
@@ -1245,7 +1257,7 @@ function generateHTMLReport() {
         <td>${esc(formatDate(p.startDate))}</td>
         <td>${esc(formatDate(p.dueDate))}</td>
         <td>${healthPill(p.health, p.riskReason)}</td>
-        <td>${progressBar(p.progress, p.estimatedHours, p.remainingHours)}</td>
+        <td>${progressBar(p.progress, p.estimatedHours, p.remainingHours, p.actualHours)}</td>
         <td>${p.statusText ? p.statusText : '<span style="color:#f97316;font-style:italic">No Status Yet</span>'}</td>
         <td>${esc((p.comments||'').split(', ').join('\n'))}</td>
       </tr>`).join('')
