@@ -1223,8 +1223,13 @@ function generateHTMLReport() {
         <td>${esc(p.customer||'-')}</td>
         <td><strong>${esc(p.name)}</strong></td>
         <td>${esc(p.manager||'-')}</td>
+        <td>${esc(String(p.nrr||0))} hrs</td>
         <td>${esc(formatDate(p.startDate))}</td>
         <td>${esc(formatDate(p.dueDate))}</td>
+        <td>${healthPill(p.health)}</td>
+        <td>${progressBar(p.progress)}</td>
+        <td>${p.statusText ? p.statusText : '<span style="color:#f97316;font-style:italic">No Status Yet</span>'}</td>
+        <td>${esc((p.comments||'').split(', ').join('\n'))}</td>
       </tr>`).join('')
     : '';
 
@@ -1263,8 +1268,13 @@ function generateHTMLReport() {
           <th style="text-align:left;padding:8px;color:#bfdbfe;border-bottom:1px solid #223249">Customer</th>
           <th style="text-align:left;padding:8px;color:#bfdbfe;border-bottom:1px solid #223249">Project</th>
           <th style="text-align:left;padding:8px;color:#bfdbfe;border-bottom:1px solid #223249">PM</th>
+          <th style="text-align:left;padding:8px;color:#bfdbfe;border-bottom:1px solid #223249">NRR(h)</th>
           <th style="text-align:left;padding:8px;color:#bfdbfe;border-bottom:1px solid #223249">Start</th>
           <th style="text-align:left;padding:8px;color:#bfdbfe;border-bottom:1px solid #223249">End</th>
+          <th style="text-align:left;padding:8px;color:#bfdbfe;border-bottom:1px solid #223249">Health</th>
+          <th style="text-align:left;padding:8px;color:#bfdbfe;border-bottom:1px solid #223249">Progress</th>
+          <th style="text-align:left;padding:8px;color:#bfdbfe;border-bottom:1px solid #223249">Project Status</th>
+          <th style="text-align:left;padding:8px;color:#bfdbfe;border-bottom:1px solid #223249">Manager Notes</th>
         </tr></thead>
         <tbody>${newRows}</tbody>
       </table>
