@@ -123,8 +123,8 @@ th { color: #bfdbfe; font-weight:600; }
 .progress-red { color: #fecaca; }
 .progress-neutral { color: #bfdbfe; }
 .progress-overrun { color: #f97316; }
-.progress-wrap { position: relative; }
-.progress-tooltip { display: none; position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%); background: #111c30; border: 1px solid var(--line); border-radius: 8px; padding: 5px 10px; font-size: 0.8rem; color: #bae6fd; white-space: nowrap; z-index: 100; pointer-events: none; box-shadow: 0 4px 12px rgba(2,6,23,0.5); }
+.progress-wrap { position: relative; display: inline-block; }
+.progress-tooltip { display: none; position: fixed; background: #111c30; border: 1px solid var(--line); border-radius: 8px; padding: 5px 10px; font-size: 0.8rem; color: #bae6fd; white-space: nowrap; z-index: 9999; pointer-events: none; box-shadow: 0 4px 12px rgba(2,6,23,0.5); }
 .progress-wrap:hover .progress-tooltip { display: block; }
 .progress-fill-overrun { background: linear-gradient(90deg, #f97316, #fb923c); }
 .status-form { display:grid; gap: 12px; }
