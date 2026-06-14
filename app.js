@@ -1178,7 +1178,10 @@ function generateHTMLReport() {
   const filename = `dashboard-report-${dd}-${mm}-${yy}-${hh}-${min}.html`;
 
   const atRisk = projects.filter(p => p.health === 'Red' || p.health === 'Yellow')
-    .sort((a,b) => (a.health === 'Red' ? -1 : 1) - (b.health === 'Red' ? -1 : 1));
+    .sort((a,b) => {
+      if (a.health === b.health) return 0;
+      return a.health === 'Red' ? -1 : 1;
+    });
 
   const backupNames = new Set((backups[0]?.projects || []).map(p => p.name));
   const newProjects = projects.filter(p => !backupNames.has(p.name));
@@ -1273,11 +1276,9 @@ function generateHTMLReport() {
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>Project Manager Dashboard — Status Report</title>
-<link rel="preconnect" href="https://fonts.googleapis.com"/>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 <style>
 *{box-sizing:border-box}
-body{margin:0;font-family:'Inter',sans-serif;background:#07111f;color:#eff6ff;padding:32px}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Inter',Arial,sans-serif;background:#07111f;color:#eff6ff;padding:32px}
 h1{margin:0 0 4px;font-size:1.6rem}
 .eyebrow{text-transform:uppercase;letter-spacing:.2em;font-size:.72rem;color:#a5b4fc;margin-bottom:8px}
 .stats{display:flex;gap:16px;margin-bottom:32px}
