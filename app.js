@@ -685,7 +685,7 @@ function renderUsersModal() {
   const hasUsers = users.length > 0;
 
   usersModalBody.innerHTML = hasUsers
-    ? users.map(u => `
+    ? [...users].sort((a, b) => getUserDisplayName(a).localeCompare(getUserDisplayName(b))).map(u => `
         <div class="user-row" data-user-id="${escapeHtml(u.id)}">
           <div>
             <span>${escapeHtml(getUserDisplayName(u))}</span>
@@ -888,7 +888,7 @@ function renderCustomersModal() {
     customersModalBody.innerHTML = '<p class="muted">No customers added yet. Click Add customer to get started.</p>';
     return;
   }
-  customersModalBody.innerHTML = customers.map(c => `
+  customersModalBody.innerHTML = [...customers].sort((a, b) => a.name.localeCompare(b.name)).map(c => `
     <div class="user-row" data-customer-id="${escapeHtml(c.id)}">
       <div>
         <span>${escapeHtml(c.name)}</span>
