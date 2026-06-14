@@ -1395,6 +1395,14 @@ backupAndDeleteProjectBtn.addEventListener('click', () => {
   closeDeleteProjectModal();
 });
 
+portfolioGroups.addEventListener('mousemove', (e) => {
+  const wrap = e.target.closest('.health-wrap');
+  const tooltip = wrap?.querySelector('.health-tooltip');
+  if (!tooltip) return;
+  tooltip.style.left = (e.clientX + 12) + 'px';
+  tooltip.style.top = (e.clientY - tooltip.offsetHeight - 8) + 'px';
+});
+
 renderAll();
 initAutocompletes();
 setupDateInput(document.getElementById('modalProjectStartDate'));
