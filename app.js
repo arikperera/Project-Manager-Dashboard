@@ -742,10 +742,18 @@ function renderBackupMain(backup) {
                 <td>${escapeHtml(String(p.nrr || 0))} hrs</td>
                 <td>${escapeHtml(formatDate(p.startDate))}</td>
                 <td>${escapeHtml(formatDate(p.dueDate))}</td>
-                <td><span class="health-pill health-${escapeHtml((p.health || 'green').toLowerCase())}">${escapeHtml(p.health || 'Green')}</span></td>
                 <td>
-                  <div class="progress-bar"><div class="progress-fill" style="width:${pv}%;background:linear-gradient(90deg,#38bdf8,#a78bfa)"></div></div>
-                  <small>${pv}%</small>
+                  <div class="health-wrap">
+                    <span class="health-pill health-${escapeHtml((p.health || 'green').toLowerCase())}">${escapeHtml(p.health || 'Green')}</span>
+                    ${(p.health === 'Yellow' || p.health === 'Red') ? `<div class="health-tooltip">${escapeHtml(p.riskReason || 'No risk reason provided')}</div>` : ''}
+                  </div>
+                </td>
+                <td>
+                  <div class="progress-wrap">
+                    ${(() => { let tip = ''; if (pv >= 100) { tip = 'No more hours for the project'; } else if (p.estimatedHours != null && p.remainingHours != null) { tip = `${p.remainingHours} out of ${p.estimatedHours} remaining`; } return tip ? `<div class="progress-tooltip">${escapeHtml(tip)}</div>` : ''; })()}
+                    <div class="progress-bar"><div class="progress-fill" style="width:${pv}%;background:linear-gradient(90deg,#38bdf8,#a78bfa)"></div></div>
+                    <small>${pv}%</small>
+                  </div>
                 </td>
                 <td><div class="cell-scroll">${p.statusText || '<span style="color:#f97316;font-style:italic;">No Status Yet</span>'}</div></td>
                 <td><div class="cell-scroll">${escapeHtml((p.comments || '-').split(', ').join('\n'))}</div></td>
@@ -1188,21 +1196,31 @@ function generateHTMLReport() {
 
   const uniquePMs = [...new Set(projects.map(p => p.manager).filter(Boolean))].sort();
 
-  function healthPill(health) {
+  function healthPill(health, riskReason) {
     const colors = {
       Green: 'background:rgba(74,222,128,0.16);color:#bbf7d0',
       Yellow: 'background:rgba(251,191,36,0.15);color:#fde68a',
       Red: 'background:rgba(248,113,113,0.14);color:#fecaca',
     };
     const h = health || 'Green';
-    return `<span style="display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;font-size:0.82rem;font-weight:700;${colors[h]||colors.Green}">${h}</span>`;
+    const pill = `<span style="display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;font-size:0.82rem;font-weight:700;${colors[h]||colors.Green}">${h}</span>`;
+    if ((h === 'Yellow' || h === 'Red') && riskReason !== undefined) {
+      const tip = esc(riskReason || 'No risk reason provided');
+      return `<span class="rpt-health-wrap">${pill}<span class="rpt-tooltip" style="color:#fde68a">${tip}</span></span>`;
+    }
+    return pill;
   }
 
-  function progressBar(val) {
+  function progressBar(val, estimatedHours, remainingHours) {
     const v = Math.max(0, Math.round(Number(val)||0));
     const fill = v > 100 ? 'linear-gradient(90deg,#f97316,#fb923c)' : v < 50 ? 'linear-gradient(90deg,#22c55e,#86efac)' : v <= 75 ? 'linear-gradient(90deg,#facc15,#fde68a)' : 'linear-gradient(90deg,#f87171,#fecaca)';
     const color = v > 100 ? '#f97316' : v < 50 ? '#bbf7d0' : v <= 75 ? '#fde68a' : '#fecaca';
-    return `<div style="width:100%;background:#142033;border-radius:999px;overflow:hidden;height:8px;margin-bottom:4px"><div style="height:100%;border-radius:999px;width:${Math.min(v,100)}%;background:${fill}"></div></div><small style="color:${color};font-weight:700">${v}%${v>100?' ⚠':''}</small>`;
+    let tip = '';
+    if (v >= 100) tip = 'No more hours for the project';
+    else if (estimatedHours != null && remainingHours != null) tip = `${remainingHours} out of ${estimatedHours} remaining`;
+    const bar = `<div style="width:100%;background:#142033;border-radius:999px;overflow:hidden;height:8px;margin-bottom:4px"><div style="height:100%;border-radius:999px;width:${Math.min(v,100)}%;background:${fill}"></div></div><small style="color:${color};font-weight:700">${v}%${v>100?' ⚠':''}</small>`;
+    if (tip) return `<span class="rpt-progress-wrap">${bar}<span class="rpt-tooltip">${esc(tip)}</span></span>`;
+    return bar;
   }
 
   function esc(s) {
@@ -1226,8 +1244,8 @@ function generateHTMLReport() {
         <td>${esc(String(p.nrr||0))} hrs</td>
         <td>${esc(formatDate(p.startDate))}</td>
         <td>${esc(formatDate(p.dueDate))}</td>
-        <td>${healthPill(p.health)}</td>
-        <td>${progressBar(p.progress)}</td>
+        <td>${healthPill(p.health, p.riskReason)}</td>
+        <td>${progressBar(p.progress, p.estimatedHours, p.remainingHours)}</td>
         <td>${p.statusText ? p.statusText : '<span style="color:#f97316;font-style:italic">No Status Yet</span>'}</td>
         <td>${esc((p.comments||'').split(', ').join('\n'))}</td>
       </tr>`).join('')
@@ -1247,8 +1265,8 @@ function generateHTMLReport() {
       <td>${esc(String(p.nrr||0))} hrs</td>
       <td>${esc(formatDate(p.startDate))}</td>
       <td>${esc(formatDate(p.dueDate))}</td>
-      <td>${healthPill(p.health)}</td>
-      <td>${progressBar(p.progress)}</td>
+      <td>${healthPill(p.health, p.riskReason)}</td>
+      <td>${progressBar(p.progress, p.estimatedHours, p.remainingHours)}</td>
       <td>${p.statusText ? p.statusText : '<span style="color:#f97316;font-style:italic">No Status Yet</span>'}</td>
       <td>${esc((p.comments||'').split(', ').join('\n'))}</td>
     </tr>`).join('');
@@ -1305,6 +1323,9 @@ th{color:#bfdbfe;font-weight:600}
 .toggle-btn{background:rgba(15,23,42,.95);border:1px solid #223249;border-radius:12px;padding:9px 16px;color:#eff6ff;font-family:inherit;font-size:.9rem;cursor:pointer;margin-bottom:12px}
 .toggle-btn:hover{background:rgba(30,41,59,.95)}
 #allTable{display:none;overflow-x:auto}
+.rpt-health-wrap,.rpt-progress-wrap{position:relative;display:inline-block}
+.rpt-tooltip{display:none;position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);background:#111c30;border:1px solid #223249;border-radius:8px;padding:6px 10px;font-size:0.8rem;white-space:normal;width:220px;z-index:100;pointer-events:none;box-shadow:0 4px 12px rgba(2,6,23,.5)}
+.rpt-health-wrap:hover .rpt-tooltip,.rpt-progress-wrap:hover .rpt-tooltip{display:block}
 @media print{.filter-bar,.toggle-btn{display:none!important}#allTable{display:block!important}}
 </style>
 </head>
@@ -1638,13 +1659,17 @@ backupAndDeleteProjectBtn.addEventListener('click', () => {
   closeDeleteProjectModal();
 });
 
-portfolioGroups.addEventListener('mousemove', (e) => {
-  const wrap = e.target.closest('.health-wrap');
-  const tooltip = wrap?.querySelector('.health-tooltip');
+function positionTooltip(container, e) {
+  const wrap = e.target.closest('.health-wrap') || e.target.closest('.progress-wrap');
+  if (!wrap) return;
+  const tooltip = wrap.querySelector('.health-tooltip') || wrap.querySelector('.progress-tooltip');
   if (!tooltip) return;
   tooltip.style.left = (e.clientX + 12) + 'px';
   tooltip.style.top = (e.clientY - tooltip.offsetHeight - 8) + 'px';
-});
+}
+
+portfolioGroups.addEventListener('mousemove', (e) => positionTooltip(portfolioGroups, e));
+backupMain.addEventListener('mousemove', (e) => positionTooltip(backupMain, e));
 
 renderAll();
 initAutocompletes();
