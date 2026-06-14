@@ -383,6 +383,22 @@
       </div>
     </div>
 
+    <div id="exportChoiceModal" class="modal hidden" aria-hidden="true">
+      <div class="modal-card" style="max-width:420px;">
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Export report</p>
+            <h3>What would you like to do?</h3>
+          </div>
+        </div>
+        <p class="muted" style="margin-bottom:16px;">Choose whether to export only, or export and create a backup snapshot at the same time.</p>
+        <div class="modal-actions">
+          <button type="button" id="exportOnlyBtn" class="ghost-btn">Report only</button>
+          <button type="button" id="exportAndBackupBtn" class="primary-btn">Report + Backup</button>
+        </div>
+      </div>
+    </div>
+
     <script src="app.js"></script>
   </body>
 </html>

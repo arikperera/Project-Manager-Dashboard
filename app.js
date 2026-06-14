@@ -1394,7 +1394,31 @@ function applyFilters(){
   URL.revokeObjectURL(url);
 }
 
-exportBtn.addEventListener('click', generateHTMLReport);
+const exportChoiceModal = document.getElementById('exportChoiceModal');
+const exportOnlyBtn = document.getElementById('exportOnlyBtn');
+const exportAndBackupBtn = document.getElementById('exportAndBackupBtn');
+
+exportBtn.addEventListener('click', () => {
+  exportChoiceModal.classList.remove('hidden');
+  exportChoiceModal.setAttribute('aria-hidden', 'false');
+});
+exportChoiceModal.addEventListener('click', (e) => {
+  if (e.target === exportChoiceModal) {
+    exportChoiceModal.classList.add('hidden');
+    exportChoiceModal.setAttribute('aria-hidden', 'true');
+  }
+});
+exportOnlyBtn.addEventListener('click', () => {
+  exportChoiceModal.classList.add('hidden');
+  exportChoiceModal.setAttribute('aria-hidden', 'true');
+  generateHTMLReport();
+});
+exportAndBackupBtn.addEventListener('click', () => {
+  exportChoiceModal.classList.add('hidden');
+  exportChoiceModal.setAttribute('aria-hidden', 'true');
+  generateHTMLReport();
+  createBackup(createBackupBtn);
+});
 
 manageUsersBtn.addEventListener('click', openUsersModal);
 closeUsersModalBtn.addEventListener('click', closeUsersModal);
