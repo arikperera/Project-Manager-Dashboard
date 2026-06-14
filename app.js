@@ -135,6 +135,8 @@ const editCustomerName = document.getElementById('editCustomerName');
 const editProjectName = document.getElementById('editProjectName');
 const editStatusEditor = document.getElementById('editStatusEditor');
 const editHealth = document.getElementById('editHealth');
+const editRiskReason = document.getElementById('editRiskReason');
+const riskReasonLabel = document.getElementById('riskReasonLabel');
 const riskList = document.getElementById('riskList');
 const exportBtn = document.getElementById('exportBtn');
 const manageUsersBtn = document.getElementById('manageUsersBtn');
@@ -567,7 +569,12 @@ function renderTable() {
             <td>${project.nrr} hrs</td>
             <td>${formatDate(project.startDate)}</td>
             <td>${formatDate(project.dueDate)}</td>
-            <td><span class="health-pill health-${(project.health || 'green').toLowerCase()}">${project.health || 'Green'}</span></td>
+            <td>
+              <div class="health-wrap">
+                <span class="health-pill health-${(project.health || 'green').toLowerCase()}">${project.health || 'Green'}</span>
+                ${(project.health === 'Yellow' || project.health === 'Red') ? `<div class="health-tooltip">${escapeHtml(project.riskReason || 'No risk reason provided')}</div>` : ''}
+              </div>
+            </td>
             <td>
               <div class="progress-wrap">
                 ${(() => {
@@ -635,6 +642,8 @@ function openEditProjectModal(projectIndex) {
   editCustomerName.value = project.customer || '';
   editProjectName.value = project.name;
   editHealth.value = project.health || 'Green';
+  editRiskReason.value = project.riskReason || '';
+  riskReasonLabel.style.display = (project.health === 'Yellow' || project.health === 'Red') ? '' : 'none';
   editStatusEditor.innerHTML = project.statusText || '<span style="color:#f97316;font-style:italic;">No Status Yet</span>';
   editProjectForm.dataset.projectIndex = String(projectIndex);
 
@@ -647,6 +656,8 @@ function closeEditProjectModal() {
   editProjectModal.setAttribute('aria-hidden', 'true');
   editProjectForm.reset();
   editStatusEditor.innerHTML = '';
+  editRiskReason.value = '';
+  riskReasonLabel.style.display = 'none';
 }
 
 function renderRiskList() {
@@ -923,6 +934,7 @@ editProjectForm.addEventListener('submit', (event) => {
   if (newCustomer) selectedProject.customer = newCustomer;
   if (newName) selectedProject.name = newName;
   selectedProject.health = editHealth.value;
+  selectedProject.riskReason = (editHealth.value === 'Yellow' || editHealth.value === 'Red') ? editRiskReason.value.trim() : '';
   selectedProject.statusText = editStatusEditor.innerHTML.trim();
 
   saveProjects();
@@ -1150,6 +1162,10 @@ pmFilter.addEventListener('change', renderTable);
 healthFilter.addEventListener('change', renderTable);
 progressFilter.addEventListener('change', renderTable);
 statusFilter.addEventListener('change', renderTable);
+
+editHealth.addEventListener('change', () => {
+  riskReasonLabel.style.display = (editHealth.value === 'Yellow' || editHealth.value === 'Red') ? '' : 'none';
+});
 
 exportBtn.addEventListener('click', () => {
   const lines = [

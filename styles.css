@@ -146,6 +146,9 @@ th { color: #bfdbfe; font-weight:600; }
 .toolbar-color-input { width:20px; height:18px; border:none; background:none; cursor:pointer; padding:0; }
 .health-pill { display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:999px; font-size:0.82rem; font-weight:700; }
 .health-green { background: rgba(74, 222, 128, 0.14); color: #bbf7d0; }
+.health-wrap { position: relative; display: inline-block; }
+.health-tooltip { display:none; position:absolute; bottom:calc(100% + 6px); left:50%; transform:translateX(-50%); background:#111c30; border:1px solid var(--line); border-radius:8px; padding:6px 10px; font-size:0.82rem; color:#fde68a; white-space:nowrap; max-width:220px; white-space:normal; z-index:100; pointer-events:none; box-shadow:0 4px 12px rgba(2,6,23,0.5); }
+.health-wrap:hover .health-tooltip { display:block; }
 .health-yellow { background: rgba(251, 191, 36, 0.16); color: #fde68a; }
 .health-red { background: rgba(248, 113, 113, 0.14); color: #fecaca; }
 .risk-list { display:grid; gap:10px; list-style:none; padding:0; margin:0; }
