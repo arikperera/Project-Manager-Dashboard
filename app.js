@@ -1183,9 +1183,8 @@ function generateHTMLReport() {
       return a.health === 'Red' ? -1 : 1;
     });
 
-  const prevBackupProjects = backups.length >= 2 ? backups[1].projects : [];
-  const backupNames = new Set(prevBackupProjects.map(p => p.name));
-  const newProjects = backups.length >= 2 ? projects.filter(p => !backupNames.has(p.name)) : [];
+  const backupNames = new Set((backups[0]?.projects || []).map(p => p.name));
+  const newProjects = backups.length >= 1 ? projects.filter(p => !backupNames.has(p.name)) : [];
 
   const uniquePMs = [...new Set(projects.map(p => p.manager).filter(Boolean))].sort();
 
@@ -1256,7 +1255,7 @@ function generateHTMLReport() {
 
   const pmOptions = uniquePMs.map(pm => `<option value="${esc(pm)}">${esc(pm)}</option>`).join('');
 
-  const newSection = newProjects.length && backups.length >= 2 ? `
+  const newSection = newProjects.length && backups.length >= 1 ? `
     <section style="margin-bottom:32px">
       <h2 style="font-size:1.1rem;color:#7dd3fc;margin-bottom:12px">Newly Added Projects</h2>
       <table style="width:100%;border-collapse:collapse">
