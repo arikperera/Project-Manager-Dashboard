@@ -409,7 +409,6 @@ function normalizeProgress(value) {
 function getProgressTone(value) {
   const numericValue = normalizeProgress(value);
   if (numericValue === null) return 'progress-neutral';
-  if (numericValue > 100) return 'progress-overrun';
   if (numericValue < 50) return 'progress-green';
   if (numericValue <= 75) return 'progress-yellow';
   if (numericValue <= 90) return 'progress-orange';
@@ -419,7 +418,6 @@ function getProgressTone(value) {
 function getProgressFillTone(value) {
   const numericValue = normalizeProgress(value);
   if (numericValue === null) return 'progress-fill-neutral';
-  if (numericValue > 100) return 'progress-fill-overrun';
   if (numericValue < 50) return 'progress-fill-green';
   if (numericValue <= 75) return 'progress-fill-yellow';
   if (numericValue <= 90) return 'progress-fill-orange';
@@ -668,7 +666,7 @@ function renderTable() {
                   return tip ? `<div class="progress-tooltip">${escapeHtml(tip).replace(/\n/g,'<br>')}</div>` : '';
                 })()}
                 <div class="progress-bar"><div class="progress-fill ${progressFillTone}" style="width:${Math.min(progressValue, 100)}%"></div></div>
-                <small class="progress-label ${progressTone}">${progressValue}%${progressValue > 100 ? ' ⚠' : ''}${progressValue > 90 && project.health === 'Green' && !project.riskReason ? ' <span class="progress-blink">⚠</span>' : ''}</small>
+                <small class="progress-label ${progressTone}">${progressValue}%${progressValue > 90 && project.health === 'Green' && !project.riskReason ? ' <span class="progress-blink">⚠</span>' : progressValue > 100 ? ' ⚠' : ''}</small>
               </div>
             </td>
             <td><div class="cell-scroll">${project.statusText || '<span style="color:#f97316;font-style:italic;">No Status Yet</span>'}</div></td>
