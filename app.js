@@ -515,7 +515,6 @@ async function syncProjectProgressFromJira() {
 }
 
 async function writeRiskReasonToJira(issueKey, optionId) {
-  if (!optionId) throw new Error('optionId must not be empty');
   const useProxy = settings.jiraEmail && settings.jiraToken;
 
   let fieldId = cachedRiskReasonFieldId;
@@ -546,13 +545,13 @@ async function writeRiskReasonToJira(issueKey, optionId) {
     ? {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ fields: { [fieldId]: { id: optionId } } }),
+        body: JSON.stringify({ fields: { [fieldId]: optionId ? { id: optionId } : null } }),
       }
     : {
         method: 'PUT',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ fields: { [fieldId]: { id: optionId } } }),
+        body: JSON.stringify({ fields: { [fieldId]: optionId ? { id: optionId } : null } }),
       };
 
   const writeResponse = await fetch(writeUrl, writeOpts);
@@ -1055,13 +1054,22 @@ editProjectForm.addEventListener('submit', async (event) => {
   renderAll();
 
   const issueKey = getJiraIssueKey(selectedProject.jira);
-  if (issueKey && (selectedProject.health === 'Yellow' || selectedProject.health === 'Red') && riskOptionId) {
+  const needsWrite = issueKey && ((selectedProject.health === 'Yellow' || selectedProject.health === 'Red') && riskOptionId);
+  const needsClear = issueKey && selectedProject.health === 'Green';
+  if (needsWrite) {
     try {
       await writeRiskReasonToJira(issueKey, riskOptionId);
       closeEditProjectModal();
     } catch {
       showEditModalWarning('Project saved. Jira update failed — please update Risk Reason manually.');
       setTimeout(() => closeEditProjectModal(), 5500);
+    }
+  } else if (needsClear) {
+    try {
+      await writeRiskReasonToJira(issueKey, null);
+      closeEditProjectModal();
+    } catch {
+      closeEditProjectModal();
     }
   } else {
     closeEditProjectModal();
