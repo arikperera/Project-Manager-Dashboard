@@ -557,7 +557,7 @@ function renderTable() {
         <tr>
           <th>Customer name</th>
           <th>Project</th>
-          <th>Jira</th>
+          <th>Jira / AT</th>
           <th>NRR(h)</th>
           <th>Start</th>
           <th>End</th>
@@ -577,7 +577,14 @@ function renderTable() {
           <tr>
             <td>${(() => { const cust = customers.find(c => c.name === project.customer); return cust && cust.sfLink ? `<a href="${escapeHtml(cust.sfLink)}" target="_blank" rel="noreferrer">${escapeHtml(project.customer || '-')}</a>` : escapeHtml(project.customer || '-'); })()}</td>
             <td>${project.oppLink ? `<a href="${escapeHtml(project.oppLink)}" target="_blank" rel="noreferrer">${escapeHtml(project.name)}</a>` : escapeHtml(project.name)}</td>
-            <td><a href="${project.jira || '#'}" target="_blank" rel="noreferrer">${getJiraLabel(project.jira)}</a></td>
+            <td class="jira-at-cell">
+              <span class="jira-view"><a href="${project.jira || '#'}" target="_blank" rel="noreferrer">${getJiraLabel(project.jira)}</a></span>
+              <span class="at-view" style="display:none;">${project.atLink ? `<a href="${escapeHtml(project.atLink)}" target="_blank" rel="noreferrer">AT</a>` : '<span style="color:#64748b">—</span>'}</span>
+              <div class="jira-at-toggle">
+                <button type="button" class="jira-at-btn active" onclick="this.closest('.jira-at-cell').querySelector('.jira-view').style.display='';this.closest('.jira-at-cell').querySelector('.at-view').style.display='none';this.classList.add('active');this.nextElementSibling.classList.remove('active');">Jira</button>
+                <button type="button" class="jira-at-btn" onclick="this.closest('.jira-at-cell').querySelector('.at-view').style.display='';this.closest('.jira-at-cell').querySelector('.jira-view').style.display='none';this.classList.add('active');this.previousElementSibling.classList.remove('active');">AT</button>
+              </div>
+            </td>
             <td>${project.nrr} hrs</td>
             <td>${formatDate(project.startDate)}</td>
             <td>${formatDate(project.dueDate)}</td>
@@ -671,6 +678,7 @@ function openEditProjectModal(projectIndex) {
   riskReasonLabel.style.display = (project.health === 'Yellow' || project.health === 'Red') ? '' : 'none';
   const editDueDateText = document.getElementById('editDueDateText');
   editDueDateText.value = project.dueDate ? formatDateDMY(project.dueDate) : '';
+  document.getElementById('editAtLink').value = project.atLink || '';
   document.getElementById('editDueDateHidden').value = project.dueDate || '';
   editStatusEditor.innerHTML = project.statusText || '<span style="color:#f97316;font-style:italic;">No Status Yet</span>';
   editProjectForm.dataset.projectIndex = String(projectIndex);
@@ -756,7 +764,7 @@ function renderBackupMain(backup) {
       <div style="overflow-x:auto;">
         <table class="pm-table">
           <thead><tr>
-            <th>Customer</th><th>Project</th><th>Jira</th><th>NRR(h)</th>
+            <th>Customer</th><th>Project</th><th>Jira / AT</th><th>NRR(h)</th>
             <th>Start</th><th>End</th><th>Health</th><th>Progress</th>
             <th>Project Status</th><th>Manager Notes</th>
           </tr></thead>
@@ -766,7 +774,14 @@ function renderBackupMain(backup) {
               return `<tr>
                 <td>${escapeHtml(p.customer || '-')}</td>
                 <td>${escapeHtml(p.name)}</td>
-                <td><a href="${escapeHtml(p.jira || '#')}" target="_blank" rel="noreferrer">${escapeHtml(getJiraLabel(p.jira))}</a></td>
+                <td class="jira-at-cell">
+                  <span class="jira-view"><a href="${escapeHtml(p.jira || '#')}" target="_blank" rel="noreferrer">${escapeHtml(getJiraLabel(p.jira))}</a></span>
+                  <span class="at-view" style="display:none;">${p.atLink ? `<a href="${escapeHtml(p.atLink)}" target="_blank" rel="noreferrer">AT</a>` : '<span style="color:#64748b">—</span>'}</span>
+                  <div class="jira-at-toggle">
+                    <button type="button" class="jira-at-btn active" onclick="this.closest('.jira-at-cell').querySelector('.jira-view').style.display='';this.closest('.jira-at-cell').querySelector('.at-view').style.display='none';this.classList.add('active');this.nextElementSibling.classList.remove('active');">Jira</button>
+                    <button type="button" class="jira-at-btn" onclick="this.closest('.jira-at-cell').querySelector('.at-view').style.display='';this.closest('.jira-at-cell').querySelector('.jira-view').style.display='none';this.classList.add('active');this.previousElementSibling.classList.remove('active');">AT</button>
+                  </div>
+                </td>
                 <td>${escapeHtml(String(p.nrr || 0))} hrs</td>
                 <td>${escapeHtml(formatDate(p.startDate))}</td>
                 <td>${escapeHtml(formatDate(p.dueDate))}</td>
@@ -971,6 +986,7 @@ editProjectForm.addEventListener('submit', (event) => {
   if (newName) selectedProject.name = newName;
   selectedProject.health = editHealth.value;
   selectedProject.riskReason = (editHealth.value === 'Yellow' || editHealth.value === 'Red') ? editRiskReason.value.trim() : '';
+  selectedProject.atLink = document.getElementById('editAtLink').value.trim();
   const newDueDate = parseDateInput(document.getElementById('editDueDateText').value);
   if (newDueDate) selectedProject.dueDate = newDueDate;
   selectedProject.statusText = editStatusEditor.innerHTML.trim();
