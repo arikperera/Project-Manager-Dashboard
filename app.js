@@ -1671,9 +1671,7 @@ let dueThisMonthHideTimer = null;
 
 function showDueThisMonthPopup() {
   clearTimeout(dueThisMonthHideTimer);
-  const now = new Date();
-  const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  const due = projects.filter((p) => (p.dueDate || '').startsWith(currentMonth));
+  const due = getDueThisMonthProjects();
   if (!due.length) {
     dueThisMonthPopup.innerHTML = '<span style="color:#94a3b8">No projects due this month</span>';
   } else {
@@ -1693,12 +1691,38 @@ dueThisMonthTrigger.addEventListener('mouseleave', hideDueThisMonthPopup);
 dueThisMonthPopup.addEventListener('mouseenter', () => clearTimeout(dueThisMonthHideTimer));
 dueThisMonthPopup.addEventListener('mouseleave', hideDueThisMonthPopup);
 
-function buildDueMonthTable() {
+function getDueThisMonthProjects() {
   const now = new Date();
   const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  const due = projects.filter((p) => (p.dueDate || '').startsWith(currentMonth));
-  const header = 'Customer\tProject\tJira URL\tPM Comments\tManager Comments';
-  const rows = due.map((p) => `${p.customer || ''}\t${p.name || ''}\t${p.jira || ''}\t\t`);
+  return projects.filter((p) => (p.dueDate || '').startsWith(currentMonth));
+}
+
+function buildDueMonthHtml() {
+  const due = getDueThisMonthProjects();
+  const thStyle = 'padding:8px 12px;border:1px solid #ccc;background:#f0f0f0;font-weight:600;text-align:left;';
+  const tdStyle = 'padding:8px 12px;border:1px solid #ccc;';
+  const headers = ['Customer', 'Jira', 'PM Comments', 'Manager Comments'];
+  const headerRow = headers.map(h => `<th style="${thStyle}">${h}</th>`).join('');
+  const dataRows = due.map(p => {
+    const jiraKey = getJiraLabel(p.jira);
+    const jiraCell = p.jira ? `<a href="${escapeHtml(p.jira)}">${escapeHtml(jiraKey)}</a>` : '-';
+    return `<tr>
+      <td style="${tdStyle}">${escapeHtml(p.customer || '-')}</td>
+      <td style="${tdStyle}">${jiraCell}</td>
+      <td style="${tdStyle}"></td>
+      <td style="${tdStyle}"></td>
+    </tr>`;
+  }).join('');
+  return `<table style="border-collapse:collapse;font-family:Arial,sans-serif;font-size:14px;">
+  <thead><tr>${headerRow}</tr></thead>
+  <tbody>${dataRows}</tbody>
+</table>`;
+}
+
+function buildDueMonthPlainText() {
+  const due = getDueThisMonthProjects();
+  const header = 'Customer\tJira\tPM Comments\tManager Comments';
+  const rows = due.map((p) => `${p.customer || ''}\t${getJiraLabel(p.jira) || ''}\t\t`);
   return [header, ...rows].join('\n');
 }
 
@@ -1706,7 +1730,12 @@ const copyDueMonthBtn = document.getElementById('copyDueMonthBtn');
 const mailDueMonthBtn = document.getElementById('mailDueMonthBtn');
 
 copyDueMonthBtn.addEventListener('click', () => {
-  navigator.clipboard.writeText(buildDueMonthTable()).then(() => {
+  const html = buildDueMonthHtml();
+  const plain = buildDueMonthPlainText();
+  navigator.clipboard.write([new ClipboardItem({
+    'text/html': new Blob([html], { type: 'text/html' }),
+    'text/plain': new Blob([plain], { type: 'text/plain' }),
+  })]).then(() => {
     copyDueMonthBtn.textContent = '✓';
     setTimeout(() => { copyDueMonthBtn.textContent = '⧉'; }, 1500);
   });
@@ -1716,7 +1745,7 @@ mailDueMonthBtn.addEventListener('click', () => {
   const now = new Date();
   const monthLabel = now.toLocaleString('default', { month: 'long', year: 'numeric' });
   const subject = `Projects Due This Month – ${monthLabel}`;
-  const body = buildDueMonthTable();
+  const body = buildDueMonthPlainText();
   window.location.href = `mailto:emea.pm@kaltura.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 });
 
