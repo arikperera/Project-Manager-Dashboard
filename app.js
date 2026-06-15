@@ -373,6 +373,10 @@ function formatDate(dateStr) {
   return `${d}/${m}/${y.slice(2)}`;
 }
 
+function formatDateDMY(dateStr) {
+  return formatDate(dateStr);
+}
+
 function setupDateInput(input) {
   input.addEventListener('input', (e) => {
     let val = e.target.value.replace(/[^0-9]/g, '');
@@ -665,7 +669,9 @@ function openEditProjectModal(projectIndex) {
   editHealth.value = project.health || 'Green';
   editRiskReason.value = project.riskReason || '';
   riskReasonLabel.style.display = (project.health === 'Yellow' || project.health === 'Red') ? '' : 'none';
-  document.getElementById('editDueDate').value = project.dueDate || '';
+  const editDueDateText = document.getElementById('editDueDateText');
+  editDueDateText.value = project.dueDate ? formatDateDMY(project.dueDate) : '';
+  document.getElementById('editDueDateHidden').value = project.dueDate || '';
   editStatusEditor.innerHTML = project.statusText || '<span style="color:#f97316;font-style:italic;">No Status Yet</span>';
   editProjectForm.dataset.projectIndex = String(projectIndex);
 
@@ -965,7 +971,7 @@ editProjectForm.addEventListener('submit', (event) => {
   if (newName) selectedProject.name = newName;
   selectedProject.health = editHealth.value;
   selectedProject.riskReason = (editHealth.value === 'Yellow' || editHealth.value === 'Red') ? editRiskReason.value.trim() : '';
-  const newDueDate = document.getElementById('editDueDate').value;
+  const newDueDate = parseDateInput(document.getElementById('editDueDateText').value);
   if (newDueDate) selectedProject.dueDate = newDueDate;
   selectedProject.statusText = editStatusEditor.innerHTML.trim();
 
@@ -1793,6 +1799,24 @@ backupMain.addEventListener('mousemove', (e) => positionTooltip(backupMain, e));
 
 renderAll();
 initAutocompletes();
-setupDateInput(document.getElementById('modalProjectStartDate'));
-setupDateInput(document.getElementById('modalProjectDueDate'));
+const editDueDateTextEl = document.getElementById('editDueDateText');
+const editDueDateHiddenEl = document.getElementById('editDueDateHidden');
+const editDueDatePickerBtn = document.getElementById('editDueDatePickerBtn');
+
+setupDateInput(editDueDateTextEl);
+
+editDueDateTextEl.addEventListener('blur', () => {
+  const iso = parseDateInput(editDueDateTextEl.value);
+  editDueDateHiddenEl.value = iso || '';
+});
+
+editDueDateHiddenEl.addEventListener('change', () => {
+  if (editDueDateHiddenEl.value) {
+    editDueDateTextEl.value = formatDateDMY(editDueDateHiddenEl.value);
+  }
+});
+
+editDueDatePickerBtn.addEventListener('click', () => {
+  editDueDateHiddenEl.showPicker();
+});
 syncProjectProgressFromJira();

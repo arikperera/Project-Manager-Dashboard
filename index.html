@@ -133,7 +133,11 @@
           </label>
           <label>
             End Date
-            <input id="editDueDate" type="date" />
+            <div style="display:flex;gap:6px;align-items:center;">
+              <input id="editDueDateText" type="text" placeholder="dd/mm/yy" maxlength="8" style="flex:1;" />
+              <button type="button" id="editDueDatePickerBtn" title="Pick date" style="background:none;border:1px solid #334155;border-radius:8px;padding:5px 8px;cursor:pointer;color:#94a3b8;font-size:1rem;">📅</button>
+              <input id="editDueDateHidden" type="date" style="display:none;" />
+            </div>
           </label>
           <label>Project Status</label>
           <div class="editor-toolbar">
