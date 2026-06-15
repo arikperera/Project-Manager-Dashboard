@@ -996,8 +996,8 @@ modalProjectForm.addEventListener('submit', (event) => {
     manager: pmName || 'Unassigned',
     jira: document.getElementById('modalProjectJira').value.trim(),
     nrr: Number(document.getElementById('modalProjectNrr').value),
-    startDate: document.getElementById('modalProjectStartDate').value,
-    dueDate: document.getElementById('modalProjectDueDate').value,
+    startDate: parseDateInput(document.getElementById('modalProjectStartDate').value),
+    dueDate: parseDateInput(document.getElementById('modalProjectDueDate').value),
     status: 'On Track',
     health: 'Green',
     progress: 0,
@@ -1819,4 +1819,18 @@ editDueDateHiddenEl.addEventListener('change', () => {
 editDueDatePickerBtn.addEventListener('click', () => {
   editDueDateHiddenEl.showPicker();
 });
+
+function wireDateField(textId, hiddenId, btnId) {
+  const text = document.getElementById(textId);
+  const hidden = document.getElementById(hiddenId);
+  const btn = document.getElementById(btnId);
+  setupDateInput(text);
+  text.addEventListener('blur', () => { hidden.value = parseDateInput(text.value) || ''; });
+  hidden.addEventListener('change', () => { if (hidden.value) text.value = formatDateDMY(hidden.value); });
+  btn.addEventListener('click', () => hidden.showPicker());
+}
+
+wireDateField('modalProjectStartDate', 'modalProjectStartDateHidden', 'modalStartPickerBtn');
+wireDateField('modalProjectDueDate', 'modalProjectDueDateHidden', 'modalEndPickerBtn');
+
 syncProjectProgressFromJira();

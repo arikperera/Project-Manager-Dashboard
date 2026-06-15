@@ -216,11 +216,19 @@
           </label>
           <label>
             Start Date
-            <input id="modalProjectStartDate" type="date" required />
+            <div style="display:flex;gap:6px;align-items:center;">
+              <input id="modalProjectStartDate" type="text" placeholder="dd/mm/yy" maxlength="8" style="flex:1;" required />
+              <button type="button" id="modalStartPickerBtn" title="Pick date" style="background:none;border:1px solid #334155;border-radius:8px;padding:5px 8px;cursor:pointer;color:#94a3b8;font-size:1rem;">📅</button>
+              <input id="modalProjectStartDateHidden" type="date" style="display:none;" />
+            </div>
           </label>
           <label>
             End Date
-            <input id="modalProjectDueDate" type="date" required />
+            <div style="display:flex;gap:6px;align-items:center;">
+              <input id="modalProjectDueDate" type="text" placeholder="dd/mm/yy" maxlength="8" style="flex:1;" required />
+              <button type="button" id="modalEndPickerBtn" title="Pick date" style="background:none;border:1px solid #334155;border-radius:8px;padding:5px 8px;cursor:pointer;color:#94a3b8;font-size:1rem;">📅</button>
+              <input id="modalProjectDueDateHidden" type="date" style="display:none;" />
+            </div>
           </label>
           <label>
             NRR value
