@@ -665,8 +665,8 @@ function renderTable() {
                   return tip ? `<div class="progress-tooltip">${escapeHtml(tip).replace(/\n/g,'<br>')}</div>` : '';
                 })()}
                 <div class="progress-bar"><div class="progress-fill ${progressFillTone}" style="width:${Math.min(progressValue, 100)}%"></div></div>
-                <small class="progress-label ${progressTone}">${progressValue}%${(() => { const ack = (project.health === 'Yellow' || project.health === 'Red') && project.riskReason; if (ack) return ''; if (progressValue > 90) return ' <span class="progress-blink">⚠</span>'; return ''; })()}</small>
-              </div>
+                <small class="progress-label ${progressTone}">${progressValue}%</small>
+              </div>${(() => { const ack = (project.health === 'Yellow' || project.health === 'Red') && project.riskReason; if (ack) return ''; if (progressValue > 90) return '<span class="progress-blink-wrap"><span class="progress-blink">⚠</span><span class="progress-blink-tip">Edit the project and set a risk reason</span></span>'; return ''; })()}
             </td>
             <td><div class="cell-scroll">${project.statusText || '<span style="color:#f97316;font-style:italic;">No Status Yet</span>'}</div></td>
             <td><div class="cell-scroll">${(project.comments || '-').split(', ').join('<br>')}</div></td>
@@ -850,8 +850,8 @@ function renderBackupMain(backup) {
                   <div class="progress-wrap">
                     ${(() => { let tip = ''; if (pv >= 100) { tip = 'No more hours for the project'; } else if (p.estimatedHours != null && p.remainingHours != null) { const used = p.actualHours != null ? p.actualHours : (p.estimatedHours - p.remainingHours); tip = `${used} hours have been completed out of ${p.estimatedHours}, with ${p.remainingHours} hours remaining`; } return tip ? `<div class="progress-tooltip">${escapeHtml(tip)}</div>` : ''; })()}
                     <div class="progress-bar"><div class="progress-fill ${getProgressFillTone(pv)}" style="width:${Math.min(pv,100)}%"></div></div>
-                    <small class="progress-label ${getProgressTone(pv)}">${pv}%${(() => { const ack = (p.health === 'Yellow' || p.health === 'Red') && p.riskReason; if (ack) return ''; if (pv > 90) return ' <span class="progress-blink">⚠</span>'; return ''; })()}</small>
-                  </div>
+                    <small class="progress-label ${getProgressTone(pv)}">${pv}%</small>
+                  </div>${(() => { const ack = (p.health === 'Yellow' || p.health === 'Red') && p.riskReason; if (ack) return ''; if (pv > 90) return '<span class="progress-blink-wrap"><span class="progress-blink">⚠</span><span class="progress-blink-tip">Edit the project and set a risk reason</span></span>'; return ''; })()}
                 </td>
                 <td><div class="cell-scroll">${p.statusText || '<span style="color:#f97316;font-style:italic;">No Status Yet</span>'}</div></td>
                 <td><div class="cell-scroll">${escapeHtml((p.comments || '-').split(', ').join('\n'))}</div></td>

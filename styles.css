@@ -131,6 +131,9 @@ th { color: #bfdbfe; font-weight:600; }
 .progress-fill-overrun { background: linear-gradient(90deg, #f97316, #fb923c); }
 @keyframes progress-blink { 0%,100%{opacity:1} 50%{opacity:0} }
 .progress-blink { animation: progress-blink 1s step-start infinite; color:#ef4444; }
+.progress-blink-wrap { position:relative; display:inline-block; margin-left:3px; }
+.progress-blink-wrap .progress-blink-tip { display:none; position:absolute; bottom:calc(100% + 6px); left:50%; transform:translateX(-50%); background:#111c30; border:1px solid #223249; border-radius:8px; padding:6px 10px; font-size:0.78rem; color:#fde68a; white-space:nowrap; z-index:9999; pointer-events:none; box-shadow:0 4px 12px rgba(2,6,23,0.5); }
+.progress-blink-wrap:hover .progress-blink-tip { display:block; }
 .status-form { display:grid; gap: 12px; }
 .status-form label { display:grid; gap: 6px; color:#dbeafe; font-size:0.95rem; }
 .status-form input, .status-form select, .status-form textarea { width:100%; border:1px solid var(--line); background:#0b1220; color:var(--text); border-radius:12px; padding:10px 12px; }
