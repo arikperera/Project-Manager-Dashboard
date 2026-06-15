@@ -666,7 +666,7 @@ function renderTable() {
                   return tip ? `<div class="progress-tooltip">${escapeHtml(tip).replace(/\n/g,'<br>')}</div>` : '';
                 })()}
                 <div class="progress-bar"><div class="progress-fill ${progressFillTone}" style="width:${Math.min(progressValue, 100)}%"></div></div>
-                <small class="progress-label ${progressTone}">${progressValue}%${progressValue > 90 && project.health === 'Green' && !project.riskReason ? ' <span class="progress-blink">⚠</span>' : progressValue > 100 ? ' ⚠' : ''}</small>
+                <small class="progress-label ${progressTone}">${progressValue}%${(() => { const ack = (project.health === 'Yellow' || project.health === 'Red') && project.riskReason; if (ack) return ''; if (progressValue > 90) return ' <span class="progress-blink">⚠</span>'; return ''; })()}</small>
               </div>
             </td>
             <td><div class="cell-scroll">${project.statusText || '<span style="color:#f97316;font-style:italic;">No Status Yet</span>'}</div></td>
@@ -851,7 +851,7 @@ function renderBackupMain(backup) {
                   <div class="progress-wrap">
                     ${(() => { let tip = ''; if (pv >= 100) { tip = 'No more hours for the project'; } else if (p.estimatedHours != null && p.remainingHours != null) { const used = p.actualHours != null ? p.actualHours : (p.estimatedHours - p.remainingHours); tip = `${used} hours have been completed out of ${p.estimatedHours}, with ${p.remainingHours} hours remaining`; } return tip ? `<div class="progress-tooltip">${escapeHtml(tip)}</div>` : ''; })()}
                     <div class="progress-bar"><div class="progress-fill ${getProgressFillTone(pv)}" style="width:${Math.min(pv,100)}%"></div></div>
-                    <small class="progress-label ${getProgressTone(pv)}">${pv}%${pv > 90 && p.health === 'Green' && !p.riskReason ? ' <span class="progress-blink">⚠</span>' : pv > 100 ? ' ⚠' : ''}</small>
+                    <small class="progress-label ${getProgressTone(pv)}">${pv}%${(() => { const ack = (p.health === 'Yellow' || p.health === 'Red') && p.riskReason; if (ack) return ''; if (pv > 90) return ' <span class="progress-blink">⚠</span>'; return ''; })()}</small>
                   </div>
                 </td>
                 <td><div class="cell-scroll">${p.statusText || '<span style="color:#f97316;font-style:italic;">No Status Yet</span>'}</div></td>
@@ -1336,7 +1336,8 @@ function generateHTMLReport() {
     const v = Math.max(0, Math.round(Number(val)||0));
     const fill = v < 50 ? 'linear-gradient(90deg,#22c55e,#86efac)' : v <= 75 ? 'linear-gradient(90deg,#facc15,#fde68a)' : v <= 90 ? 'linear-gradient(90deg,#f97316,#fb923c)' : 'linear-gradient(90deg,#dc2626,#ef4444)';
     const color = v < 50 ? '#bbf7d0' : v <= 75 ? '#fde68a' : v <= 90 ? '#fdba74' : '#ef4444';
-    const blink = v > 90 && health === 'Green' && !riskReason ? ' <span style="animation:progress-blink 1s step-start infinite;color:#ef4444">⚠</span>' : v > 100 ? ' ⚠' : '';
+    const ack = (health === 'Yellow' || health === 'Red') && riskReason;
+    const blink = ack ? '' : v > 90 ? ' <span style="animation:progress-blink 1s step-start infinite;color:#ef4444">⚠</span>' : '';
     let tip = '';
     if (v >= 100) tip = 'No more hours for the project';
     else if (estimatedHours != null && remainingHours != null) {
