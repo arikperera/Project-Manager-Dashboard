@@ -665,6 +665,7 @@ function openEditProjectModal(projectIndex) {
   editHealth.value = project.health || 'Green';
   editRiskReason.value = project.riskReason || '';
   riskReasonLabel.style.display = (project.health === 'Yellow' || project.health === 'Red') ? '' : 'none';
+  document.getElementById('editDueDate').value = project.dueDate || '';
   editStatusEditor.innerHTML = project.statusText || '<span style="color:#f97316;font-style:italic;">No Status Yet</span>';
   editProjectForm.dataset.projectIndex = String(projectIndex);
 
@@ -964,6 +965,8 @@ editProjectForm.addEventListener('submit', (event) => {
   if (newName) selectedProject.name = newName;
   selectedProject.health = editHealth.value;
   selectedProject.riskReason = (editHealth.value === 'Yellow' || editHealth.value === 'Red') ? editRiskReason.value.trim() : '';
+  const newDueDate = document.getElementById('editDueDate').value;
+  if (newDueDate) selectedProject.dueDate = newDueDate;
   selectedProject.statusText = editStatusEditor.innerHTML.trim();
 
   saveProjects();
@@ -987,8 +990,8 @@ modalProjectForm.addEventListener('submit', (event) => {
     manager: pmName || 'Unassigned',
     jira: document.getElementById('modalProjectJira').value.trim(),
     nrr: Number(document.getElementById('modalProjectNrr').value),
-    startDate: parseDateInput(document.getElementById('modalProjectStartDate').value),
-    dueDate: parseDateInput(document.getElementById('modalProjectDueDate').value),
+    startDate: document.getElementById('modalProjectStartDate').value,
+    dueDate: document.getElementById('modalProjectDueDate').value,
     status: 'On Track',
     health: 'Green',
     progress: 0,
