@@ -1345,7 +1345,7 @@ function generateHTMLReport() {
     const fill = v < 50 ? 'linear-gradient(90deg,#22c55e,#86efac)' : v <= 75 ? 'linear-gradient(90deg,#facc15,#fde68a)' : v <= 90 ? 'linear-gradient(90deg,#f97316,#fb923c)' : 'linear-gradient(90deg,#dc2626,#ef4444)';
     const color = v < 50 ? '#bbf7d0' : v <= 75 ? '#fde68a' : v <= 90 ? '#fdba74' : '#ef4444';
     const ack = (health === 'Yellow' || health === 'Red') && riskReason;
-    const blink = ack ? '' : v > 90 ? ' <span style="animation:progress-blink 1s step-start infinite;color:#ef4444">⚠</span>' : '';
+    const blink = ack ? '' : v > 90 ? ' <span class="rpt-blink-wrap"><span style="animation:progress-blink 1s step-start infinite;color:#ef4444">⚠</span><span class="rpt-tooltip" style="color:#fde68a;width:200px">Edit the project and set a risk reason</span></span>' : '';
     let tip = '';
     if (v >= 100) tip = 'No more hours for the project';
     else if (estimatedHours != null && remainingHours != null) {
@@ -1457,9 +1457,10 @@ th{color:#bfdbfe;font-weight:600}
 .toggle-btn{background:rgba(15,23,42,.95);border:1px solid #223249;border-radius:12px;padding:9px 16px;color:#eff6ff;font-family:inherit;font-size:.9rem;cursor:pointer;margin-bottom:12px}
 .toggle-btn:hover{background:rgba(30,41,59,.95)}
 #allTable{display:none;overflow-x:auto}
-.rpt-health-wrap,.rpt-progress-wrap{position:relative;display:inline-block}
+.rpt-health-wrap,.rpt-progress-wrap,.rpt-blink-wrap{position:relative;display:inline-block}
 .rpt-tooltip{display:none;position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);background:#111c30;border:1px solid #223249;border-radius:8px;padding:6px 10px;font-size:0.8rem;white-space:normal;width:220px;z-index:100;pointer-events:none;box-shadow:0 4px 12px rgba(2,6,23,.5)}
-.rpt-health-wrap:hover .rpt-tooltip,.rpt-progress-wrap:hover .rpt-tooltip{display:block}
+.rpt-health-wrap:hover .rpt-tooltip,.rpt-progress-wrap:hover .rpt-tooltip,.rpt-blink-wrap:hover .rpt-tooltip{display:block}
+@keyframes progress-blink{0%,100%{opacity:1}50%{opacity:0}}
 @media print{.filter-bar,.toggle-btn{display:none!important}#allTable{display:block!important}}
 </style>
 </head>
