@@ -1166,9 +1166,6 @@ closeModalBtn.addEventListener('click', closeModal);
 cancelModalBtn.addEventListener('click', closeModal);
 closeEditModalBtn.addEventListener('click', closeEditProjectModal);
 cancelEditModalBtn.addEventListener('click', closeEditProjectModal);
-projectModal.addEventListener('click', (event) => {
-  if (event.target === projectModal) closeModal();
-});
 
 editProjectModal.addEventListener('click', (event) => {
   if (event.target === editProjectModal) closeEditProjectModal();
