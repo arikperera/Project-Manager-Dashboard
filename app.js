@@ -1693,6 +1693,33 @@ dueThisMonthTrigger.addEventListener('mouseleave', hideDueThisMonthPopup);
 dueThisMonthPopup.addEventListener('mouseenter', () => clearTimeout(dueThisMonthHideTimer));
 dueThisMonthPopup.addEventListener('mouseleave', hideDueThisMonthPopup);
 
+function buildDueMonthTable() {
+  const now = new Date();
+  const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const due = projects.filter((p) => (p.dueDate || '').startsWith(currentMonth));
+  const header = 'Customer\tProject\tJira URL\tPM Comments\tManager Comments';
+  const rows = due.map((p) => `${p.customer || ''}\t${p.name || ''}\t${p.jira || ''}\t\t`);
+  return [header, ...rows].join('\n');
+}
+
+const copyDueMonthBtn = document.getElementById('copyDueMonthBtn');
+const mailDueMonthBtn = document.getElementById('mailDueMonthBtn');
+
+copyDueMonthBtn.addEventListener('click', () => {
+  navigator.clipboard.writeText(buildDueMonthTable()).then(() => {
+    copyDueMonthBtn.textContent = '✓';
+    setTimeout(() => { copyDueMonthBtn.textContent = '⧉'; }, 1500);
+  });
+});
+
+mailDueMonthBtn.addEventListener('click', () => {
+  const now = new Date();
+  const monthLabel = now.toLocaleString('default', { month: 'long', year: 'numeric' });
+  const subject = `Projects Due This Month – ${monthLabel}`;
+  const body = buildDueMonthTable();
+  window.location.href = `mailto:emea.pm@kaltura.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+});
+
 cancelDeleteProjectBtn.addEventListener('click', closeDeleteProjectModal);
 deleteProjectModal.addEventListener('click', (e) => { if (e.target === deleteProjectModal) closeDeleteProjectModal(); });
 
