@@ -514,8 +514,8 @@ async function syncProjectProgressFromJira() {
   renderAll();
 }
 
-async function writeRiskReasonToJira(issueKey, riskReason) {
-  if (!riskReason) throw new Error('riskReason must not be empty');
+async function writeRiskReasonToJira(issueKey, optionId) {
+  if (!optionId) throw new Error('optionId must not be empty');
   const useProxy = settings.jiraEmail && settings.jiraToken;
 
   let fieldId = cachedRiskReasonFieldId;
@@ -546,13 +546,13 @@ async function writeRiskReasonToJira(issueKey, riskReason) {
     ? {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ fields: { [fieldId]: { value: riskReason } } }),
+        body: JSON.stringify({ fields: { [fieldId]: { id: optionId } } }),
       }
     : {
         method: 'PUT',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ fields: { [fieldId]: { value: riskReason } } }),
+        body: JSON.stringify({ fields: { [fieldId]: { id: optionId } } }),
       };
 
   const writeResponse = await fetch(writeUrl, writeOpts);
@@ -733,7 +733,8 @@ function openEditProjectModal(projectIndex) {
   editCustomerName.value = project.customer || '';
   editProjectName.value = project.name;
   editHealth.value = project.health || 'Green';
-  editRiskReason.value = project.riskReason || '';
+  const matchingOption = Array.from(editRiskReason.options).find(o => o.text === project.riskReason);
+  editRiskReason.value = matchingOption ? matchingOption.value : '';
   riskReasonLabel.style.display = (project.health === 'Yellow' || project.health === 'Red') ? '' : 'none';
   const editDueDateText = document.getElementById('editDueDateText');
   editDueDateText.value = project.dueDate ? formatDateDMY(project.dueDate) : '';
@@ -1042,7 +1043,9 @@ editProjectForm.addEventListener('submit', async (event) => {
   if (newCustomer) selectedProject.customer = newCustomer;
   if (newName) selectedProject.name = newName;
   selectedProject.health = editHealth.value;
-  selectedProject.riskReason = (editHealth.value === 'Yellow' || editHealth.value === 'Red') ? editRiskReason.value.trim() : '';
+  const riskOptionId = (editHealth.value === 'Yellow' || editHealth.value === 'Red') ? editRiskReason.value : '';
+  const riskOptionLabel = riskOptionId ? editRiskReason.options[editRiskReason.selectedIndex].text : '';
+  selectedProject.riskReason = riskOptionLabel;
   selectedProject.atLink = document.getElementById('editAtLink').value.trim();
   const newDueDate = parseDateInput(document.getElementById('editDueDateText').value);
   if (newDueDate) selectedProject.dueDate = newDueDate;
@@ -1052,10 +1055,9 @@ editProjectForm.addEventListener('submit', async (event) => {
   renderAll();
 
   const issueKey = getJiraIssueKey(selectedProject.jira);
-  const riskReason = selectedProject.riskReason;
-  if (issueKey && (selectedProject.health === 'Yellow' || selectedProject.health === 'Red') && riskReason) {
+  if (issueKey && (selectedProject.health === 'Yellow' || selectedProject.health === 'Red') && riskOptionId) {
     try {
-      await writeRiskReasonToJira(issueKey, riskReason);
+      await writeRiskReasonToJira(issueKey, riskOptionId);
       closeEditProjectModal();
     } catch {
       showEditModalWarning('Project saved. Jira update failed — please update Risk Reason manually.');
