@@ -117,12 +117,12 @@ th { color: #bfdbfe; font-weight:600; }
 .progress-fill-green { background: linear-gradient(90deg, #22c55e, #86efac); }
 .progress-fill-yellow { background: linear-gradient(90deg, #facc15, #fde68a); }
 .progress-fill-orange { background: linear-gradient(90deg, #f97316, #fb923c); }
-.progress-fill-red { background: linear-gradient(90deg, #ef4444, #fca5a5); }
+.progress-fill-red { background: linear-gradient(90deg, #dc2626, #ef4444); }
 .progress-label { display:inline-block; margin-top:6px; font-weight:700; }
 .progress-green { color: #bbf7d0; }
 .progress-yellow { color: #fde68a; }
 .progress-orange { color: #fdba74; }
-.progress-red { color: #fca5a5; }
+.progress-red { color: #ef4444; }
 .progress-neutral { color: #bfdbfe; }
 .progress-overrun { color: #f97316; }
 .progress-wrap { position: relative; display: inline-block; }
@@ -154,7 +154,7 @@ th { color: #bfdbfe; font-weight:600; }
 .health-tooltip { display:none; position:fixed; background:#111c30; border:1px solid rgba(251,191,36,0.4); border-radius:10px; padding:8px 12px; font-size:0.88rem; color:#fde68a; width:260px; white-space:normal; line-height:1.5; z-index:9999; pointer-events:none; box-shadow:0 6px 20px rgba(2,6,23,0.6); }
 .health-wrap:hover .health-tooltip { display:block; }
 .health-yellow { background: rgba(251, 191, 36, 0.16); color: #fde68a; }
-.health-red { background: rgba(248, 113, 113, 0.14); color: #fecaca; }
+.health-red { background: rgba(220, 38, 38, 0.2); color: #ef4444; }
 .risk-list { display:grid; gap:10px; list-style:none; padding:0; margin:0; }
 .risk-list li { border:1px solid var(--line); border-radius: 14px; padding:10px 12px; background: rgba(9, 15, 27, 0.95); }
 .risk-list strong { display:block; margin-bottom:4px; }
