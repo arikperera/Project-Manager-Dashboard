@@ -850,8 +850,8 @@ function renderBackupMain(backup) {
                 <td>
                   <div class="progress-wrap">
                     ${(() => { let tip = ''; if (pv >= 100) { tip = 'No more hours for the project'; } else if (p.estimatedHours != null && p.remainingHours != null) { const used = p.actualHours != null ? p.actualHours : (p.estimatedHours - p.remainingHours); tip = `${used} hours have been completed out of ${p.estimatedHours}, with ${p.remainingHours} hours remaining`; } return tip ? `<div class="progress-tooltip">${escapeHtml(tip)}</div>` : ''; })()}
-                    <div class="progress-bar"><div class="progress-fill" style="width:${pv}%;background:linear-gradient(90deg,#38bdf8,#a78bfa)"></div></div>
-                    <small>${pv}%</small>
+                    <div class="progress-bar"><div class="progress-fill ${getProgressFillTone(pv)}" style="width:${Math.min(pv,100)}%"></div></div>
+                    <small class="progress-label ${getProgressTone(pv)}">${pv}%${pv > 90 && p.health === 'Green' && !p.riskReason ? ' <span class="progress-blink">⚠</span>' : pv > 100 ? ' ⚠' : ''}</small>
                   </div>
                 </td>
                 <td><div class="cell-scroll">${p.statusText || '<span style="color:#f97316;font-style:italic;">No Status Yet</span>'}</div></td>
@@ -1321,7 +1321,7 @@ function generateHTMLReport() {
     const colors = {
       Green: 'background:rgba(74,222,128,0.16);color:#bbf7d0',
       Yellow: 'background:rgba(251,191,36,0.15);color:#fde68a',
-      Red: 'background:rgba(248,113,113,0.14);color:#fecaca',
+      Red: 'background:rgba(220,38,38,0.22);color:#ef4444;border:1px solid rgba(220,38,38,0.4)',
     };
     const h = health || 'Green';
     const pill = `<span style="display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;font-size:0.82rem;font-weight:700;${colors[h]||colors.Green}">${h}</span>`;
@@ -1332,17 +1332,18 @@ function generateHTMLReport() {
     return pill;
   }
 
-  function progressBar(val, estimatedHours, remainingHours, actualHours) {
+  function progressBar(val, estimatedHours, remainingHours, actualHours, health, riskReason) {
     const v = Math.max(0, Math.round(Number(val)||0));
-    const fill = v > 100 ? 'linear-gradient(90deg,#f97316,#fb923c)' : v < 50 ? 'linear-gradient(90deg,#22c55e,#86efac)' : v <= 75 ? 'linear-gradient(90deg,#facc15,#fde68a)' : 'linear-gradient(90deg,#f87171,#fecaca)';
-    const color = v > 100 ? '#f97316' : v < 50 ? '#bbf7d0' : v <= 75 ? '#fde68a' : '#fecaca';
+    const fill = v < 50 ? 'linear-gradient(90deg,#22c55e,#86efac)' : v <= 75 ? 'linear-gradient(90deg,#facc15,#fde68a)' : v <= 90 ? 'linear-gradient(90deg,#f97316,#fb923c)' : 'linear-gradient(90deg,#dc2626,#ef4444)';
+    const color = v < 50 ? '#bbf7d0' : v <= 75 ? '#fde68a' : v <= 90 ? '#fdba74' : '#ef4444';
+    const blink = v > 90 && health === 'Green' && !riskReason ? ' <span style="animation:progress-blink 1s step-start infinite;color:#ef4444">⚠</span>' : v > 100 ? ' ⚠' : '';
     let tip = '';
     if (v >= 100) tip = 'No more hours for the project';
     else if (estimatedHours != null && remainingHours != null) {
       const used = actualHours != null ? actualHours : (estimatedHours - remainingHours);
       tip = `${used} hours have been completed out of ${estimatedHours}, with ${remainingHours} hours remaining`;
     }
-    const bar = `<div style="width:100%;background:#142033;border-radius:999px;overflow:hidden;height:8px;margin-bottom:4px"><div style="height:100%;border-radius:999px;width:${Math.min(v,100)}%;background:${fill}"></div></div><small style="color:${color};font-weight:700">${v}%${v>100?' ⚠':''}</small>`;
+    const bar = `<div style="width:100%;background:#142033;border-radius:999px;overflow:hidden;height:8px;margin-bottom:4px"><div style="height:100%;border-radius:999px;width:${Math.min(v,100)}%;background:${fill}"></div></div><small style="color:${color};font-weight:700">${v}%${blink}</small>`;
     if (tip) return `<span class="rpt-progress-wrap">${bar}<span class="rpt-tooltip">${tip}</span></span>`;
     return bar;
   }
@@ -1369,7 +1370,7 @@ function generateHTMLReport() {
         <td>${esc(formatDate(p.startDate))}</td>
         <td>${esc(formatDate(p.dueDate))}</td>
         <td>${healthPill(p.health, p.riskReason)}</td>
-        <td>${progressBar(p.progress, p.estimatedHours, p.remainingHours, p.actualHours)}</td>
+        <td>${progressBar(p.progress, p.estimatedHours, p.remainingHours, p.actualHours, p.health, p.riskReason)}</td>
         <td>${p.statusText ? p.statusText : '<span style="color:#f97316;font-style:italic">No Status Yet</span>'}</td>
         <td>${esc((p.comments||'').split(', ').join('\n'))}</td>
       </tr>`).join('')
@@ -1390,7 +1391,7 @@ function generateHTMLReport() {
       <td>${esc(formatDate(p.startDate))}</td>
       <td>${esc(formatDate(p.dueDate))}</td>
       <td>${healthPill(p.health, p.riskReason)}</td>
-      <td>${progressBar(p.progress, p.estimatedHours, p.remainingHours)}</td>
+      <td>${progressBar(p.progress, p.estimatedHours, p.remainingHours, null, p.health, p.riskReason)}</td>
       <td>${p.statusText ? p.statusText : '<span style="color:#f97316;font-style:italic">No Status Yet</span>'}</td>
       <td>${esc((p.comments||'').split(', ').join('\n'))}</td>
     </tr>`).join('');
