@@ -892,6 +892,7 @@ function closeDeleteProjectModal() {
 function openUsersModal() {
   renderUsersModal();
   addUserForm.style.display = 'none';
+  document.getElementById('usersSearchInput').value = '';
   usersModal.classList.remove('hidden');
   usersModal.setAttribute('aria-hidden', 'false');
 }
@@ -932,6 +933,7 @@ function openCustomersModal() {
   renderCustomersModal();
   addCustomerListForm.style.display = 'none';
   addCustomerListBtn.style.display = '';
+  document.getElementById('customersSearchInput').value = '';
   customersModal.classList.remove('hidden');
   customersModal.setAttribute('aria-hidden', 'false');
 }
@@ -1086,6 +1088,12 @@ saveSettingsBtn.addEventListener('click', async () => {
 manageCustomersBtn.addEventListener('click', openCustomersModal);
 closeCustomersModalBtn.addEventListener('click', closeCustomersModal);
 customersModal.addEventListener('click', (e) => { if (e.target === customersModal) closeCustomersModal(); });
+document.getElementById('customersSearchInput').addEventListener('input', (e) => {
+  const term = e.target.value.toLowerCase();
+  customersModalBody.querySelectorAll('.user-row').forEach(row => {
+    row.style.display = row.textContent.toLowerCase().includes(term) ? '' : 'none';
+  });
+});
 
 addCustomerListBtn.addEventListener('click', () => {
   addCustomerListForm.style.display = 'grid';
@@ -1505,6 +1513,12 @@ exportCancelBtn.addEventListener('click', () => {
 manageUsersBtn.addEventListener('click', openUsersModal);
 closeUsersModalBtn.addEventListener('click', closeUsersModal);
 usersModal.addEventListener('click', (e) => { if (e.target === usersModal) closeUsersModal(); });
+document.getElementById('usersSearchInput').addEventListener('input', (e) => {
+  const term = e.target.value.toLowerCase();
+  usersModalBody.querySelectorAll('.user-row').forEach(row => {
+    row.style.display = row.textContent.toLowerCase().includes(term) ? '' : 'none';
+  });
+});
 
 addUserBtn.addEventListener('click', () => {
   addUserForm.style.display = 'grid';
