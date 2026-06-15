@@ -1688,7 +1688,7 @@ function showDueThisMonthPopup() {
   const due = getDueThisMonthProjects();
   if (!due.length) return;
   dueThisMonthPopup.innerHTML = due.map((p, i) =>
-    `<a href="#" data-scroll-project="${escapeHtml(p.name)}">${i + 1}. ${escapeHtml(p.customer ? p.customer + ' — ' : '')}${escapeHtml(p.name)} <span style="color:#94a3b8;font-weight:400">(${escapeHtml(formatDate(p.dueDate || ''))})</span></a>`
+    `<a href="#" data-scroll-project="${escapeHtml(p.name)}">${i + 1}. ${escapeHtml(p.customer ? p.customer + ' — ' : '')}${escapeHtml(p.name)}</a>`
   ).join('');
   dueThisMonthPopup.classList.remove('hidden');
 }
