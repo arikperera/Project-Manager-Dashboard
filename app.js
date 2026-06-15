@@ -25,6 +25,8 @@ function getCustomerNames() {
   return customers.map(c => c.name);
 }
 
+let cachedRiskReasonFieldId = null;
+
 const BACKUPS_KEY = 'project-dashboard-backups-v1';
 let backups = JSON.parse(localStorage.getItem(BACKUPS_KEY) || '[]');
 
@@ -469,6 +471,10 @@ async function syncProjectProgressFromJira() {
       let remainingHours = null;
       let actualHours = null;
       if (data.names) {
+        if (!cachedRiskReasonFieldId) {
+          const rrEntry = Object.entries(data.names).find(([, n]) => n === 'Risk Reason');
+          if (rrEntry) cachedRiskReasonFieldId = rrEntry[0];
+        }
         const estEntry = Object.entries(data.names).find(([, n]) => n === 'Estimated PS Hours');
         const remEntry = Object.entries(data.names).find(([, n]) => n === 'Remaining Effort');
         const actEntry = Object.entries(data.names).find(([, n]) => n === 'Actual Effort(H)');
@@ -506,6 +512,63 @@ async function syncProjectProgressFromJira() {
 
   saveProjects();
   renderAll();
+}
+
+async function writeRiskReasonToJira(issueKey, riskReason) {
+  if (!riskReason) throw new Error('riskReason must not be empty');
+  const useProxy = settings.jiraEmail && settings.jiraToken;
+
+  let fieldId = cachedRiskReasonFieldId;
+  if (!fieldId) {
+    const readUrl = useProxy
+      ? `http://localhost:8081/jira/issue/${issueKey}?fields=*all&expand=names`
+      : `https://kaltura.atlassian.net/rest/api/3/issue/${issueKey}?fields=*all&expand=names`;
+    const readOpts = useProxy
+      ? { headers: { Accept: 'application/json' } }
+      : { credentials: 'include', headers: { Accept: 'application/json' } };
+
+    const readResponse = await fetch(readUrl, readOpts);
+    if (!readResponse.ok) throw new Error(`Failed to read issue: ${readResponse.status}`);
+    const data = await readResponse.json();
+
+    const fieldEntry = data.names
+      ? Object.entries(data.names).find(([, name]) => name === 'Risk Reason')
+      : null;
+    if (!fieldEntry) throw new Error('Risk Reason field not found in Jira');
+    fieldId = fieldEntry[0];
+    cachedRiskReasonFieldId = fieldId;
+  }
+
+  const writeUrl = useProxy
+    ? `http://localhost:8081/jira/issue/${issueKey}`
+    : `https://kaltura.atlassian.net/rest/api/3/issue/${issueKey}`;
+  const writeOpts = useProxy
+    ? {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ fields: { [fieldId]: { value: riskReason } } }),
+      }
+    : {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ fields: { [fieldId]: { value: riskReason } } }),
+      };
+
+  const writeResponse = await fetch(writeUrl, writeOpts);
+  if (!writeResponse.ok) throw new Error(`Jira write failed: ${writeResponse.status}`);
+}
+
+function showEditModalWarning(message) {
+  const card = editProjectModal.querySelector('.modal-card');
+  const existing = card.querySelector('.edit-warning-banner');
+  if (existing) existing.remove();
+  const banner = document.createElement('div');
+  banner.className = 'edit-warning-banner';
+  banner.textContent = message;
+  banner.style.cssText = 'background:#854d0e;color:#fef9c3;padding:10px 14px;border-radius:10px;margin-bottom:12px;font-size:0.88rem;';
+  card.insertBefore(banner, card.firstChild);
+  setTimeout(() => banner.remove(), 4000);
 }
 
 function getFilteredProjects() {
@@ -967,7 +1030,7 @@ function closeModal() {
   addCustomerReturnContext = null;
 }
 
-editProjectForm.addEventListener('submit', (event) => {
+editProjectForm.addEventListener('submit', async (event) => {
   event.preventDefault();
 
   const selectedIndex = Number(editProjectForm.dataset.projectIndex ?? -1);
@@ -987,7 +1050,20 @@ editProjectForm.addEventListener('submit', (event) => {
 
   saveProjects();
   renderAll();
-  closeEditProjectModal();
+
+  const issueKey = getJiraIssueKey(selectedProject.jira);
+  const riskReason = selectedProject.riskReason;
+  if (issueKey && (selectedProject.health === 'Yellow' || selectedProject.health === 'Red') && riskReason) {
+    try {
+      await writeRiskReasonToJira(issueKey, riskReason);
+      closeEditProjectModal();
+    } catch {
+      showEditModalWarning('Project saved. Jira update failed — please update Risk Reason manually.');
+      setTimeout(() => closeEditProjectModal(), 5500);
+    }
+  } else {
+    closeEditProjectModal();
+  }
 });
 
 modalProjectForm.addEventListener('submit', (event) => {
