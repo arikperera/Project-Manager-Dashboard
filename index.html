@@ -48,10 +48,11 @@
             <span id="atRiskTrigger" style="color:#f97316;cursor:pointer;">Needs review</span>
             <div id="atRiskPopup" class="atrisk-popup hidden"></div>
           </article>
-          <article class="stat-card accent-purple">
-            <p>Completion rate</p>
-            <h3 id="completionRate">0%</h3>
-            <span>Average progress</span>
+          <article class="stat-card accent-purple" id="dueThisMonthCard" style="position:relative;cursor:default;">
+            <p>Due this month</p>
+            <h3 id="dueThisMonthCount">0</h3>
+            <span id="dueThisMonthTrigger" style="color:#a78bfa;cursor:pointer;">View projects</span>
+            <div id="dueThisMonthPopup" class="atrisk-popup hidden"></div>
           </article>
         </section>
 
@@ -81,12 +82,8 @@
                 <option value="40-69">40–69%</option>
                 <option value="70-100">70–100%</option>
               </select>
-              <select id="statusFilter">
-                <option value="All">All statuses</option>
-                <option value="On Track">On Track</option>
-                <option value="At Risk">At Risk</option>
-                <option value="Delayed">Delayed</option>
-                <option value="Completed">Completed</option>
+              <select id="duemonthFilter">
+                <option value="">All months</option>
               </select>
             </div>
             <div class="table-wrap">
@@ -393,6 +390,7 @@
         </div>
         <p class="muted" style="margin-bottom:16px;">Choose whether to export only, or export and create a backup snapshot at the same time.</p>
         <div class="modal-actions">
+          <button type="button" id="exportCancelBtn" class="secondary-btn">Cancel</button>
           <button type="button" id="exportOnlyBtn" class="ghost-btn">Report only</button>
           <button type="button" id="exportAndBackupBtn" class="primary-btn">Report + Backup</button>
         </div>

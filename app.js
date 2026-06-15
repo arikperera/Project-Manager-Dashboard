@@ -188,7 +188,7 @@ const csmList = null;
 const salesList = null;
 const healthFilter = document.getElementById('healthFilter');
 const progressFilter = document.getElementById('progressFilter');
-const statusFilter = document.getElementById('statusFilter');
+const duemonthFilter = document.getElementById('duemonthFilter');
 
 function saveProjects() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
@@ -509,12 +509,12 @@ function getFilteredProjects() {
   const selectedPm = pmFilter.value;
   const selectedHealth = healthFilter.value;
   const selectedProgress = progressFilter.value;
-  const selectedStatus = statusFilter.value;
+  const selectedDueMonth = duemonthFilter.value;
 
   return projects.filter((project) => {
     const matchesPm = selectedPm === 'All' || project.manager === selectedPm;
     const matchesHealth = selectedHealth === 'All' || project.health === selectedHealth;
-    const matchesStatus = selectedStatus === 'All' || project.status === selectedStatus;
+    const matchesDueMonth = !selectedDueMonth || (project.dueDate || '').startsWith(selectedDueMonth);
     const matchesSearch = !term || `${project.name} ${project.manager || ''} ${project.jira || ''}`.toLowerCase().includes(term);
 
     let matchesProgress = true;
@@ -522,7 +522,7 @@ function getFilteredProjects() {
     if (selectedProgress === '40-69') matchesProgress = project.progress >= 40 && project.progress < 70;
     if (selectedProgress === '70-100') matchesProgress = project.progress >= 70;
 
-    return matchesPm && matchesHealth && matchesStatus && matchesSearch && matchesProgress;
+    return matchesPm && matchesHealth && matchesDueMonth && matchesSearch && matchesProgress;
   });
 }
 
@@ -627,21 +627,33 @@ function renderSelect() {
   }
 
   const uniqueManagers = [...new Set(projects.map((project) => project.manager).filter(Boolean))];
-
   pmFilter.innerHTML = ['<option value="All">All PMs</option>', ...uniqueManagers.map((manager) => `<option value="${manager}">${manager}</option>`)].join('');
 
+  const now = new Date();
+  const monthOptions = [['', 'All months']];
+  for (let i = 0; i < 3; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+    const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const label = d.toLocaleString('default', { month: 'long', year: 'numeric' });
+    monthOptions.push([value, label]);
+  }
+  const currentDueMonth = duemonthFilter.value;
+  duemonthFilter.innerHTML = monthOptions.map(([v, l]) => `<option value="${v}"${v === currentDueMonth ? ' selected' : ''}>${l}</option>`).join('');
 }
 
 function renderSummary() {
   const total = projects.length;
   const onTrack = projects.filter((project) => project.status === 'On Track').length;
   const atRisk = projects.filter((project) => project.health === 'Yellow' || project.health === 'Red').length;
-  const completionRate = Math.round(projects.reduce((sum, project) => sum + project.progress, 0) / total);
+
+  const now = new Date();
+  const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const dueThisMonth = projects.filter((project) => (project.dueDate || '').startsWith(currentMonth));
 
   document.getElementById('totalProjects').textContent = total;
   document.getElementById('onTrackCount').textContent = onTrack;
   document.getElementById('atRiskCount').textContent = atRisk;
-  document.getElementById('completionRate').textContent = `${completionRate}%`;
+  document.getElementById('dueThisMonthCount').textContent = dueThisMonth.length;
 }
 
 function openEditProjectModal(projectIndex) {
@@ -1178,7 +1190,7 @@ searchInput.addEventListener('input', renderTable);
 pmFilter.addEventListener('change', renderTable);
 healthFilter.addEventListener('change', renderTable);
 progressFilter.addEventListener('change', renderTable);
-statusFilter.addEventListener('change', renderTable);
+duemonthFilter.addEventListener('change', renderTable);
 
 editHealth.addEventListener('change', () => {
   riskReasonLabel.style.display = (editHealth.value === 'Yellow' || editHealth.value === 'Red') ? '' : 'none';
@@ -1411,6 +1423,14 @@ function applyFilters(){
   const pm=document.getElementById('rPmFilter').value;
   const health=document.getElementById('rHealthFilter').value;
   const prog=document.getElementById('rProgressFilter').value;
+  if(pm||health||prog){
+    const t=document.getElementById('allTable');
+    if(t.style.display!=='block'){
+      t.style.display='block';
+      const btn=document.querySelector('.toggle-btn');
+      if(btn) btn.textContent='▼ Hide all projects';
+    }
+  }
   document.querySelectorAll('#allTable tbody.pm-group-body tr[data-pm]').forEach(row=>{
     const rPm=row.dataset.pm;
     const rHealth=row.dataset.health;
@@ -1440,6 +1460,7 @@ function applyFilters(){
 const exportChoiceModal = document.getElementById('exportChoiceModal');
 const exportOnlyBtn = document.getElementById('exportOnlyBtn');
 const exportAndBackupBtn = document.getElementById('exportAndBackupBtn');
+const exportCancelBtn = document.getElementById('exportCancelBtn');
 
 exportBtn.addEventListener('click', () => {
   exportChoiceModal.classList.remove('hidden');
@@ -1461,6 +1482,10 @@ exportAndBackupBtn.addEventListener('click', () => {
   exportChoiceModal.setAttribute('aria-hidden', 'true');
   generateHTMLReport();
   createBackup(createBackupBtn);
+});
+exportCancelBtn.addEventListener('click', () => {
+  exportChoiceModal.classList.add('hidden');
+  exportChoiceModal.setAttribute('aria-hidden', 'true');
 });
 
 manageUsersBtn.addEventListener('click', openUsersModal);
@@ -1638,6 +1663,35 @@ atRiskPopup.addEventListener('click', (e) => {
   }
   atRiskPopup.classList.add('hidden');
 });
+
+const dueThisMonthTrigger = document.getElementById('dueThisMonthTrigger');
+const dueThisMonthPopup = document.getElementById('dueThisMonthPopup');
+
+let dueThisMonthHideTimer = null;
+
+function showDueThisMonthPopup() {
+  clearTimeout(dueThisMonthHideTimer);
+  const now = new Date();
+  const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const due = projects.filter((p) => (p.dueDate || '').startsWith(currentMonth));
+  if (!due.length) {
+    dueThisMonthPopup.innerHTML = '<span style="color:#94a3b8">No projects due this month</span>';
+  } else {
+    dueThisMonthPopup.innerHTML = due.map((p, i) =>
+      `<span>${i + 1}. ${escapeHtml(p.customer ? p.customer + ' — ' : '')}${escapeHtml(p.name)} <span style="color:#94a3b8">(${escapeHtml(p.dueDate || '')})</span></span>`
+    ).join('');
+  }
+  dueThisMonthPopup.classList.remove('hidden');
+}
+
+function hideDueThisMonthPopup() {
+  dueThisMonthHideTimer = setTimeout(() => dueThisMonthPopup.classList.add('hidden'), 150);
+}
+
+dueThisMonthTrigger.addEventListener('mouseenter', showDueThisMonthPopup);
+dueThisMonthTrigger.addEventListener('mouseleave', hideDueThisMonthPopup);
+dueThisMonthPopup.addEventListener('mouseenter', () => clearTimeout(dueThisMonthHideTimer));
+dueThisMonthPopup.addEventListener('mouseleave', hideDueThisMonthPopup);
 
 cancelDeleteProjectBtn.addEventListener('click', closeDeleteProjectModal);
 deleteProjectModal.addEventListener('click', (e) => { if (e.target === deleteProjectModal) closeDeleteProjectModal(); });
