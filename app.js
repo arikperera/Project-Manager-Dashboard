@@ -1352,9 +1352,9 @@ function generateHTMLReport() {
       const used = actualHours != null ? actualHours : (estimatedHours - remainingHours);
       tip = `${used} hours have been completed out of ${estimatedHours}, with ${remainingHours} hours remaining`;
     }
-    const bar = `<div style="width:100%;background:#142033;border-radius:999px;overflow:hidden;height:8px;margin-bottom:4px"><div style="height:100%;border-radius:999px;width:${Math.min(v,100)}%;background:${fill}"></div></div><small style="color:${color};font-weight:700">${v}%${blink}</small>`;
-    if (tip) return `<span class="rpt-progress-wrap">${bar}<span class="rpt-tooltip">${tip}</span></span>`;
-    return bar;
+    const bar = `<div style="width:100%;background:#142033;border-radius:999px;overflow:hidden;height:8px;margin-bottom:4px"><div style="height:100%;border-radius:999px;width:${Math.min(v,100)}%;background:${fill}"></div></div><small style="color:${color};font-weight:700">${v}%</small>`;
+    const barWithTip = tip ? `<span class="rpt-progress-wrap">${bar}<span class="rpt-tooltip">${tip}</span></span>` : bar;
+    return barWithTip + blink;
   }
 
   function esc(s) {
