@@ -190,8 +190,6 @@ th { color: #bfdbfe; font-weight:600; }
 @media (max-width: 860px) { .app-shell { flex-direction:column;} .sidebar { width:100%; border-right:none; border-bottom:1px solid var(--line);} }
 @media (max-width: 640px) { .stats-grid { grid-template-columns: 1fr;} .topbar { flex-direction:column; align-items:flex-start; gap:8px; } }
 
-.jira-at-cell { white-space:nowrap; }
-.jira-at-toggle { display:inline-flex; gap:2px; margin-left:4px; vertical-align:middle; }
-.jira-at-btn { background:rgba(255,255,255,0.06); border:1px solid #334155; border-radius:6px; color:#94a3b8; font-size:0.72rem; padding:1px 6px; cursor:pointer; line-height:1.4; }
-.jira-at-btn.active { background:rgba(167,139,250,0.18); border-color:#a78bfa; color:#a78bfa; }
-.jira-at-btn:hover:not(.active) { background:rgba(255,255,255,0.1); color:#cbd5e1; }
+.jira-at-cell { white-space:nowrap; display:flex; gap:4px; align-items:center; flex-wrap:wrap; }
+.jira-at-btn { background:rgba(255,255,255,0.06); border:1px solid #334155; border-radius:6px; color:#94a3b8; font-size:0.72rem; padding:2px 7px; line-height:1.4; text-decoration:none; display:inline-block; }
+.jira-at-btn:hover { background:rgba(167,139,250,0.18); border-color:#a78bfa; color:#a78bfa; }

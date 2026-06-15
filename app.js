@@ -578,12 +578,8 @@ function renderTable() {
             <td>${(() => { const cust = customers.find(c => c.name === project.customer); return cust && cust.sfLink ? `<a href="${escapeHtml(cust.sfLink)}" target="_blank" rel="noreferrer">${escapeHtml(project.customer || '-')}</a>` : escapeHtml(project.customer || '-'); })()}</td>
             <td>${project.oppLink ? `<a href="${escapeHtml(project.oppLink)}" target="_blank" rel="noreferrer">${escapeHtml(project.name)}</a>` : escapeHtml(project.name)}</td>
             <td class="jira-at-cell">
-              <span class="jira-view"><a href="${project.jira || '#'}" target="_blank" rel="noreferrer">${getJiraLabel(project.jira)}</a></span>
-              <span class="at-view" style="display:none;">${project.atLink ? `<a href="${escapeHtml(project.atLink)}" target="_blank" rel="noreferrer">AT</a>` : '<span style="color:#64748b">—</span>'}</span>
-              <div class="jira-at-toggle">
-                <button type="button" class="jira-at-btn active" onclick="this.closest('.jira-at-cell').querySelector('.jira-view').style.display='';this.closest('.jira-at-cell').querySelector('.at-view').style.display='none';this.classList.add('active');this.nextElementSibling.classList.remove('active');">Jira</button>
-                <button type="button" class="jira-at-btn" onclick="this.closest('.jira-at-cell').querySelector('.at-view').style.display='';this.closest('.jira-at-cell').querySelector('.jira-view').style.display='none';this.classList.add('active');this.previousElementSibling.classList.remove('active');">AT</button>
-              </div>
+              ${project.jira ? `<a class="jira-at-btn" href="${escapeHtml(project.jira)}" target="_blank" rel="noreferrer">${escapeHtml(getJiraLabel(project.jira))}</a>` : '<span style="color:#64748b">—</span>'}
+              ${project.atLink ? `<a class="jira-at-btn" href="${escapeHtml(project.atLink)}" target="_blank" rel="noreferrer">AT</a>` : ''}
             </td>
             <td>${project.nrr} hrs</td>
             <td>${formatDate(project.startDate)}</td>
@@ -775,12 +771,8 @@ function renderBackupMain(backup) {
                 <td>${escapeHtml(p.customer || '-')}</td>
                 <td>${escapeHtml(p.name)}</td>
                 <td class="jira-at-cell">
-                  <span class="jira-view"><a href="${escapeHtml(p.jira || '#')}" target="_blank" rel="noreferrer">${escapeHtml(getJiraLabel(p.jira))}</a></span>
-                  <span class="at-view" style="display:none;">${p.atLink ? `<a href="${escapeHtml(p.atLink)}" target="_blank" rel="noreferrer">AT</a>` : '<span style="color:#64748b">—</span>'}</span>
-                  <div class="jira-at-toggle">
-                    <button type="button" class="jira-at-btn active" onclick="this.closest('.jira-at-cell').querySelector('.jira-view').style.display='';this.closest('.jira-at-cell').querySelector('.at-view').style.display='none';this.classList.add('active');this.nextElementSibling.classList.remove('active');">Jira</button>
-                    <button type="button" class="jira-at-btn" onclick="this.closest('.jira-at-cell').querySelector('.at-view').style.display='';this.closest('.jira-at-cell').querySelector('.jira-view').style.display='none';this.classList.add('active');this.previousElementSibling.classList.remove('active');">AT</button>
-                  </div>
+                  ${p.jira ? `<a class="jira-at-btn" href="${escapeHtml(p.jira)}" target="_blank" rel="noreferrer">${escapeHtml(getJiraLabel(p.jira))}</a>` : '<span style="color:#64748b">—</span>'}
+                  ${p.atLink ? `<a class="jira-at-btn" href="${escapeHtml(p.atLink)}" target="_blank" rel="noreferrer">AT</a>` : ''}
                 </td>
                 <td>${escapeHtml(String(p.nrr || 0))} hrs</td>
                 <td>${escapeHtml(formatDate(p.startDate))}</td>
