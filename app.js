@@ -519,7 +519,7 @@ function getFilteredProjects() {
     const matchesPm = selectedPm === 'All' || project.manager === selectedPm;
     const matchesHealth = selectedHealth === 'All' || project.health === selectedHealth;
     const matchesDueMonth = !selectedDueMonth || (project.dueDate || '').startsWith(selectedDueMonth);
-    const matchesSearch = !term || `${project.name} ${project.manager || ''} ${project.jira || ''}`.toLowerCase().includes(term);
+    const matchesSearch = !term || `${project.name} ${project.manager || ''} ${project.customer || ''} ${project.jira || ''}`.toLowerCase().includes(term);
 
     let matchesProgress = true;
     if (selectedProgress === '0-39') matchesProgress = project.progress < 40;
