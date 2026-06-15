@@ -36,7 +36,7 @@ try {
         $res = $ctx.Response
 
         $res.Headers.Add("Access-Control-Allow-Origin", "*")
-        $res.Headers.Add("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        $res.Headers.Add("Access-Control-Allow-Methods", "GET, POST, PUT, OPTIONS")
         $res.Headers.Add("Access-Control-Allow-Headers", "Content-Type, Accept")
 
         if ($req.HttpMethod -eq "OPTIONS") {
@@ -75,10 +75,19 @@ try {
 
             try {
                 $wr = [System.Net.WebRequest]::Create($jiraUrl)
-                $wr.Method = "GET"
+                $wr.Method = $req.HttpMethod
                 $wr.Headers.Add("Authorization", "Basic $creds")
                 $wr.Accept = "application/json"
                 $wr.Timeout = 15000
+
+                if ($req.HttpMethod -eq "PUT" -or $req.HttpMethod -eq "POST") {
+                    $wr.ContentType = "application/json; charset=utf-8"
+                    $reqBody = New-Object System.IO.StreamReader($req.InputStream)
+                    $reqBodyStr = $reqBody.ReadToEnd()
+                    $reqBytes = [System.Text.Encoding]::UTF8.GetBytes($reqBodyStr)
+                    $wr.ContentLength = $reqBytes.Length
+                    $wr.GetRequestStream().Write($reqBytes, 0, $reqBytes.Length)
+                }
 
                 $wresp = $wr.GetResponse()
                 $sr = New-Object System.IO.StreamReader($wresp.GetResponseStream())
