@@ -630,7 +630,7 @@ function renderSelect() {
   pmFilter.innerHTML = ['<option value="All">All PMs</option>', ...uniqueManagers.map((manager) => `<option value="${manager}">${manager}</option>`)].join('');
 
   const now = new Date();
-  const monthOptions = [['', 'All months']];
+  const monthOptions = [['', 'Projects Due completion']];
   for (let i = 0; i < 3; i++) {
     const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
     const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
@@ -1726,27 +1726,22 @@ function buildDueMonthPlainText() {
   return [header, ...rows].join('\n');
 }
 
-const copyDueMonthBtn = document.getElementById('copyDueMonthBtn');
 const mailDueMonthBtn = document.getElementById('mailDueMonthBtn');
 
-copyDueMonthBtn.addEventListener('click', () => {
+mailDueMonthBtn.addEventListener('click', () => {
+  const now = new Date();
+  const monthLabel = now.toLocaleString('default', { month: 'long', year: 'numeric' });
+  const subject = `Projects Due Completion This Month – ${monthLabel}`;
   const html = buildDueMonthHtml();
   const plain = buildDueMonthPlainText();
   navigator.clipboard.write([new ClipboardItem({
     'text/html': new Blob([html], { type: 'text/html' }),
     'text/plain': new Blob([plain], { type: 'text/plain' }),
   })]).then(() => {
-    copyDueMonthBtn.textContent = '✓';
-    setTimeout(() => { copyDueMonthBtn.textContent = '⧉'; }, 1500);
+    window.location.href = `mailto:emea.pm@kaltura.com?subject=${encodeURIComponent(subject)}`;
+    mailDueMonthBtn.textContent = '✓';
+    setTimeout(() => { mailDueMonthBtn.textContent = '✉'; }, 2000);
   });
-});
-
-mailDueMonthBtn.addEventListener('click', () => {
-  const now = new Date();
-  const monthLabel = now.toLocaleString('default', { month: 'long', year: 'numeric' });
-  const subject = `Projects Due This Month – ${monthLabel}`;
-  const body = buildDueMonthPlainText();
-  window.location.href = `mailto:emea.pm@kaltura.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 });
 
 cancelDeleteProjectBtn.addEventListener('click', closeDeleteProjectModal);
