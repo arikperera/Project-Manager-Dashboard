@@ -1686,13 +1686,10 @@ let dueThisMonthHideTimer = null;
 function showDueThisMonthPopup() {
   clearTimeout(dueThisMonthHideTimer);
   const due = getDueThisMonthProjects();
-  if (!due.length) {
-    dueThisMonthPopup.innerHTML = '<span style="color:#94a3b8">No projects due this month</span>';
-  } else {
-    dueThisMonthPopup.innerHTML = due.map((p, i) =>
-      `<span>${i + 1}. ${escapeHtml(p.customer ? p.customer + ' — ' : '')}${escapeHtml(p.name)} <span style="color:#94a3b8">(${escapeHtml(p.dueDate || '')})</span></span>`
-    ).join('');
-  }
+  if (!due.length) return;
+  dueThisMonthPopup.innerHTML = due.map((p, i) =>
+    `<a href="#" data-scroll-project="${escapeHtml(p.name)}">${i + 1}. ${escapeHtml(p.customer ? p.customer + ' — ' : '')}${escapeHtml(p.name)} <span style="color:#94a3b8;font-weight:400">(${escapeHtml(formatDate(p.dueDate || ''))})</span></a>`
+  ).join('');
   dueThisMonthPopup.classList.remove('hidden');
 }
 
@@ -1704,6 +1701,23 @@ dueThisMonthTrigger.addEventListener('mouseenter', showDueThisMonthPopup);
 dueThisMonthTrigger.addEventListener('mouseleave', hideDueThisMonthPopup);
 dueThisMonthPopup.addEventListener('mouseenter', () => clearTimeout(dueThisMonthHideTimer));
 dueThisMonthPopup.addEventListener('mouseleave', hideDueThisMonthPopup);
+
+dueThisMonthPopup.addEventListener('click', (e) => {
+  const link = e.target.closest('[data-scroll-project]');
+  if (!link) return;
+  e.preventDefault();
+  const projectName = link.dataset.scrollProject;
+  dueThisMonthPopup.classList.add('hidden');
+  const rows = document.querySelectorAll('#portfolioGroups tr[data-project-name]');
+  for (const row of rows) {
+    if (row.dataset.projectName === projectName) {
+      row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      row.style.outline = '2px solid #a78bfa';
+      setTimeout(() => { row.style.outline = ''; }, 2000);
+      break;
+    }
+  }
+});
 
 function getDueThisMonthProjects() {
   const now = new Date();
