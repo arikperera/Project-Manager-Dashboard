@@ -594,7 +594,15 @@ function startAutoProjectPoll() {
 }
 
 let _bannerTimer = null;
+let _dismissHideTimer = null;
+
+function escapeHtml(str) {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 function showNewProjectsBanner(addedKeys) {
+  if (_dismissHideTimer) { clearTimeout(_dismissHideTimer); _dismissHideTimer = null; }
+
   const banner = document.getElementById('newProjectsBanner');
   const msg = document.getElementById('newProjectsBannerMsg');
   if (!banner || !msg) return;
@@ -602,7 +610,8 @@ function showNewProjectsBanner(addedKeys) {
   const count = addedKeys.length;
   const keyLinks = addedKeys.map(({ key, sfUnavailable }) => {
     const suffix = sfUnavailable ? ' (SF data unavailable)' : '';
-    return `<a data-jirakey="${key}">${key}${suffix}</a>`;
+    const safeKey = escapeHtml(key);
+    return `<a data-jirakey="${safeKey}">${safeKey}${suffix}</a>`;
   }).join(', ');
 
   msg.innerHTML = `<strong>${count} new project${count > 1 ? 's' : ''} added</strong> — ${keyLinks}`;
@@ -615,10 +624,11 @@ function showNewProjectsBanner(addedKeys) {
 }
 
 function dismissNewProjectsBanner() {
+  if (_bannerTimer) { clearTimeout(_bannerTimer); _bannerTimer = null; }
   const banner = document.getElementById('newProjectsBanner');
   if (!banner) return;
   banner.classList.remove('visible');
-  setTimeout(() => banner.classList.add('hidden'), 300);
+  _dismissHideTimer = setTimeout(() => banner.classList.add('hidden'), 300);
 }
 
 document.addEventListener('click', (e) => {
