@@ -61,6 +61,16 @@ try {
             continue
         }
 
+        if ($req.HttpMethod -eq "POST" -and $path -eq "/settings/sf") {
+            $sfSettingsFile = Join-Path $PSScriptRoot "sf-settings.json"
+            $reader = New-Object System.IO.StreamReader($req.InputStream)
+            $json = $reader.ReadToEnd()
+            Set-Content $sfSettingsFile $json -Encoding utf8
+            Write-Response $res 200 '{"ok":true}'
+            Write-Host "  SF settings saved." -ForegroundColor Green
+            continue
+        }
+
         if ($path.StartsWith("/jira/")) {
             $s = Get-JiraSettings
             if (-not $s -or -not $s.jiraEmail -or -not $s.jiraToken) {
