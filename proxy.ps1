@@ -62,6 +62,21 @@ function Get-SFAccessToken {
     return $script:sfTokenCache
 }
 
+function Invoke-SFRequest($instanceUrl, $accessToken, $path) {
+    $url = "$instanceUrl$path"
+    $wr = [System.Net.WebRequest]::Create($url)
+    $wr.Method = "GET"
+    $wr.Headers.Add("Authorization", "Bearer $accessToken")
+    $wr.Accept = "application/json"
+    $wr.Timeout = 15000
+    $wresp = $wr.GetResponse()
+    $sr = New-Object System.IO.StreamReader($wresp.GetResponseStream())
+    $result = $sr.ReadToEnd() | ConvertFrom-Json
+    $sr.Close()
+    $wresp.Close()
+    return $result
+}
+
 function Write-Response($res, $statusCode, $body) {
     $bytes = [System.Text.Encoding]::UTF8.GetBytes($body)
     $res.StatusCode = $statusCode
@@ -159,6 +174,93 @@ try {
             if ($allIssues.Count -eq 0) { $json = "[]" }
             Write-Response $res 200 $json
             Write-Host "  OK  /jira/new-assignments ($($allIssues.Count) issues)" -ForegroundColor Green
+            continue
+        }
+
+        if ($req.HttpMethod -eq "GET" -and $path -eq "/sf/enrich") {
+            $sfSettings = Get-SFSettings
+            if (-not $sfSettings -or -not $sfSettings.sfUsername) {
+                Write-Response $res 200 '{"sfSkipped":true}'
+                continue
+            }
+            $jiraKey = $req.QueryString["jiraKey"]
+            if (-not $jiraKey) {
+                Write-Response $res 400 '{"error":"jiraKey required"}'
+                continue
+            }
+            try {
+                # Step 1: Fetch Jira issue to get SF Opportunity ID from remote links
+                $s = Get-JiraSettings
+                $creds = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes("$($s.jiraEmail):$($s.jiraToken)"))
+                $wr = [System.Net.WebRequest]::Create("https://kaltura.atlassian.net/rest/api/3/issue/$jiraKey/remotelink")
+                $wr.Method = "GET"
+                $wr.Headers.Add("Authorization", "Basic $creds")
+                $wr.Accept = "application/json"
+                $wr.Timeout = 15000
+                $wresp = $wr.GetResponse()
+                $sr = New-Object System.IO.StreamReader($wresp.GetResponseStream())
+                $remoteLinks = $sr.ReadToEnd() | ConvertFrom-Json
+                $sr.Close()
+                $wresp.Close()
+                $sfLink = $remoteLinks | Where-Object { $_.object.url -like "*lightning.force.com*" } | Select-Object -First 1
+                if (-not $sfLink) {
+                    Write-Response $res 200 '{"sfError":"No SF link found on Jira issue"}'
+                    continue
+                }
+                $sfUrl = $sfLink.object.url
+                # Extract Opportunity ID from URL: .../Opportunity/006TQ00000daFmrYAE/view
+                $oppId = ($sfUrl -split "/Opportunity/")[1] -split "/" | Select-Object -First 1
+
+                # Step 2: Get SF token and fetch Opportunity
+                $token = Get-SFAccessToken
+                $opp = Invoke-SFRequest $token.instanceUrl $token.accessToken "/services/data/v59.0/sobjects/Opportunity/$($oppId)?fields=Name,Total_PS_Hours__c,Amount,Kaltura_NRR__c,AccountId"
+                $accountId = $opp.AccountId
+
+                # Step 3: Fetch SF Account
+                $acct = Invoke-SFRequest $token.instanceUrl $token.accessToken "/services/data/v59.0/sobjects/Account/$($accountId)?fields=Name,OwnerId,Customer_Success_Manager__c"
+
+                # Step 4: Resolve Account Owner (Sales) name
+                $salesName = ""
+                if ($acct.OwnerId) {
+                    try {
+                        $owner = Invoke-SFRequest $token.instanceUrl $token.accessToken "/services/data/v59.0/sobjects/User/$($acct.OwnerId)?fields=Name"
+                        $salesName = $owner.Name
+                    } catch { $salesName = "" }
+                }
+
+                # Step 5: Resolve CSM name — field may be a lookup (ID) or text
+                $csmName = ""
+                if ($acct.Customer_Success_Manager__c) {
+                    $csmRaw = $acct.Customer_Success_Manager__c
+                    if ($csmRaw -match "^[0-9a-zA-Z]{15,18}$") {
+                        try {
+                            $csm = Invoke-SFRequest $token.instanceUrl $token.accessToken "/services/data/v59.0/sobjects/User/$csmRaw?fields=Name"
+                            $csmName = $csm.Name
+                        } catch { $csmName = $csmRaw }
+                    } else {
+                        $csmName = $csmRaw
+                    }
+                }
+
+                $oppUrl = "https://kaltura.lightning.force.com/lightning/r/Opportunity/$oppId/view"
+                $result = @{
+                    customer  = $acct.Name
+                    name      = $opp.Name
+                    nrrHours  = $opp.Total_PS_Hours__c
+                    mrr       = $opp.Amount
+                    nrr       = $opp.Kaltura_NRR__c
+                    oppUrl    = $oppUrl
+                    salesName = $salesName
+                    csmName   = $csmName
+                }
+                Write-Response $res 200 ($result | ConvertTo-Json -Compress)
+                Write-Host "  OK  /sf/enrich $jiraKey" -ForegroundColor Green
+            } catch {
+                # If token expired mid-request, clear cache and let next poll retry
+                $script:sfTokenCache = $null
+                Write-Response $res 200 "{`"sfError`":`"$($_.Exception.Message)`"}"
+                Write-Host "  ERR /sf/enrich $jiraKey $($_.Exception.Message)" -ForegroundColor Red
+            }
             continue
         }
 
