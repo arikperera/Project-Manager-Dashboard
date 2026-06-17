@@ -514,6 +514,87 @@ async function syncProjectProgressFromJira() {
   renderAll();
 }
 
+function getExistingJiraKeys() {
+  return new Set(projects.map(p => getJiraIssueKey(p.jira)).filter(Boolean));
+}
+
+function buildProjectFromEnrichment(issue, sfData) {
+  const pmMapping = settings.pmMapping || {
+    'arik.perera@kaltura.com': 'Arik',
+    'Srinivas.Duddu@kaltura.com': 'Srini',
+  };
+  const manager = pmMapping[issue.assigneeEmail] || issue.assigneeDisplayName || 'Unassigned';
+  const startDate = issue.created ? issue.created.slice(0, 10) : '';
+  const nrr = sfData && !sfData.sfSkipped && !sfData.sfError ? (sfData.nrr ?? '') : '';
+  const mrr = sfData && !sfData.sfSkipped && !sfData.sfError ? (sfData.mrr ?? '') : '';
+  const csmName = sfData && !sfData.sfSkipped && !sfData.sfError ? (sfData.csmName ?? '') : '';
+  const salesName = sfData && !sfData.sfSkipped && !sfData.sfError ? (sfData.salesName ?? '') : '';
+  return {
+    customer:    sfData && !sfData.sfSkipped && !sfData.sfError ? (sfData.customer || '') : '',
+    name:        sfData && !sfData.sfSkipped && !sfData.sfError ? (sfData.name || issue.summary) : issue.summary,
+    manager,
+    jira:        issue.jiraUrl,
+    nrr:         sfData && !sfData.sfSkipped && !sfData.sfError ? (sfData.nrrHours ?? '') : '',
+    comments:    `NRR: ${nrr}, MRR: ${mrr}, CSM: ${csmName}, Sales: ${salesName}`,
+    startDate,
+    dueDate:     '',
+    health:      'Green',
+    status:      'In Progress',
+    progress:    0,
+    statusText:  '',
+    atLink:      sfData && !sfData.sfSkipped && !sfData.sfError ? (sfData.oppUrl || '') : '',
+    riskReason:  '',
+    csm:         csmName,
+    sales:       salesName,
+  };
+}
+
+async function pollForNewProjects() {
+  if (!settings.jiraEmail || !settings.jiraToken) return;
+  let newIssues;
+  try {
+    const resp = await fetch('http://localhost:8081/jira/new-assignments', {
+      headers: { Accept: 'application/json' },
+    });
+    if (!resp.ok) return;
+    newIssues = await resp.json();
+  } catch {
+    return;
+  }
+  const existing = getExistingJiraKeys();
+  const toAdd = newIssues.filter(issue => !existing.has(issue.key));
+  if (!toAdd.length) return;
+
+  const addedKeys = [];
+  for (const issue of toAdd) {
+    let sfData = { sfSkipped: true };
+    try {
+      const sfResp = await fetch(`http://localhost:8081/sf/enrich?jiraKey=${encodeURIComponent(issue.key)}`, {
+        headers: { Accept: 'application/json' },
+      });
+      if (sfResp.ok) sfData = await sfResp.json();
+    } catch {
+      // sfData stays sfSkipped
+    }
+    const project = buildProjectFromEnrichment(issue, sfData);
+    projects.push(project);
+    addedKeys.push({ key: issue.key, sfUnavailable: !!(sfData.sfSkipped || sfData.sfError) });
+  }
+  saveProjects();
+  renderAll();
+  showNewProjectsBanner(addedKeys);
+}
+
+let _pollTimer = null;
+function startAutoProjectPoll() {
+  pollForNewProjects();
+  const intervalMs = ((settings.pollIntervalMinutes ?? 15) * 60 * 1000);
+  if (_pollTimer) clearInterval(_pollTimer);
+  _pollTimer = setInterval(pollForNewProjects, intervalMs);
+}
+
+function showNewProjectsBanner(addedKeys) { /* implemented in Task 7 */ }
+
 async function writeRiskReasonToJira(issueKey, optionId) {
   const useProxy = settings.jiraEmail && settings.jiraToken;
 
@@ -1052,27 +1133,15 @@ editProjectForm.addEventListener('submit', async (event) => {
 
   saveProjects();
   renderAll();
+  closeEditProjectModal();
 
   const issueKey = getJiraIssueKey(selectedProject.jira);
   const needsWrite = issueKey && ((selectedProject.health === 'Yellow' || selectedProject.health === 'Red') && riskOptionId);
   const needsClear = issueKey && selectedProject.health === 'Green';
   if (needsWrite) {
-    try {
-      await writeRiskReasonToJira(issueKey, riskOptionId);
-      closeEditProjectModal();
-    } catch {
-      showEditModalWarning('Project saved. Jira update failed — please update Risk Reason manually.');
-      setTimeout(() => closeEditProjectModal(), 5500);
-    }
+    writeRiskReasonToJira(issueKey, riskOptionId).catch(() => {});
   } else if (needsClear) {
-    try {
-      await writeRiskReasonToJira(issueKey, null);
-      closeEditProjectModal();
-    } catch {
-      closeEditProjectModal();
-    }
-  } else {
-    closeEditProjectModal();
+    writeRiskReasonToJira(issueKey, null).catch(() => {});
   }
 });
 
@@ -1956,3 +2025,4 @@ wireDateField('modalProjectStartDate', 'modalProjectStartDateHidden', 'modalStar
 wireDateField('modalProjectDueDate', 'modalProjectDueDateHidden', 'modalEndPickerBtn');
 
 syncProjectProgressFromJira();
+startAutoProjectPoll();
