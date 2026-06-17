@@ -372,7 +372,7 @@
     </div>
 
     <div id="settingsModal" class="modal hidden" aria-hidden="true">
-      <div class="modal-card">
+      <div class="modal-card" style="max-width:520px;">
         <div class="modal-header">
           <div>
             <p class="eyebrow">Configuration</p>
@@ -381,15 +381,28 @@
           <button id="closeSettingsBtn" class="ghost-btn" type="button" aria-label="Close">×</button>
         </div>
         <div class="status-form" style="margin-top:8px;">
-          <p class="muted" style="margin-bottom:4px;">Jira API credentials are used to sync project progress. Generate a token at <a href="https://id.atlassian.net/manage-profile/security/api-tokens" target="_blank" rel="noreferrer" style="color:#7dd3fc;">id.atlassian.net</a>.</p>
-          <label>
-            Jira email
-            <input id="settingsJiraEmail" type="email" placeholder="your@email.com" />
-          </label>
-          <label>
-            Jira API token
-            <input id="settingsJiraToken" type="password" placeholder="Paste your API token" />
-          </label>
+
+          <p class="eyebrow" style="margin-bottom:6px;">Jira API</p>
+          <p class="muted" style="margin-bottom:4px;">Generate a token at <a href="https://id.atlassian.net/manage-profile/security/api-tokens" target="_blank" rel="noreferrer" style="color:#7dd3fc;">id.atlassian.net</a>.</p>
+          <label>Jira email<input id="settingsJiraEmail" type="email" placeholder="your@email.com" /></label>
+          <label>Jira API token<input id="settingsJiraToken" type="password" placeholder="Paste your API token" /></label>
+
+          <hr style="border-color:#334155;margin:16px 0;" />
+
+          <p class="eyebrow" style="margin-bottom:6px;">Auto-poll</p>
+          <label>Poll interval (minutes)<input id="settingsPollInterval" type="number" min="1" max="120" placeholder="15" style="width:80px;" /></label>
+          <label>Watched assignees (comma-separated emails)<input id="settingsWatchedAssignees" type="text" placeholder="arik.perera@kaltura.com, Srinivas.Duddu@kaltura.com" /></label>
+
+          <hr style="border-color:#334155;margin:16px 0;" />
+
+          <p class="eyebrow" style="margin-bottom:6px;">Salesforce</p>
+          <p class="muted" style="margin-bottom:4px;">Connected App credentials for SF enrichment. Stored locally only.</p>
+          <label>SF Username<input id="settingsSFUsername" type="email" placeholder="you@kaltura.com" /></label>
+          <label>SF Password + Security Token<input id="settingsSFPassword" type="password" placeholder="PasswordSecurityToken (concatenated)" /></label>
+          <label>Connected App Client ID<input id="settingsSFClientId" type="text" placeholder="Consumer Key" /></label>
+          <label>Connected App Client Secret<input id="settingsSFClientSecret" type="password" placeholder="Consumer Secret" /></label>
+          <p id="settingsSFStatus" class="muted" style="min-height:18px;font-size:0.8rem;"></p>
+
           <div class="modal-actions">
             <button type="button" id="cancelSettingsBtn" class="ghost-btn">Cancel</button>
             <button type="button" id="saveSettingsBtn" class="primary-btn">Save &amp; sync</button>

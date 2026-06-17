@@ -1210,6 +1210,14 @@ saveAddCustomerBtn.addEventListener('click', () => {
 settingsBtn.addEventListener('click', () => {
   document.getElementById('settingsJiraEmail').value = settings.jiraEmail || '';
   document.getElementById('settingsJiraToken').value = settings.jiraToken || '';
+  document.getElementById('settingsPollInterval').value = settings.pollIntervalMinutes ?? 15;
+  document.getElementById('settingsWatchedAssignees').value =
+    (settings.watchedAssignees || ['arik.perera@kaltura.com', 'Srinivas.Duddu@kaltura.com']).join(', ');
+  document.getElementById('settingsSFUsername').value = '';
+  document.getElementById('settingsSFPassword').value = '';
+  document.getElementById('settingsSFClientId').value = '';
+  document.getElementById('settingsSFClientSecret').value = '';
+  document.getElementById('settingsSFStatus').textContent = '';
   settingsModal.classList.remove('hidden');
   settingsModal.setAttribute('aria-hidden', 'false');
 });
@@ -1226,16 +1234,39 @@ settingsModal.addEventListener('click', (e) => { if (e.target === settingsModal)
 saveSettingsBtn.addEventListener('click', async () => {
   settings.jiraEmail = document.getElementById('settingsJiraEmail').value.trim();
   settings.jiraToken = document.getElementById('settingsJiraToken').value.trim();
+  settings.pollIntervalMinutes = parseInt(document.getElementById('settingsPollInterval').value, 10) || 15;
+  const rawAssignees = document.getElementById('settingsWatchedAssignees').value;
+  settings.watchedAssignees = rawAssignees.split(',').map(s => s.trim()).filter(Boolean);
   saveSettings();
+
   try {
     await fetch('http://localhost:8081/settings', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ jiraEmail: settings.jiraEmail, jiraToken: settings.jiraToken }),
+      body: JSON.stringify({ jiraEmail: settings.jiraEmail, jiraToken: settings.jiraToken, watchedAssignees: settings.watchedAssignees, pollIntervalMinutes: settings.pollIntervalMinutes }),
     });
-  } catch (e) {
-    console.warn('Proxy not running — start proxy.ps1 for Jira sync to work.', e);
+  } catch {
+    console.warn('Proxy not running — start proxy.ps1 for Jira sync to work.');
   }
+
+  const sfUsername = document.getElementById('settingsSFUsername').value.trim();
+  const sfPassword = document.getElementById('settingsSFPassword').value.trim();
+  const sfClientId = document.getElementById('settingsSFClientId').value.trim();
+  const sfClientSecret = document.getElementById('settingsSFClientSecret').value.trim();
+  if (sfUsername && sfPassword && sfClientId && sfClientSecret) {
+    try {
+      await fetch('http://localhost:8081/settings/sf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sfUsername, sfPasswordWithToken: sfPassword, sfClientId, sfClientSecret }),
+      });
+      document.getElementById('settingsSFStatus').textContent = 'SF credentials saved.';
+    } catch {
+      document.getElementById('settingsSFStatus').textContent = 'SF credentials not saved — proxy not running.';
+    }
+  }
+
+  startAutoProjectPoll();
   closeSettingsModal();
   syncProjectProgressFromJira();
 });
