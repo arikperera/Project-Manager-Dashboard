@@ -529,20 +529,22 @@ function buildProjectFromEnrichment(issue, sfData) {
   const mrr = sfData && !sfData.sfSkipped && !sfData.sfError ? (sfData.mrr ?? '') : '';
   const csmName = sfData && !sfData.sfSkipped && !sfData.sfError ? (sfData.csmName ?? '') : '';
   const salesName = sfData && !sfData.sfSkipped && !sfData.sfError ? (sfData.salesName ?? '') : '';
+  const sfOk = sfData && !sfData.sfSkipped && !sfData.sfError;
   return {
-    customer:    sfData && !sfData.sfSkipped && !sfData.sfError ? (sfData.customer || '') : '',
-    name:        sfData && !sfData.sfSkipped && !sfData.sfError ? (sfData.name || issue.summary) : issue.summary,
+    customer:    sfOk ? (sfData.customer || '') : '',
+    name:        sfOk ? (sfData.name || issue.summary) : issue.summary,
     manager,
     jira:        issue.jiraUrl,
-    nrr:         sfData && !sfData.sfSkipped && !sfData.sfError ? (sfData.nrrHours ?? '') : '',
-    comments:    `NRR: ${nrr}, MRR: ${mrr}, CSM: ${csmName}, Sales: ${salesName}`,
+    nrr:         sfOk ? (sfData.nrrHours ?? '') : '',
+    comments:    `NRR: ${formatCurrency(nrr || '0')}, MRR: ${formatCurrency(mrr || '0')}, CSM: ${csmName || '-'}, Sales: ${salesName || '-'}`,
     startDate,
     dueDate:     '',
     health:      'Green',
-    status:      'In Progress',
+    status:      'On Track',
     progress:    0,
     statusText:  '',
-    atLink:      sfData && !sfData.sfSkipped && !sfData.sfError ? (sfData.oppUrl || '') : '',
+    oppLink:     sfOk ? (sfData.oppUrl || '') : '',
+    atLink:      '',
     riskReason:  '',
     csm:         csmName,
     sales:       salesName,
