@@ -20,6 +20,48 @@ function Get-JiraSettings {
     return $null
 }
 
+$script:sfTokenCache = $null
+
+function Get-SFSettings {
+    $sfFile = Join-Path $PSScriptRoot "sf-settings.json"
+    if (Test-Path $sfFile) {
+        try { return Get-Content $sfFile -Raw | ConvertFrom-Json } catch {}
+    }
+    return $null
+}
+
+function Get-SFAccessToken {
+    if ($script:sfTokenCache -and $script:sfTokenCache.expiresAt -gt (Get-Date)) {
+        return $script:sfTokenCache
+    }
+    $s = Get-SFSettings
+    if (-not $s -or -not $s.sfUsername) { throw "SF credentials not configured" }
+
+    $body = "grant_type=password" +
+            "&client_id=$([Uri]::EscapeDataString($s.sfClientId))" +
+            "&client_secret=$([Uri]::EscapeDataString($s.sfClientSecret))" +
+            "&username=$([Uri]::EscapeDataString($s.sfUsername))" +
+            "&password=$([Uri]::EscapeDataString($s.sfPasswordWithToken))"
+
+    $wr = [System.Net.WebRequest]::Create("https://login.salesforce.com/services/oauth2/token")
+    $wr.Method = "POST"
+    $wr.ContentType = "application/x-www-form-urlencoded"
+    $bodyBytes = [System.Text.Encoding]::UTF8.GetBytes($body)
+    $wr.ContentLength = $bodyBytes.Length
+    $wr.GetRequestStream().Write($bodyBytes, 0, $bodyBytes.Length)
+
+    $wresp = $wr.GetResponse()
+    $sr = New-Object System.IO.StreamReader($wresp.GetResponseStream())
+    $tokenJson = $sr.ReadToEnd() | ConvertFrom-Json
+
+    $script:sfTokenCache = @{
+        accessToken = $tokenJson.access_token
+        instanceUrl = $tokenJson.instance_url
+        expiresAt   = (Get-Date).AddMinutes(110)
+    }
+    return $script:sfTokenCache
+}
+
 function Write-Response($res, $statusCode, $body) {
     $bytes = [System.Text.Encoding]::UTF8.GetBytes($body)
     $res.StatusCode = $statusCode
