@@ -113,6 +113,53 @@ try {
             continue
         }
 
+        if ($req.HttpMethod -eq "GET" -and $path -eq "/jira/new-assignments") {
+            $s = Get-JiraSettings
+            if (-not $s -or -not $s.jiraEmail -or -not $s.jiraToken) {
+                Write-Response $res 401 '{"error":"No Jira credentials configured."}'
+                continue
+            }
+            $watched = $s.watchedAssignees
+            if (-not $watched -or $watched.Count -eq 0) {
+                Write-Response $res 200 '[]'
+                continue
+            }
+            $creds = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes("$($s.jiraEmail):$($s.jiraToken)"))
+            $allIssues = @()
+            foreach ($email in $watched) {
+                $jql = [Uri]::EscapeDataString("assignee=`"$email`" AND project=PSVAMB AND created>=-30d ORDER BY created DESC")
+                $jiraUrl = "https://kaltura.atlassian.net/rest/api/3/search?jql=$jql&fields=summary,assignee,created,status&maxResults=50"
+                try {
+                    $wr = [System.Net.WebRequest]::Create($jiraUrl)
+                    $wr.Method = "GET"
+                    $wr.Headers.Add("Authorization", "Basic $creds")
+                    $wr.Accept = "application/json"
+                    $wr.Timeout = 15000
+                    $wresp = $wr.GetResponse()
+                    $sr = New-Object System.IO.StreamReader($wresp.GetResponseStream())
+                    $data = $sr.ReadToEnd() | ConvertFrom-Json
+                    foreach ($issue in $data.issues) {
+                        $allIssues += @{
+                            key                = $issue.key
+                            summary            = $issue.fields.summary
+                            assigneeEmail      = $issue.fields.assignee.emailAddress
+                            assigneeDisplayName = $issue.fields.assignee.displayName
+                            created            = $issue.fields.created
+                            jiraUrl            = "https://kaltura.atlassian.net/browse/$($issue.key)"
+                        }
+                    }
+                } catch {
+                    Write-Host "  ERR new-assignments for $email $($_.Exception.Message)" -ForegroundColor Red
+                }
+            }
+            $json = $allIssues | ConvertTo-Json -Compress -Depth 5
+            if ($allIssues.Count -eq 1) { $json = "[$json]" }
+            if ($allIssues.Count -eq 0) { $json = "[]" }
+            Write-Response $res 200 $json
+            Write-Host "  OK  /jira/new-assignments ($($allIssues.Count) issues)" -ForegroundColor Green
+            continue
+        }
+
         if ($path.StartsWith("/jira/")) {
             $s = Get-JiraSettings
             if (-not $s -or -not $s.jiraEmail -or -not $s.jiraToken) {
