@@ -70,11 +70,14 @@ function Invoke-SFRequest($instanceUrl, $accessToken, $path) {
     $wr.Accept = "application/json"
     $wr.Timeout = 15000
     $wresp = $wr.GetResponse()
-    $sr = New-Object System.IO.StreamReader($wresp.GetResponseStream())
-    $result = $sr.ReadToEnd() | ConvertFrom-Json
-    $sr.Close()
-    $wresp.Close()
-    return $result
+    try {
+        $sr = New-Object System.IO.StreamReader($wresp.GetResponseStream())
+        $body = $sr.ReadToEnd()
+        $sr.Close()
+        return $body | ConvertFrom-Json
+    } finally {
+        $wresp.Close()
+    }
 }
 
 function Write-Response($res, $statusCode, $body) {
@@ -258,7 +261,8 @@ try {
             } catch {
                 # If token expired mid-request, clear cache and let next poll retry
                 $script:sfTokenCache = $null
-                Write-Response $res 200 "{`"sfError`":`"$($_.Exception.Message)`"}"
+                $errJson = @{ sfError = $_.Exception.Message } | ConvertTo-Json -Compress
+                Write-Response $res 200 $errJson
                 Write-Host "  ERR /sf/enrich $jiraKey $($_.Exception.Message)" -ForegroundColor Red
             }
             continue
