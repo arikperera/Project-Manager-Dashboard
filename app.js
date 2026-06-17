@@ -593,7 +593,48 @@ function startAutoProjectPoll() {
   _pollTimer = setInterval(pollForNewProjects, intervalMs);
 }
 
-function showNewProjectsBanner(addedKeys) { /* implemented in Task 7 */ }
+let _bannerTimer = null;
+function showNewProjectsBanner(addedKeys) {
+  const banner = document.getElementById('newProjectsBanner');
+  const msg = document.getElementById('newProjectsBannerMsg');
+  if (!banner || !msg) return;
+
+  const count = addedKeys.length;
+  const keyLinks = addedKeys.map(({ key, sfUnavailable }) => {
+    const suffix = sfUnavailable ? ' (SF data unavailable)' : '';
+    return `<a data-jirakey="${key}">${key}${suffix}</a>`;
+  }).join(', ');
+
+  msg.innerHTML = `<strong>${count} new project${count > 1 ? 's' : ''} added</strong> — ${keyLinks}`;
+
+  banner.classList.remove('hidden');
+  requestAnimationFrame(() => banner.classList.add('visible'));
+
+  if (_bannerTimer) clearTimeout(_bannerTimer);
+  _bannerTimer = setTimeout(() => dismissNewProjectsBanner(), 10000);
+}
+
+function dismissNewProjectsBanner() {
+  const banner = document.getElementById('newProjectsBanner');
+  if (!banner) return;
+  banner.classList.remove('visible');
+  setTimeout(() => banner.classList.add('hidden'), 300);
+}
+
+document.addEventListener('click', (e) => {
+  const key = e.target.dataset?.jirakey;
+  if (!key) return;
+  const rows = document.querySelectorAll('tr[data-jirakey]');
+  const row = [...rows].find(r => r.dataset.jirakey === key);
+  if (row) {
+    row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    row.classList.add('highlight-row');
+    setTimeout(() => row.classList.remove('highlight-row'), 2000);
+  }
+  dismissNewProjectsBanner();
+});
+
+document.getElementById('newProjectsBannerDismiss').addEventListener('click', dismissNewProjectsBanner);
 
 async function writeRiskReasonToJira(issueKey, optionId) {
   const useProxy = settings.jiraEmail && settings.jiraToken;
@@ -717,7 +758,7 @@ function renderTable() {
           const progressTone = getProgressTone(progressValue);
           const progressFillTone = getProgressFillTone(progressValue);
           return `
-          <tr>
+          <tr data-jirakey="${getJiraIssueKey(project.jira) || ''}">
             <td>${(() => { const cust = customers.find(c => c.name === project.customer); return cust && cust.sfLink ? `<a href="${escapeHtml(cust.sfLink)}" target="_blank" rel="noreferrer">${escapeHtml(project.customer || '-')}</a>` : escapeHtml(project.customer || '-'); })()}</td>
             <td>${project.oppLink ? `<a href="${escapeHtml(project.oppLink)}" target="_blank" rel="noreferrer">${escapeHtml(project.name)}</a>` : escapeHtml(project.name)}</td>
             <td class="jira-at-cell">
