@@ -323,21 +323,34 @@ try {
                     $wr.ContentType = "application/json; charset=utf-8"
                     $reqBody = New-Object System.IO.StreamReader($req.InputStream)
                     $reqBodyStr = $reqBody.ReadToEnd()
+                    $reqBody.Close()
                     $reqBytes = [System.Text.Encoding]::UTF8.GetBytes($reqBodyStr)
                     $wr.ContentLength = $reqBytes.Length
-                    $wr.GetRequestStream().Write($reqBytes, 0, $reqBytes.Length)
+                    $reqStream = $wr.GetRequestStream()
+                    $reqStream.Write($reqBytes, 0, $reqBytes.Length)
+                    $reqStream.Close()
                 }
 
                 $wresp = $wr.GetResponse()
-                $sr = New-Object System.IO.StreamReader($wresp.GetResponseStream())
-                $body = $sr.ReadToEnd()
+                try {
+                    $sr = New-Object System.IO.StreamReader($wresp.GetResponseStream())
+                    $body = $sr.ReadToEnd()
+                    $sr.Close()
+                } finally {
+                    $wresp.Close()
+                }
                 Write-Response $res ([int]$wresp.StatusCode) $body
                 Write-Host "  OK  $jiraPath" -ForegroundColor Green
             } catch [System.Net.WebException] {
                 $wresp = $_.Exception.Response
                 if ($wresp) {
-                    $sr = New-Object System.IO.StreamReader($wresp.GetResponseStream())
-                    $body = $sr.ReadToEnd()
+                    try {
+                        $sr = New-Object System.IO.StreamReader($wresp.GetResponseStream())
+                        $body = $sr.ReadToEnd()
+                        $sr.Close()
+                    } finally {
+                        $wresp.Close()
+                    }
                     Write-Response $res ([int]$wresp.StatusCode) $body
                     Write-Host "  ERR $jiraPath $([int]$wresp.StatusCode)" -ForegroundColor Red
                 } else {
