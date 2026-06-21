@@ -873,7 +873,7 @@ function renderTable() {
                 })()}
                 <div class="progress-bar"><div class="progress-fill ${progressFillTone}" style="width:${Math.min(progressValue, 100)}%"></div></div>
                 <small class="progress-label ${progressTone}">${progressValue}%</small>
-              </div>${(() => { const ack = project.riskReason; if (ack) return ''; if (progressValue > 90) return '<span class="progress-blink-wrap"><span class="progress-blink">⚠</span><span class="progress-blink-tip">Edit the project and set budget risk reason</span></span>'; return ''; })()}
+              </div>${(() => { const ack = project.riskReason; if (ack) return ''; if (progressValue > 90) return '<span class="progress-blink-wrap"><span class="progress-blink">⚠</span><span class="progress-blink-tip">Edit the project and set over budget risk reason</span></span>'; return ''; })()}
             </td>
             <td><div class="cell-scroll">${isEmptyStatus(project.statusText) ? STATUS_PLACEHOLDER : project.statusText}</div></td>
             <td><div class="cell-scroll">${(project.comments || '-').split(', ').join('<br>')}</div></td>
@@ -1075,7 +1075,7 @@ function renderBackupMain(backup) {
                     ${(() => { let tip = ''; if (p.riskReason) { tip = `Risk reason was set\n${p.riskReason}`; } else if (pv >= 100) { tip = 'No more hours for the project'; } else if (p.estimatedHours != null && p.remainingHours != null) { const used = p.actualHours != null ? p.actualHours : (p.estimatedHours - p.remainingHours); tip = `${used} hours have been completed out of ${p.estimatedHours}, with ${p.remainingHours} hours remaining`; } return tip ? `<div class="progress-tooltip">${escapeHtml(tip).replace(/\n/g,'<br>')}</div>` : ''; })()}
                     <div class="progress-bar"><div class="progress-fill ${getProgressFillTone(pv)}" style="width:${Math.min(pv,100)}%"></div></div>
                     <small class="progress-label ${getProgressTone(pv)}">${pv}%</small>
-                  </div>${(() => { const ack = (p.health === 'Yellow' || p.health === 'Red') && p.riskReason; if (ack) return ''; if (pv > 90) return '<span class="progress-blink-wrap"><span class="progress-blink">⚠</span><span class="progress-blink-tip">Edit the project and set budget risk reason</span></span>'; return ''; })()}
+                  </div>${(() => { const ack = (p.health === 'Yellow' || p.health === 'Red') && p.riskReason; if (ack) return ''; if (pv > 90) return '<span class="progress-blink-wrap"><span class="progress-blink">⚠</span><span class="progress-blink-tip">Edit the project and set over budget risk reason</span></span>'; return ''; })()}
                 </td>
                 <td><div class="cell-scroll">${isEmptyStatus(p.statusText) ? STATUS_PLACEHOLDER : p.statusText}</div></td>
                 <td><div class="cell-scroll">${escapeHtml((p.comments || '-').split(', ').join('\n'))}</div></td>
@@ -1627,7 +1627,7 @@ function generateHTMLReport() {
     const fill = v < 50 ? 'linear-gradient(90deg,#22c55e,#86efac)' : v <= 75 ? 'linear-gradient(90deg,#facc15,#fde68a)' : v <= 90 ? 'linear-gradient(90deg,#f97316,#fb923c)' : 'linear-gradient(90deg,#dc2626,#ef4444)';
     const color = v < 50 ? '#bbf7d0' : v <= 75 ? '#fde68a' : v <= 90 ? '#fdba74' : '#ef4444';
     const ack = riskReason;
-    const blink = ack ? '' : v > 90 ? ' <span class="rpt-blink-wrap"><span style="animation:progress-blink 1s step-start infinite;color:#ef4444">⚠</span><span class="rpt-tooltip" style="color:#fde68a;width:200px">Edit the project and set budget risk reason</span></span>' : '';
+    const blink = ack ? '' : v > 90 ? ' <span class="rpt-blink-wrap"><span style="animation:progress-blink 1s step-start infinite;color:#ef4444">⚠</span><span class="rpt-tooltip" style="color:#fde68a;width:200px">Edit the project and set over budget risk reason</span></span>' : '';
     let tip = '';
     if (riskReason) tip = `Risk reason was set\n${riskReason}`;
     else if (v >= 100) tip = 'No more hours for the project';
