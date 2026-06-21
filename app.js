@@ -766,7 +766,7 @@ function renderTable() {
           <th>NRR(h)</th>
           <th>Start</th>
           <th>End</th>
-          <th>Health</th>
+          <th>Project Health</th>
           <th>Budget consumption</th>
           <th>Project Status</th>
           <th>Manager Notes</th>
@@ -981,7 +981,7 @@ function renderBackupMain(backup) {
         <table class="pm-table">
           <thead><tr>
             <th>Customer</th><th>Project</th><th>Jira / AT</th><th>NRR(h)</th>
-            <th>Start</th><th>End</th><th>Health</th><th>Budget consumption</th>
+            <th>Start</th><th>End</th><th>Project Health</th><th>Budget consumption</th>
             <th>Project Status</th><th>Manager Notes</th>
           </tr></thead>
           <tbody>
@@ -1643,7 +1643,7 @@ function generateHTMLReport() {
           <th style="text-align:left;padding:8px;color:#bfdbfe;border-bottom:1px solid #223249">NRR(h)</th>
           <th style="text-align:left;padding:8px;color:#bfdbfe;border-bottom:1px solid #223249">Start</th>
           <th style="text-align:left;padding:8px;color:#bfdbfe;border-bottom:1px solid #223249">End</th>
-          <th style="text-align:left;padding:8px;color:#bfdbfe;border-bottom:1px solid #223249">Health</th>
+          <th style="text-align:left;padding:8px;color:#bfdbfe;border-bottom:1px solid #223249">Project Health</th>
           <th style="text-align:left;padding:8px;color:#bfdbfe;border-bottom:1px solid #223249">Budget consumption</th>
           <th style="text-align:left;padding:8px;color:#bfdbfe;border-bottom:1px solid #223249">Project Status</th>
           <th style="text-align:left;padding:8px;color:#bfdbfe;border-bottom:1px solid #223249">Manager Notes</th>
@@ -1704,7 +1704,7 @@ th{color:#bfdbfe;font-weight:600}
   <h2>Projects At Risk</h2>
   <table>
     <thead><tr>
-      <th>Customer</th><th>Project</th><th>Health</th><th>Risk Reason</th>
+      <th>Customer</th><th>Project</th><th>Project Health</th><th>Risk Reason</th>
     </tr></thead>
     <tbody>${atRiskRows}</tbody>
   </table>
@@ -1736,7 +1736,7 @@ ${newSection}
     <table>
       <thead><tr>
         <th>Customer</th><th>Project</th><th>NRR(h)</th><th>Start</th><th>End</th>
-        <th>Health</th><th>Budget consumption</th><th>Project Status</th><th>Manager Notes</th>
+        <th>Project Health</th><th>Budget consumption</th><th>Project Status</th><th>Manager Notes</th>
       </tr></thead>
       ${allProjectsRows}
     </table>
