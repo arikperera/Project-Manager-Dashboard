@@ -141,6 +141,8 @@ const editCustomerName = document.getElementById('editCustomerName');
 const editProjectName = document.getElementById('editProjectName');
 const editStatusEditor = document.getElementById('editStatusEditor');
 const editHealth = document.getElementById('editHealth');
+const editPmStatus = document.getElementById('editPmStatus');
+const pmStatusLabel = document.getElementById('pmStatusLabel');
 const editRiskReason = document.getElementById('editRiskReason');
 const riskReasonLabel = document.getElementById('riskReasonLabel');
 const riskList = document.getElementById('riskList');
@@ -882,6 +884,9 @@ function openEditProjectModal(projectIndex) {
   editCustomerName.value = project.customer || '';
   editProjectName.value = project.name;
   editHealth.value = project.health || 'Green';
+  editPmStatus.value = project.pmStatus || '';
+  const isAtRisk = ['Yellow', 'Red'].includes(project.health);
+  pmStatusLabel.style.display = isAtRisk ? '' : 'none';
   const matchingOption = Array.from(editRiskReason.options).find(o => o.text === project.riskReason);
   editRiskReason.value = matchingOption ? matchingOption.value : '';
   riskReasonLabel.style.display = '';
@@ -908,6 +913,8 @@ function closeEditProjectModal() {
   editProjectForm.reset();
   editStatusEditor.innerHTML = '';
   editStatusEditor.removeAttribute('data-placeholder-active');
+  editPmStatus.value = '';
+  pmStatusLabel.style.display = 'none';
   editRiskReason.value = '';
   riskReasonLabel.style.display = '';
 }
@@ -1204,6 +1211,9 @@ editProjectForm.addEventListener('submit', async (event) => {
   if (newCustomer) selectedProject.customer = newCustomer;
   if (newName) selectedProject.name = newName;
   selectedProject.health = editHealth.value;
+  selectedProject.pmStatus = ['Yellow', 'Red'].includes(selectedProject.health)
+    ? editPmStatus.value.trim()
+    : '';
   const riskOptionId = editRiskReason.value;
   const riskOptionLabel = riskOptionId ? editRiskReason.options[editRiskReason.selectedIndex].text : '';
   selectedProject.riskReason = riskOptionLabel;
@@ -1515,6 +1525,7 @@ progressFilter.addEventListener('change', renderTable);
 duemonthFilter.addEventListener('change', renderTable);
 
 editHealth.addEventListener('change', () => {
+  pmStatusLabel.style.display = ['Yellow', 'Red'].includes(editHealth.value) ? '' : 'none';
   riskReasonLabel.style.display = '';
 });
 
