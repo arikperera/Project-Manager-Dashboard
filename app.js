@@ -30,6 +30,8 @@ let cachedProgressPctFieldId = null;
 let cachedEstHoursFieldId = null;
 let cachedRemEffortFieldId = null;
 let cachedActEffortFieldId = null;
+let cachedRiskRateFieldId = null;
+let cachedRiskRateOptions = null;
 
 const BACKUPS_KEY = 'project-dashboard-backups-v1';
 let backups = JSON.parse(localStorage.getItem(BACKUPS_KEY) || '[]');
@@ -449,6 +451,38 @@ async function resolveJiraFieldIds() {
       if (f.name === 'Estimated PS Hours') cachedEstHoursFieldId = f.id;
       if (f.name === 'Remaining Effort') cachedRemEffortFieldId = f.id;
       if (f.name === 'Actual Effort(H)') cachedActEffortFieldId = f.id;
+      if (f.name === 'Risk Rate') cachedRiskRateFieldId = f.id;
+    }
+    if (cachedRiskRateFieldId && !cachedRiskRateOptions) {
+      await resolveRiskRateOptions(cachedRiskRateFieldId);
+    }
+  } catch {}
+}
+
+async function resolveRiskRateOptions(fieldId) {
+  const useProxy = settings.jiraEmail && settings.jiraToken;
+  const contextsUrl = useProxy
+    ? `http://localhost:8081/jira/field/${fieldId}/context`
+    : `https://kaltura.atlassian.net/rest/api/3/field/${fieldId}/context`;
+  const opts = useProxy
+    ? { headers: { Accept: 'application/json' } }
+    : { credentials: 'include', headers: { Accept: 'application/json' } };
+  try {
+    const ctxRes = await fetch(contextsUrl, opts);
+    if (!ctxRes.ok) return;
+    const ctxData = await ctxRes.json();
+    const contextId = ctxData.values?.[0]?.id;
+    if (!contextId) return;
+
+    const optionsUrl = useProxy
+      ? `http://localhost:8081/jira/field/${fieldId}/context/${contextId}/option`
+      : `https://kaltura.atlassian.net/rest/api/3/field/${fieldId}/context/${contextId}/option`;
+    const optRes = await fetch(optionsUrl, opts);
+    if (!optRes.ok) return;
+    const optData = await optRes.json();
+    cachedRiskRateOptions = {};
+    for (const opt of (optData.values || [])) {
+      cachedRiskRateOptions[opt.value] = opt.id;
     }
   } catch {}
 }
@@ -668,6 +702,25 @@ async function writeRiskReasonToJira(issueKey, optionId) {
     ...(useProxy ? {} : { credentials: 'include' }),
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify({ fields: { [cachedRiskReasonFieldId]: optionId ? { id: optionId } : null } }),
+  });
+  if (!res.ok) throw new Error(`Jira write failed: ${res.status}`);
+}
+
+async function writeRiskRateToJira(issueKey, health) {
+  if (!cachedRiskRateFieldId || !cachedRiskRateOptions) await resolveJiraFieldIds();
+  if (!cachedRiskRateFieldId) throw new Error('Risk Rate field ID not resolved');
+  if (!cachedRiskRateOptions) throw new Error('Risk Rate options not resolved');
+  const optionId = cachedRiskRateOptions[health];
+  if (!optionId) throw new Error(`Risk Rate option not found for health: ${health}`);
+  const useProxy = settings.jiraEmail && settings.jiraToken;
+  const url = useProxy
+    ? `http://localhost:8081/jira/issue/${issueKey}`
+    : `https://kaltura.atlassian.net/rest/api/3/issue/${issueKey}`;
+  const res = await fetch(url, {
+    method: 'PUT',
+    ...(useProxy ? {} : { credentials: 'include' }),
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ fields: { [cachedRiskRateFieldId]: { id: optionId } } }),
   });
   if (!res.ok) throw new Error(`Jira write failed: ${res.status}`);
 }
@@ -1229,6 +1282,7 @@ editProjectForm.addEventListener('submit', async (event) => {
   const issueKey = getJiraIssueKey(selectedProject.jira);
   if (issueKey) {
     writeRiskReasonToJira(issueKey, riskOptionId || null).catch(e => { console.error('[riskReason→Jira]', e); showToast(`Jira risk reason sync failed: ${e.message}`); });
+    writeRiskRateToJira(issueKey, selectedProject.health).catch(e => { console.error('[riskRate→Jira]', e); showToast(`Jira risk rate sync failed: ${e.message}`); });
     if (newDueDate) writeDueDateToJira(issueKey, newDueDate).catch(e => { console.error('[dueDate→Jira]', e); showToast(`Jira due date sync failed: ${e.message}`); });
   }
 });
