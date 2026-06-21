@@ -692,6 +692,47 @@ async function writeRiskReasonToJira(issueKey, optionId) {
   if (!writeResponse.ok) throw new Error(`Jira write failed: ${writeResponse.status}`);
 }
 
+let cachedVMForecastFieldId = null;
+
+async function writeDueDateToJira(issueKey, dateStr) {
+  if (!dateStr) return;
+  const useProxy = settings.jiraEmail && settings.jiraToken;
+
+  let fieldId = cachedVMForecastFieldId;
+  if (!fieldId) {
+    const readUrl = useProxy
+      ? `http://localhost:8081/jira/issue/${issueKey}?fields=*all&expand=names`
+      : `https://kaltura.atlassian.net/rest/api/3/issue/${issueKey}?fields=*all&expand=names`;
+    const readOpts = useProxy
+      ? { headers: { Accept: 'application/json' } }
+      : { credentials: 'include', headers: { Accept: 'application/json' } };
+
+    const readResponse = await fetch(readUrl, readOpts);
+    if (!readResponse.ok) throw new Error(`Failed to read issue: ${readResponse.status}`);
+    const data = await readResponse.json();
+
+    const fieldEntry = data.names
+      ? Object.entries(data.names).find(([, name]) => name === 'VM Forecast Commit Date')
+      : null;
+    if (!fieldEntry) throw new Error('VM Forecast Commit Date field not found in Jira');
+    fieldId = fieldEntry[0];
+    cachedVMForecastFieldId = fieldId;
+  }
+
+  const writeUrl = useProxy
+    ? `http://localhost:8081/jira/issue/${issueKey}`
+    : `https://kaltura.atlassian.net/rest/api/3/issue/${issueKey}`;
+  const writeOpts = {
+    method: 'PUT',
+    ...(useProxy ? {} : { credentials: 'include' }),
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ fields: { [fieldId]: dateStr } }),
+  };
+
+  const writeResponse = await fetch(writeUrl, writeOpts);
+  if (!writeResponse.ok) throw new Error(`Jira write failed: ${writeResponse.status}`);
+}
+
 function showEditModalWarning(message) {
   const card = editProjectModal.querySelector('.modal-card');
   const existing = card.querySelector('.edit-warning-banner');
@@ -758,14 +799,19 @@ function renderTable() {
           <th>Start</th>
           <th>End</th>
           <th>Health</th>
-          <th>Progress</th>
+          <th>Budget consumption</th>
           <th>Project Status</th>
           <th>Manager Notes</th>
           <th>Actions</th>
         </tr>
       </thead>
       <tbody>
-        ${grouped[manager].map((project) => {
+        ${grouped[manager].slice().sort((a, b) => {
+            const custA = (a.customer || '').toLowerCase();
+            const custB = (b.customer || '').toLowerCase();
+            if (custA !== custB) return custA.localeCompare(custB);
+            return projects.indexOf(b) - projects.indexOf(a);
+          }).map((project) => {
           const progressValue = normalizeProgress(project.progress) ?? 0;
           const progressTone = getProgressTone(progressValue);
           const progressFillTone = getProgressFillTone(progressValue);
@@ -783,14 +829,16 @@ function renderTable() {
             <td>
               <div class="health-wrap">
                 <span class="health-pill health-${(project.health || 'green').toLowerCase()}">${project.health || 'Green'}</span>
-                ${(project.health === 'Yellow' || project.health === 'Red') ? `<div class="health-tooltip">${escapeHtml(project.riskReason || 'No risk reason provided')}</div>` : ''}
+                ${project.riskReason ? `<div class="health-tooltip">${escapeHtml(project.riskReason)}</div>` : ''}
               </div>
             </td>
             <td>
               <div class="progress-wrap">
                 ${(() => {
                   let tip = '';
-                  if (progressValue >= 100) {
+                  if (project.riskReason) {
+                    tip = `Risk reason was set\n${project.riskReason}`;
+                  } else if (progressValue >= 100) {
                     tip = 'No more hours for the project';
                   } else if (project.estimatedHours != null && project.remainingHours != null) {
                     const used = project.actualHours != null ? project.actualHours : (project.estimatedHours - project.remainingHours);
@@ -800,7 +848,7 @@ function renderTable() {
                 })()}
                 <div class="progress-bar"><div class="progress-fill ${progressFillTone}" style="width:${Math.min(progressValue, 100)}%"></div></div>
                 <small class="progress-label ${progressTone}">${progressValue}%</small>
-              </div>${(() => { const ack = (project.health === 'Yellow' || project.health === 'Red') && project.riskReason; if (ack) return ''; if (progressValue > 90) return '<span class="progress-blink-wrap"><span class="progress-blink">⚠</span><span class="progress-blink-tip">Edit the project and set a risk reason</span></span>'; return ''; })()}
+              </div>${(() => { const ack = project.riskReason; if (ack) return ''; if (progressValue > 90) return '<span class="progress-blink-wrap"><span class="progress-blink">⚠</span><span class="progress-blink-tip">Edit the project and set a risk reason</span></span>'; return ''; })()}
             </td>
             <td><div class="cell-scroll">${project.statusText || '<span style="color:#f97316;font-style:italic;">No Status Yet</span>'}</div></td>
             <td><div class="cell-scroll">${(project.comments || '-').split(', ').join('<br>')}</div></td>
@@ -868,12 +916,12 @@ function openEditProjectModal(projectIndex) {
   editHealth.value = project.health || 'Green';
   const matchingOption = Array.from(editRiskReason.options).find(o => o.text === project.riskReason);
   editRiskReason.value = matchingOption ? matchingOption.value : '';
-  riskReasonLabel.style.display = (project.health === 'Yellow' || project.health === 'Red') ? '' : 'none';
+  riskReasonLabel.style.display = '';
   const editDueDateText = document.getElementById('editDueDateText');
   editDueDateText.value = project.dueDate ? formatDateDMY(project.dueDate) : '';
   document.getElementById('editAtLink').value = project.atLink || '';
   document.getElementById('editDueDateHidden').value = project.dueDate || '';
-  editStatusEditor.innerHTML = project.statusText || '<span style="color:#f97316;font-style:italic;">No Status Yet</span>';
+  editStatusEditor.innerHTML = project.statusText || '<span style="font-style:italic;opacity:0.5;">New Project. No Status Entered Yet</span>';
   editProjectForm.dataset.projectIndex = String(projectIndex);
 
   editProjectModal.classList.remove('hidden');
@@ -886,7 +934,7 @@ function closeEditProjectModal() {
   editProjectForm.reset();
   editStatusEditor.innerHTML = '';
   editRiskReason.value = '';
-  riskReasonLabel.style.display = 'none';
+  riskReasonLabel.style.display = '';
 }
 
 function renderRiskList() {
@@ -958,11 +1006,16 @@ function renderBackupMain(backup) {
         <table class="pm-table">
           <thead><tr>
             <th>Customer</th><th>Project</th><th>Jira / AT</th><th>NRR(h)</th>
-            <th>Start</th><th>End</th><th>Health</th><th>Progress</th>
+            <th>Start</th><th>End</th><th>Health</th><th>Budget consumption</th>
             <th>Project Status</th><th>Manager Notes</th>
           </tr></thead>
           <tbody>
-            ${grouped[manager].map(p => {
+            ${grouped[manager].slice().sort((a, b) => {
+                const ca = (a.customer || '').toLowerCase();
+                const cb = (b.customer || '').toLowerCase();
+                if (ca !== cb) return ca.localeCompare(cb);
+                return backup.projects.indexOf(b) - backup.projects.indexOf(a);
+              }).map(p => {
               const pv = Math.max(0, Math.min(100, Math.round(Number(p.progress) || 0)));
               return `<tr>
                 <td>${escapeHtml(p.customer || '-')}</td>
@@ -977,12 +1030,12 @@ function renderBackupMain(backup) {
                 <td>
                   <div class="health-wrap">
                     <span class="health-pill health-${escapeHtml((p.health || 'green').toLowerCase())}">${escapeHtml(p.health || 'Green')}</span>
-                    ${(p.health === 'Yellow' || p.health === 'Red') ? `<div class="health-tooltip">${escapeHtml(p.riskReason || 'No risk reason provided')}</div>` : ''}
+                    ${p.riskReason ? `<div class="health-tooltip">${escapeHtml(p.riskReason)}</div>` : ''}
                   </div>
                 </td>
                 <td>
                   <div class="progress-wrap">
-                    ${(() => { let tip = ''; if (pv >= 100) { tip = 'No more hours for the project'; } else if (p.estimatedHours != null && p.remainingHours != null) { const used = p.actualHours != null ? p.actualHours : (p.estimatedHours - p.remainingHours); tip = `${used} hours have been completed out of ${p.estimatedHours}, with ${p.remainingHours} hours remaining`; } return tip ? `<div class="progress-tooltip">${escapeHtml(tip)}</div>` : ''; })()}
+                    ${(() => { let tip = ''; if (p.riskReason) { tip = `Risk reason was set\n${p.riskReason}`; } else if (pv >= 100) { tip = 'No more hours for the project'; } else if (p.estimatedHours != null && p.remainingHours != null) { const used = p.actualHours != null ? p.actualHours : (p.estimatedHours - p.remainingHours); tip = `${used} hours have been completed out of ${p.estimatedHours}, with ${p.remainingHours} hours remaining`; } return tip ? `<div class="progress-tooltip">${escapeHtml(tip).replace(/\n/g,'<br>')}</div>` : ''; })()}
                     <div class="progress-bar"><div class="progress-fill ${getProgressFillTone(pv)}" style="width:${Math.min(pv,100)}%"></div></div>
                     <small class="progress-label ${getProgressTone(pv)}">${pv}%</small>
                   </div>${(() => { const ack = (p.health === 'Yellow' || p.health === 'Red') && p.riskReason; if (ack) return ''; if (pv > 90) return '<span class="progress-blink-wrap"><span class="progress-blink">⚠</span><span class="progress-blink-tip">Edit the project and set a risk reason</span></span>'; return ''; })()}
@@ -1176,7 +1229,7 @@ editProjectForm.addEventListener('submit', async (event) => {
   if (newCustomer) selectedProject.customer = newCustomer;
   if (newName) selectedProject.name = newName;
   selectedProject.health = editHealth.value;
-  const riskOptionId = (editHealth.value === 'Yellow' || editHealth.value === 'Red') ? editRiskReason.value : '';
+  const riskOptionId = editRiskReason.value;
   const riskOptionLabel = riskOptionId ? editRiskReason.options[editRiskReason.selectedIndex].text : '';
   selectedProject.riskReason = riskOptionLabel;
   selectedProject.atLink = document.getElementById('editAtLink').value.trim();
@@ -1189,12 +1242,9 @@ editProjectForm.addEventListener('submit', async (event) => {
   closeEditProjectModal();
 
   const issueKey = getJiraIssueKey(selectedProject.jira);
-  const needsWrite = issueKey && ((selectedProject.health === 'Yellow' || selectedProject.health === 'Red') && riskOptionId);
-  const needsClear = issueKey && selectedProject.health === 'Green';
-  if (needsWrite) {
-    writeRiskReasonToJira(issueKey, riskOptionId).catch(() => {});
-  } else if (needsClear) {
-    writeRiskReasonToJira(issueKey, null).catch(() => {});
+  if (issueKey) {
+    writeRiskReasonToJira(issueKey, riskOptionId || null).catch(() => {});
+    if (newDueDate) writeDueDateToJira(issueKey, newDueDate).catch(() => {});
   }
 });
 
@@ -1229,6 +1279,11 @@ modalProjectForm.addEventListener('submit', (event) => {
   renderAll();
   closeModal();
   syncProjectProgressFromJira();
+  const newProjectJiraKey = getJiraIssueKey(document.getElementById('modalProjectJira').value.trim());
+  const newProjectDueDate = parseDateInput(document.getElementById('modalProjectDueDate').value);
+  if (newProjectJiraKey && newProjectDueDate) {
+    writeDueDateToJira(newProjectJiraKey, newProjectDueDate).catch(() => {});
+  }
 });
 
 function restoreSourceModal() {
@@ -1270,7 +1325,9 @@ settingsBtn.addEventListener('click', () => {
   document.getElementById('settingsSFPassword').value = '';
   document.getElementById('settingsSFClientId').value = '';
   document.getElementById('settingsSFClientSecret').value = '';
-  document.getElementById('settingsSFStatus').textContent = '';
+  document.getElementById('settingsSFStatus').textContent = settings.sfConfigured
+    ? '✓ Credentials previously saved. Leave blank to keep them unchanged.'
+    : '';
   settingsModal.classList.remove('hidden');
   settingsModal.setAttribute('aria-hidden', 'false');
 });
@@ -1313,6 +1370,8 @@ saveSettingsBtn.addEventListener('click', async () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sfUsername, sfPasswordWithToken: sfPassword, sfClientId, sfClientSecret }),
       });
+      settings.sfConfigured = true;
+      saveSettings();
       document.getElementById('settingsSFStatus').textContent = 'SF credentials saved.';
     } catch {
       document.getElementById('settingsSFStatus').textContent = 'SF credentials not saved — proxy not running.';
@@ -1454,7 +1513,7 @@ progressFilter.addEventListener('change', renderTable);
 duemonthFilter.addEventListener('change', renderTable);
 
 editHealth.addEventListener('change', () => {
-  riskReasonLabel.style.display = (editHealth.value === 'Yellow' || editHealth.value === 'Red') ? '' : 'none';
+  riskReasonLabel.style.display = '';
 });
 
 function generateHTMLReport() {
@@ -1486,8 +1545,8 @@ function generateHTMLReport() {
     };
     const h = health || 'Green';
     const pill = `<span style="display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;font-size:0.82rem;font-weight:700;${colors[h]||colors.Green}">${h}</span>`;
-    if ((h === 'Yellow' || h === 'Red') && riskReason !== undefined) {
-      const tip = esc(riskReason || 'No risk reason provided');
+    if (riskReason) {
+      const tip = esc(riskReason);
       return `<span class="rpt-health-wrap">${pill}<span class="rpt-tooltip" style="color:#fde68a">${tip}</span></span>`;
     }
     return pill;
@@ -1497,16 +1556,17 @@ function generateHTMLReport() {
     const v = Math.max(0, Math.round(Number(val)||0));
     const fill = v < 50 ? 'linear-gradient(90deg,#22c55e,#86efac)' : v <= 75 ? 'linear-gradient(90deg,#facc15,#fde68a)' : v <= 90 ? 'linear-gradient(90deg,#f97316,#fb923c)' : 'linear-gradient(90deg,#dc2626,#ef4444)';
     const color = v < 50 ? '#bbf7d0' : v <= 75 ? '#fde68a' : v <= 90 ? '#fdba74' : '#ef4444';
-    const ack = (health === 'Yellow' || health === 'Red') && riskReason;
+    const ack = riskReason;
     const blink = ack ? '' : v > 90 ? ' <span class="rpt-blink-wrap"><span style="animation:progress-blink 1s step-start infinite;color:#ef4444">⚠</span><span class="rpt-tooltip" style="color:#fde68a;width:200px">Edit the project and set a risk reason</span></span>' : '';
     let tip = '';
-    if (v >= 100) tip = 'No more hours for the project';
+    if (riskReason) tip = `Risk reason was set\n${riskReason}`;
+    else if (v >= 100) tip = 'No more hours for the project';
     else if (estimatedHours != null && remainingHours != null) {
       const used = actualHours != null ? actualHours : (estimatedHours - remainingHours);
       tip = `${used} hours have been completed out of ${estimatedHours}, with ${remainingHours} hours remaining`;
     }
     const bar = `<div style="width:100%;background:#142033;border-radius:999px;overflow:hidden;height:8px;margin-bottom:4px"><div style="height:100%;border-radius:999px;width:${Math.min(v,100)}%;background:${fill}"></div></div><small style="color:${color};font-weight:700">${v}%</small>`;
-    const barWithTip = tip ? `<span class="rpt-progress-wrap">${bar}<span class="rpt-tooltip">${tip}</span></span>` : bar;
+    const barWithTip = tip ? `<span class="rpt-progress-wrap">${bar}<span class="rpt-tooltip">${tip.replace(/\n/g,'<br>')}</span></span>` : bar;
     return barWithTip + blink;
   }
 
@@ -1546,7 +1606,12 @@ function generateHTMLReport() {
   }, {});
 
   const allProjectsRows = Object.keys(grouped).sort((a,b) => a.localeCompare(b)).map(manager => {
-    const rows = grouped[manager].map(p => `<tr data-pm="${esc(p.manager||'')}" data-health="${esc(p.health||'Green')}" data-progress="${Math.round(Number(p.progress)||0)}">
+    const rows = grouped[manager].slice().sort((a, b) => {
+      const ca = (a.customer || '').toLowerCase();
+      const cb = (b.customer || '').toLowerCase();
+      if (ca !== cb) return ca.localeCompare(cb);
+      return projects.indexOf(b) - projects.indexOf(a);
+    }).map(p => `<tr data-pm="${esc(p.manager||'')}" data-health="${esc(p.health||'Green')}" data-progress="${Math.round(Number(p.progress)||0)}">
       <td>${esc(p.customer||'-')}</td>
       <td>${esc(p.name)}</td>
       <td>${esc(String(p.nrr||0))} hrs</td>
@@ -1577,7 +1642,7 @@ function generateHTMLReport() {
           <th style="text-align:left;padding:8px;color:#bfdbfe;border-bottom:1px solid #223249">Start</th>
           <th style="text-align:left;padding:8px;color:#bfdbfe;border-bottom:1px solid #223249">End</th>
           <th style="text-align:left;padding:8px;color:#bfdbfe;border-bottom:1px solid #223249">Health</th>
-          <th style="text-align:left;padding:8px;color:#bfdbfe;border-bottom:1px solid #223249">Progress</th>
+          <th style="text-align:left;padding:8px;color:#bfdbfe;border-bottom:1px solid #223249">Budget consumption</th>
           <th style="text-align:left;padding:8px;color:#bfdbfe;border-bottom:1px solid #223249">Project Status</th>
           <th style="text-align:left;padding:8px;color:#bfdbfe;border-bottom:1px solid #223249">Manager Notes</th>
         </tr></thead>
@@ -1658,7 +1723,7 @@ ${newSection}
       <option value="Red">Red</option>
     </select>
     <select id="rProgressFilter" onchange="applyFilters()">
-      <option value="">All Progress</option>
+      <option value="">All Budget consumption</option>
       <option value="0-39">0–39%</option>
       <option value="40-69">40–69%</option>
       <option value="70-100">70–100%</option>
@@ -1669,7 +1734,7 @@ ${newSection}
     <table>
       <thead><tr>
         <th>Customer</th><th>Project</th><th>NRR(h)</th><th>Start</th><th>End</th>
-        <th>Health</th><th>Progress</th><th>Project Status</th><th>Manager Notes</th>
+        <th>Health</th><th>Budget consumption</th><th>Project Status</th><th>Manager Notes</th>
       </tr></thead>
       ${allProjectsRows}
     </table>
