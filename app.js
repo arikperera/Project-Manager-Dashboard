@@ -460,28 +460,23 @@ async function resolveJiraFieldIds() {
 }
 
 async function resolveRiskRateOptions(fieldId) {
+  const issueKey = projects.map(p => getJiraIssueKey(p.jira)).filter(Boolean)[0];
+  if (!issueKey) return;
   const useProxy = settings.jiraEmail && settings.jiraToken;
-  const contextsUrl = useProxy
-    ? `http://localhost:8081/jira/field/${fieldId}/context`
-    : `https://kaltura.atlassian.net/rest/api/3/field/${fieldId}/context`;
+  const url = useProxy
+    ? `http://localhost:8081/jira/issue/${issueKey}/editmeta`
+    : `https://kaltura.atlassian.net/rest/api/3/issue/${issueKey}/editmeta`;
   const opts = useProxy
     ? { headers: { Accept: 'application/json' } }
     : { credentials: 'include', headers: { Accept: 'application/json' } };
   try {
-    const ctxRes = await fetch(contextsUrl, opts);
-    if (!ctxRes.ok) return;
-    const ctxData = await ctxRes.json();
-    const contextId = ctxData.values?.[0]?.id;
-    if (!contextId) return;
-
-    const optionsUrl = useProxy
-      ? `http://localhost:8081/jira/field/${fieldId}/context/${contextId}/option`
-      : `https://kaltura.atlassian.net/rest/api/3/field/${fieldId}/context/${contextId}/option`;
-    const optRes = await fetch(optionsUrl, opts);
-    if (!optRes.ok) return;
-    const optData = await optRes.json();
+    const res = await fetch(url, opts);
+    if (!res.ok) return;
+    const data = await res.json();
+    const field = data.fields?.[fieldId];
+    if (!field?.allowedValues) return;
     cachedRiskRateOptions = {};
-    for (const opt of (optData.values || [])) {
+    for (const opt of field.allowedValues) {
       cachedRiskRateOptions[opt.value] = opt.id;
     }
   } catch {}
