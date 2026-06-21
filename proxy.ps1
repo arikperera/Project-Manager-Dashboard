@@ -68,7 +68,7 @@ function Invoke-SFRequest($instanceUrl, $accessToken, $path) {
     $wr.Method = "GET"
     $wr.Headers.Add("Authorization", "Bearer $accessToken")
     $wr.Accept = "application/json"
-    $wr.Timeout = 15000
+    $wr.Timeout = 45000
     $wresp = $wr.GetResponse()
     try {
         $sr = New-Object System.IO.StreamReader($wresp.GetResponseStream())
@@ -152,7 +152,7 @@ try {
                     $wr.Method = "GET"
                     $wr.Headers.Add("Authorization", "Basic $creds")
                     $wr.Accept = "application/json"
-                    $wr.Timeout = 15000
+                    $wr.Timeout = 45000
                     $wresp = $wr.GetResponse()
                     $sr = New-Object System.IO.StreamReader($wresp.GetResponseStream())
                     $data = $sr.ReadToEnd() | ConvertFrom-Json
@@ -199,7 +199,7 @@ try {
                 $wr.Method = "GET"
                 $wr.Headers.Add("Authorization", "Basic $creds")
                 $wr.Accept = "application/json"
-                $wr.Timeout = 15000
+                $wr.Timeout = 45000
                 $wresp = $wr.GetResponse()
                 $sr = New-Object System.IO.StreamReader($wresp.GetResponseStream())
                 $remoteLinks = $sr.ReadToEnd() | ConvertFrom-Json
@@ -280,7 +280,7 @@ try {
                 $wr.Method = "GET"
                 $wr.Headers.Add("Authorization", "Basic $creds")
                 $wr.Accept = "application/json"
-                $wr.Timeout = 15000
+                $wr.Timeout = 45000
                 $wresp = $wr.GetResponse()
                 $sr = New-Object System.IO.StreamReader($wresp.GetResponseStream())
                 $body = $sr.ReadToEnd()
@@ -317,7 +317,7 @@ try {
                 $wr.Method = $req.HttpMethod
                 $wr.Headers.Add("Authorization", "Basic $creds")
                 $wr.Accept = "application/json"
-                $wr.Timeout = 15000
+                $wr.Timeout = 45000
 
                 if ($req.HttpMethod -eq "PUT" -or $req.HttpMethod -eq "POST") {
                     $wr.ContentType = "application/json; charset=utf-8"
