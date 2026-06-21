@@ -26,6 +26,10 @@ function getCustomerNames() {
 }
 
 let cachedRiskReasonFieldId = null;
+let cachedProgressPctFieldId = null;
+let cachedEstHoursFieldId = null;
+let cachedRemEffortFieldId = null;
+let cachedActEffortFieldId = null;
 
 const BACKUPS_KEY = 'project-dashboard-backups-v1';
 let backups = JSON.parse(localStorage.getItem(BACKUPS_KEY) || '[]');
@@ -439,6 +443,10 @@ async function resolveJiraFieldIds() {
     for (const f of fields) {
       if (f.name === 'Risk Reason') cachedRiskReasonFieldId = f.id;
       if (f.name === 'VM Forecast Commit Date') cachedVMForecastFieldId = f.id;
+      if (f.name === 'Project Progress Percentage') cachedProgressPctFieldId = f.id;
+      if (f.name === 'Estimated PS Hours') cachedEstHoursFieldId = f.id;
+      if (f.name === 'Remaining Effort') cachedRemEffortFieldId = f.id;
+      if (f.name === 'Actual Effort(H)') cachedActEffortFieldId = f.id;
     }
   } catch {}
 }
@@ -452,15 +460,17 @@ async function syncProjectProgressFromJira() {
 
   const useProxy = settings.jiraEmail && settings.jiraToken;
 
-  if (!cachedRiskReasonFieldId || !cachedVMForecastFieldId) {
-    await resolveJiraFieldIds();
-  }
+  await resolveJiraFieldIds();
+
+  // Build fields param from cached IDs — only request what we need
+  const fieldIds = ['progress', cachedProgressPctFieldId, cachedEstHoursFieldId, cachedRemEffortFieldId, cachedActEffortFieldId].filter(Boolean);
+  const fieldsParam = fieldIds.join(',');
 
   for (const key of [...new Set(issueKeys)]) {
     try {
       const url = useProxy
-        ? `http://localhost:8081/jira/issue/${key}?fields=*all&expand=names`
-        : `https://kaltura.atlassian.net/rest/api/3/issue/${key}?fields=*all&expand=names`;
+        ? `http://localhost:8081/jira/issue/${key}?fields=${fieldsParam}`
+        : `https://kaltura.atlassian.net/rest/api/3/issue/${key}?fields=${fieldsParam}`;
       const fetchOpts = useProxy
         ? { headers: { Accept: 'application/json' } }
         : { credentials: 'include', headers: { Accept: 'application/json' } };
@@ -469,58 +479,27 @@ async function syncProjectProgressFromJira() {
       if (!response.ok) continue;
 
       const data = await response.json();
+      const f = data.fields || {};
 
-      // Resolve custom field ID from the names map returned in the same response
       let percent = null;
-      if (data.names) {
-        const fieldEntry = Object.entries(data.names).find(([, name]) => name === 'Project Progress Percentage');
-        if (fieldEntry) {
-          const [fieldId] = fieldEntry;
-          const rawValue = data.fields?.[fieldId];
-          // Handle plain number, object with .value, or object with .percent
-          const extracted = (rawValue !== null && typeof rawValue === 'object')
-            ? (rawValue.value ?? rawValue.percent ?? null)
-            : rawValue;
-          percent = normalizeProgress(extracted);
-        }
+      if (cachedProgressPctFieldId) {
+        const raw = f[cachedProgressPctFieldId];
+        const extracted = (raw !== null && typeof raw === 'object') ? (raw.value ?? raw.percent ?? null) : raw;
+        percent = normalizeProgress(extracted);
       }
-
-      // Fall back to built-in Jira progress (subtask-based)
       if (percent === null) {
-        percent = normalizeProgress(data?.fields?.progress?.percent ?? data?.fields?.progress);
+        percent = normalizeProgress(f.progress?.percent ?? f.progress);
       }
 
-      let estimatedHours = null;
-      let remainingHours = null;
-      let actualHours = null;
-      if (data.names) {
-        if (!cachedRiskReasonFieldId) {
-          const rrEntry = Object.entries(data.names).find(([, n]) => n === 'Risk Reason');
-          if (rrEntry) cachedRiskReasonFieldId = rrEntry[0];
-        }
-        if (!cachedVMForecastFieldId) {
-          const vmEntry = Object.entries(data.names).find(([, n]) => n === 'VM Forecast Commit Date');
-          if (vmEntry) cachedVMForecastFieldId = vmEntry[0];
-        }
-        const estEntry = Object.entries(data.names).find(([, n]) => n === 'Estimated PS Hours');
-        const remEntry = Object.entries(data.names).find(([, n]) => n === 'Remaining Effort');
-        const actEntry = Object.entries(data.names).find(([, n]) => n === 'Actual Effort(H)');
-        if (estEntry) {
-          const raw = data.fields?.[estEntry[0]];
-          const v = (raw !== null && typeof raw === 'object') ? (raw.value ?? null) : raw;
-          if (v !== null && Number.isFinite(Number(v))) estimatedHours = Math.round(Number(v));
-        }
-        if (remEntry) {
-          const raw = data.fields?.[remEntry[0]];
-          const v = (raw !== null && typeof raw === 'object') ? (raw.value ?? null) : raw;
-          if (v !== null && Number.isFinite(Number(v))) remainingHours = Math.round(Number(v));
-        }
-        if (actEntry) {
-          const raw = data.fields?.[actEntry[0]];
-          const v = (raw !== null && typeof raw === 'object') ? (raw.value ?? null) : raw;
-          if (v !== null && Number.isFinite(Number(v))) actualHours = Math.round(Number(v));
-        }
-      }
+      const readHours = (fieldId) => {
+        if (!fieldId) return null;
+        const raw = f[fieldId];
+        const v = (raw !== null && typeof raw === 'object') ? (raw.value ?? null) : raw;
+        return (v !== null && Number.isFinite(Number(v))) ? Math.round(Number(v)) : null;
+      };
+      const estimatedHours = readHours(cachedEstHoursFieldId);
+      const remainingHours = readHours(cachedRemEffortFieldId);
+      const actualHours = readHours(cachedActEffortFieldId);
 
       if (percent !== null || estimatedHours !== null || remainingHours !== null || actualHours !== null) {
         projects.forEach((project) => {
@@ -533,7 +512,7 @@ async function syncProjectProgressFromJira() {
         });
       }
     } catch (error) {
-      console.warn(`Jira progress fetch failed for ${key}`, error);
+      console.warn(`Jira sync failed for ${key}`, error);
     }
   }
 
