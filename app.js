@@ -424,6 +424,25 @@ function getProgressFillTone(value) {
   return 'progress-fill-red';
 }
 
+async function resolveJiraFieldIds() {
+  const useProxy = settings.jiraEmail && settings.jiraToken;
+  const url = useProxy
+    ? 'http://localhost:8081/jira/field'
+    : 'https://kaltura.atlassian.net/rest/api/3/field';
+  const opts = useProxy
+    ? { headers: { Accept: 'application/json' } }
+    : { credentials: 'include', headers: { Accept: 'application/json' } };
+  try {
+    const res = await fetch(url, opts);
+    if (!res.ok) return;
+    const fields = await res.json();
+    for (const f of fields) {
+      if (f.name === 'Risk Reason') cachedRiskReasonFieldId = f.id;
+      if (f.name === 'VM Forecast Commit Date') cachedVMForecastFieldId = f.id;
+    }
+  } catch {}
+}
+
 async function syncProjectProgressFromJira() {
   const issueKeys = projects
     .map((project) => getJiraIssueKey(project.jira))
@@ -432,6 +451,10 @@ async function syncProjectProgressFromJira() {
   if (!issueKeys.length) return;
 
   const useProxy = settings.jiraEmail && settings.jiraToken;
+
+  if (!cachedRiskReasonFieldId || !cachedVMForecastFieldId) {
+    await resolveJiraFieldIds();
+  }
 
   for (const key of [...new Set(issueKeys)]) {
     try {
@@ -653,88 +676,38 @@ document.addEventListener('click', (e) => {
 document.getElementById('newProjectsBannerDismiss').addEventListener('click', dismissNewProjectsBanner);
 
 async function writeRiskReasonToJira(issueKey, optionId) {
+  if (!cachedRiskReasonFieldId) await resolveJiraFieldIds();
+  if (!cachedRiskReasonFieldId) throw new Error('Risk Reason field ID not resolved');
   const useProxy = settings.jiraEmail && settings.jiraToken;
-
-  let fieldId = cachedRiskReasonFieldId;
-  if (!fieldId) {
-    const readUrl = useProxy
-      ? `http://localhost:8081/jira/issue/${issueKey}?fields=*all&expand=names`
-      : `https://kaltura.atlassian.net/rest/api/3/issue/${issueKey}?fields=*all&expand=names`;
-    const readOpts = useProxy
-      ? { headers: { Accept: 'application/json' } }
-      : { credentials: 'include', headers: { Accept: 'application/json' } };
-
-    const readResponse = await fetch(readUrl, readOpts);
-    if (!readResponse.ok) throw new Error(`Failed to read issue: ${readResponse.status}`);
-    const data = await readResponse.json();
-
-    const fieldEntry = data.names
-      ? Object.entries(data.names).find(([, name]) => name === 'Risk Reason')
-      : null;
-    if (!fieldEntry) throw new Error('Risk Reason field not found in Jira');
-    fieldId = fieldEntry[0];
-    cachedRiskReasonFieldId = fieldId;
-  }
-
-  const writeUrl = useProxy
+  const url = useProxy
     ? `http://localhost:8081/jira/issue/${issueKey}`
     : `https://kaltura.atlassian.net/rest/api/3/issue/${issueKey}`;
-  const writeOpts = useProxy
-    ? {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ fields: { [fieldId]: optionId ? { id: optionId } : null } }),
-      }
-    : {
-        method: 'PUT',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ fields: { [fieldId]: optionId ? { id: optionId } : null } }),
-      };
-
-  const writeResponse = await fetch(writeUrl, writeOpts);
-  if (!writeResponse.ok) throw new Error(`Jira write failed: ${writeResponse.status}`);
+  const res = await fetch(url, {
+    method: 'PUT',
+    ...(useProxy ? {} : { credentials: 'include' }),
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ fields: { [cachedRiskReasonFieldId]: optionId ? { id: optionId } : null } }),
+  });
+  if (!res.ok) throw new Error(`Jira write failed: ${res.status}`);
 }
 
 let cachedVMForecastFieldId = null;
 
 async function writeDueDateToJira(issueKey, dateStr) {
   if (!dateStr) return;
+  if (!cachedVMForecastFieldId) await resolveJiraFieldIds();
+  if (!cachedVMForecastFieldId) throw new Error('VM Forecast Commit Date field ID not resolved');
   const useProxy = settings.jiraEmail && settings.jiraToken;
-
-  let fieldId = cachedVMForecastFieldId;
-  if (!fieldId) {
-    const readUrl = useProxy
-      ? `http://localhost:8081/jira/issue/${issueKey}?fields=*all&expand=names`
-      : `https://kaltura.atlassian.net/rest/api/3/issue/${issueKey}?fields=*all&expand=names`;
-    const readOpts = useProxy
-      ? { headers: { Accept: 'application/json' } }
-      : { credentials: 'include', headers: { Accept: 'application/json' } };
-
-    const readResponse = await fetch(readUrl, readOpts);
-    if (!readResponse.ok) throw new Error(`Failed to read issue: ${readResponse.status}`);
-    const data = await readResponse.json();
-
-    const fieldEntry = data.names
-      ? Object.entries(data.names).find(([, name]) => name === 'VM Forecast Commit Date')
-      : null;
-    if (!fieldEntry) throw new Error('VM Forecast Commit Date field not found in Jira');
-    fieldId = fieldEntry[0];
-    cachedVMForecastFieldId = fieldId;
-  }
-
-  const writeUrl = useProxy
+  const url = useProxy
     ? `http://localhost:8081/jira/issue/${issueKey}`
     : `https://kaltura.atlassian.net/rest/api/3/issue/${issueKey}`;
-  const writeOpts = {
+  const res = await fetch(url, {
     method: 'PUT',
     ...(useProxy ? {} : { credentials: 'include' }),
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-    body: JSON.stringify({ fields: { [fieldId]: dateStr } }),
-  };
-
-  const writeResponse = await fetch(writeUrl, writeOpts);
-  if (!writeResponse.ok) throw new Error(`Jira write failed: ${writeResponse.status}`);
+    body: JSON.stringify({ fields: { [cachedVMForecastFieldId]: dateStr } }),
+  });
+  if (!res.ok) throw new Error(`Jira write failed: ${res.status}`);
 }
 
 function showToast(message, type = 'error') {

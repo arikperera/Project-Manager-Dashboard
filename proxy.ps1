@@ -268,6 +268,38 @@ try {
             continue
         }
 
+        if ($req.HttpMethod -eq "GET" -and $path -eq "/jira/field") {
+            $s = Get-JiraSettings
+            if (-not $s -or -not $s.jiraEmail -or -not $s.jiraToken) {
+                Write-Response $res 401 '{"error":"No credentials."}'
+                continue
+            }
+            $creds = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes("$($s.jiraEmail):$($s.jiraToken)"))
+            try {
+                $wr = [System.Net.WebRequest]::Create("https://kaltura.atlassian.net/rest/api/3/field")
+                $wr.Method = "GET"
+                $wr.Headers.Add("Authorization", "Basic $creds")
+                $wr.Accept = "application/json"
+                $wr.Timeout = 15000
+                $wresp = $wr.GetResponse()
+                $sr = New-Object System.IO.StreamReader($wresp.GetResponseStream())
+                $body = $sr.ReadToEnd()
+                $sr.Close(); $wresp.Close()
+                Write-Response $res 200 $body
+                Write-Host "  OK  /jira/field" -ForegroundColor Green
+            } catch [System.Net.WebException] {
+                $wresp = $_.Exception.Response
+                if ($wresp) {
+                    $sr = New-Object System.IO.StreamReader($wresp.GetResponseStream())
+                    Write-Response $res ([int]$wresp.StatusCode) ($sr.ReadToEnd())
+                } else {
+                    Write-Response $res 502 "{`"error`":`"$($_.Exception.Message)`"}"
+                }
+                Write-Host "  ERR /jira/field $($_.Exception.Message)" -ForegroundColor Red
+            }
+            continue
+        }
+
         if ($path.StartsWith("/jira/")) {
             $s = Get-JiraSettings
             if (-not $s -or -not $s.jiraEmail -or -not $s.jiraToken) {
