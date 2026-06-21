@@ -921,7 +921,13 @@ function openEditProjectModal(projectIndex) {
   editDueDateText.value = project.dueDate ? formatDateDMY(project.dueDate) : '';
   document.getElementById('editAtLink').value = project.atLink || '';
   document.getElementById('editDueDateHidden').value = project.dueDate || '';
-  editStatusEditor.innerHTML = project.statusText || '<span style="font-style:italic;opacity:0.5;">New Project. No Status Entered Yet</span>';
+  if (project.statusText) {
+    editStatusEditor.innerHTML = project.statusText;
+    editStatusEditor.removeAttribute('data-placeholder-active');
+  } else {
+    editStatusEditor.innerHTML = '<span style="font-style:italic;opacity:0.5;">New Project. No Status Entered Yet</span>';
+    editStatusEditor.setAttribute('data-placeholder-active', '1');
+  }
   editProjectForm.dataset.projectIndex = String(projectIndex);
 
   editProjectModal.classList.remove('hidden');
@@ -933,6 +939,7 @@ function closeEditProjectModal() {
   editProjectModal.setAttribute('aria-hidden', 'true');
   editProjectForm.reset();
   editStatusEditor.innerHTML = '';
+  editStatusEditor.removeAttribute('data-placeholder-active');
   editRiskReason.value = '';
   riskReasonLabel.style.display = '';
 }
@@ -1235,7 +1242,7 @@ editProjectForm.addEventListener('submit', async (event) => {
   selectedProject.atLink = document.getElementById('editAtLink').value.trim();
   const newDueDate = parseDateInput(document.getElementById('editDueDateText').value);
   if (newDueDate) selectedProject.dueDate = newDueDate;
-  selectedProject.statusText = editStatusEditor.innerHTML.trim();
+  selectedProject.statusText = editStatusEditor.getAttribute('data-placeholder-active') ? '' : editStatusEditor.innerHTML.trim();
 
   saveProjects();
   renderAll();
@@ -1516,6 +1523,20 @@ document.getElementById('editorColorPicker').addEventListener('change', (event) 
   document.getElementById('editorColorSwatch').style.background = color;
   document.execCommand('foreColor', false, color);
   editStatusEditor.focus();
+});
+
+editStatusEditor.addEventListener('focus', () => {
+  if (editStatusEditor.getAttribute('data-placeholder-active')) {
+    editStatusEditor.innerHTML = '';
+    editStatusEditor.removeAttribute('data-placeholder-active');
+  }
+});
+
+editStatusEditor.addEventListener('blur', () => {
+  if (!editStatusEditor.textContent.trim() && !editStatusEditor.querySelector('img, br')) {
+    editStatusEditor.innerHTML = '<span style="font-style:italic;opacity:0.5;">New Project. No Status Entered Yet</span>';
+    editStatusEditor.setAttribute('data-placeholder-active', '1');
+  }
 });
 
 
