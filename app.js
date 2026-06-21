@@ -850,7 +850,7 @@ function renderTable() {
                 <small class="progress-label ${progressTone}">${progressValue}%</small>
               </div>${(() => { const ack = project.riskReason; if (ack) return ''; if (progressValue > 90) return '<span class="progress-blink-wrap"><span class="progress-blink">⚠</span><span class="progress-blink-tip">Edit the project and set a risk reason</span></span>'; return ''; })()}
             </td>
-            <td><div class="cell-scroll">${project.statusText || '<span style="color:#f97316;font-style:italic;">No Status Yet</span>'}</div></td>
+            <td><div class="cell-scroll">${project.statusText || '<span style="font-style:italic;opacity:0.5;">New Project. No Status Entered Yet</span>'}</div></td>
             <td><div class="cell-scroll">${(project.comments || '-').split(', ').join('<br>')}</div></td>
             <td style="white-space:nowrap;">
               <button type="button" class="secondary-btn small-btn" data-edit-project="${projects.indexOf(project)}">Edit</button>
@@ -1040,7 +1040,7 @@ function renderBackupMain(backup) {
                     <small class="progress-label ${getProgressTone(pv)}">${pv}%</small>
                   </div>${(() => { const ack = (p.health === 'Yellow' || p.health === 'Red') && p.riskReason; if (ack) return ''; if (pv > 90) return '<span class="progress-blink-wrap"><span class="progress-blink">⚠</span><span class="progress-blink-tip">Edit the project and set a risk reason</span></span>'; return ''; })()}
                 </td>
-                <td><div class="cell-scroll">${p.statusText || '<span style="color:#f97316;font-style:italic;">No Status Yet</span>'}</div></td>
+                <td><div class="cell-scroll">${p.statusText || '<span style="font-style:italic;opacity:0.5;">New Project. No Status Entered Yet</span>'}</div></td>
                 <td><div class="cell-scroll">${escapeHtml((p.comments || '-').split(', ').join('\n'))}</div></td>
               </tr>`;
             }).join('')}
@@ -1507,8 +1507,7 @@ editProjectModal.addEventListener('click', (event) => {
   }
   const colorLabel = event.target.closest('.toolbar-color-label');
   if (colorLabel) {
-    event.preventDefault();
-    document.getElementById('editorColorPicker').click();
+    editStatusEditor.focus();
   }
 });
 
