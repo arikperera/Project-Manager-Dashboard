@@ -120,7 +120,7 @@
             <input id="editProjectName" type="text" />
           </label>
           <label>
-            Health
+            Project Health by PM
             <select id="editHealth">
               <option value="Green">Green</option>
               <option value="Yellow">Yellow</option>
@@ -128,11 +128,11 @@
             </select>
           </label>
           <label id="pmStatusLabel">
-            PM Status
+            Project status by PM
             <textarea id="editPmStatus" rows="3" placeholder="Explain why this project is at risk…" style="resize:vertical;"></textarea>
           </label>
           <label id="riskReasonLabel">
-            Risk Reason
+            Risk Reason (Budget)
             <select id="editRiskReason">
               <option value="">-- Select Risk Reason --</option>
               <option value="54143">Non-responsive and/or demanding customer</option>
@@ -169,10 +169,13 @@
             <button type="button" class="ghost-btn small-btn" data-rich-command="outdent" title="Decrease indent">⇤</button>
             <button type="button" class="ghost-btn small-btn" data-rich-command="indent" title="Increase indent">⇥</button>
             <span class="toolbar-sep"></span>
-            <label class="toolbar-color-label" title="Text color">
-              A&nbsp;<span id="editorColorSwatch" style="display:inline-block;width:12px;height:12px;border-radius:3px;background:#eff6ff;border:1px solid rgba(255,255,255,0.2);vertical-align:middle;"></span>
-              <input type="color" id="editorColorPicker" value="#eff6ff" style="width:0;height:0;opacity:0;position:absolute;">
-            </label>
+            <span class="toolbar-color-wrap">
+              <span class="toolbar-color-a">A</span>
+              <label class="toolbar-color-btn ghost-btn small-btn" title="Text color">
+                <span id="editorColorSwatch" style="display:inline-block;width:14px;height:14px;border-radius:3px;background:#eff6ff;border:1px solid rgba(255,255,255,0.25);"></span>
+                <input type="color" id="editorColorPicker" value="#eff6ff" style="width:0;height:0;opacity:0;position:absolute;">
+              </label>
+            </span>
           </div>
           <div id="editStatusEditor" class="rich-editor" contenteditable="true" spellcheck="true"></div>
           <div class="modal-actions">

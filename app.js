@@ -1490,7 +1490,7 @@ editProjectModal.addEventListener('click', (event) => {
     editStatusEditor.focus();
     return;
   }
-  const colorLabel = event.target.closest('.toolbar-color-label');
+  const colorLabel = event.target.closest('.toolbar-color-btn');
   if (colorLabel) {
     editStatusEditor.focus();
   }
