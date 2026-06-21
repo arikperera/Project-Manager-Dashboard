@@ -1,3 +1,19 @@
+const APP_VERSION = '1.0.0';
+const CHANGELOG = [
+  {
+    version: '1.0.0',
+    date: '2026-06-21',
+    features: [
+      'Initial release',
+      'PM Status field for Yellow/Red health projects',
+      'Project Health hover tooltip in all views',
+      'Color picker in project status editor',
+      'Due date and Risk Rate sync to Jira',
+      'Project Budget column with blink warning',
+    ]
+  }
+];
+
 const STORAGE_KEY = 'project-dashboard-projects-v1';
 
 const USERS_KEY = 'project-dashboard-users-v1';
@@ -131,7 +147,20 @@ const defaultProjects = [
   { customer: 'Reporting Customer', name: 'Reporting Hub', manager: 'Liam', jira: 'https://jira.example.com/RH', nrr: 60, startDate: '2026-03-10', dueDate: '2026-06-10', status: 'Completed', statusText: 'All stakeholders have approved the final dashboard.', health: 'Green', progress: 100, comments: 'NRR: 60h, MRR: 4k, CSM: Alex, Sales: Nina' },
 ];
 
+function migrateProjects() {
+  let changed = false;
+  for (const p of projects) {
+    if (p.pmStatus === undefined) { p.pmStatus = ''; changed = true; }
+    if (p.atLink === undefined) { p.atLink = ''; changed = true; }
+    if (p.estimatedHours === undefined) { p.estimatedHours = null; changed = true; }
+    if (p.remainingHours === undefined) { p.remainingHours = null; changed = true; }
+    if (p.actualHours === undefined) { p.actualHours = null; changed = true; }
+  }
+  if (changed) saveProjects();
+}
+
 let projects = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null') || defaultProjects;
+migrateProjects();
 
 const statusClasses = {
   'On Track': 'status-ontrack',
