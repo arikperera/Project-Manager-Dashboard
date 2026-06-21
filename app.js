@@ -799,7 +799,7 @@ function renderTable() {
             <td>
               <div class="health-wrap">
                 <span class="health-pill health-${(project.health || 'green').toLowerCase()}">${project.health || 'Green'}</span>
-                <div class="health-tooltip">${escapeHtml(project.pmStatus || 'No info was set by PM')}</div>
+                ${(project.health === 'Yellow' || project.health === 'Red') ? `<div class="health-tooltip">${escapeHtml(project.pmStatus || 'No info was set by PM')}</div>` : ''}
               </div>
             </td>
             <td>
@@ -1012,7 +1012,7 @@ function renderBackupMain(backup) {
                 <td>
                   <div class="health-wrap">
                     <span class="health-pill health-${escapeHtml((p.health || 'green').toLowerCase())}">${escapeHtml(p.health || 'Green')}</span>
-                    <div class="health-tooltip">${escapeHtml(p.pmStatus || 'No info was set by PM')}</div>
+                    ${(p.health === 'Yellow' || p.health === 'Red') ? `<div class="health-tooltip">${escapeHtml(p.pmStatus || 'No info was set by PM')}</div>` : ''}
                   </div>
                 </td>
                 <td>
@@ -1558,8 +1558,11 @@ function generateHTMLReport() {
     };
     const h = health || 'Green';
     const pill = `<span style="display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;font-size:0.82rem;font-weight:700;${colors[h]||colors.Green}">${h}</span>`;
-    const tip = esc(pmStatus || 'No info was set by PM');
-    return `<span class="rpt-health-wrap">${pill}<span class="rpt-tooltip" style="color:#fde68a">${tip}</span></span>`;
+    if (h === 'Yellow' || h === 'Red') {
+      const tip = esc(pmStatus || 'No info was set by PM');
+      return `<span class="rpt-health-wrap">${pill}<span class="rpt-tooltip" style="color:#fde68a">${tip}</span></span>`;
+    }
+    return pill;
   }
 
   function progressBar(val, estimatedHours, remainingHours, actualHours, health, riskReason) {
