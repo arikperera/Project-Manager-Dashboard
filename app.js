@@ -1454,6 +1454,46 @@ saveSettingsBtn.addEventListener('click', async () => {
   syncProjectProgressFromJira();
 });
 
+// Version label
+document.getElementById('appVersionLabel').textContent = 'v' + APP_VERSION;
+
+// What's New modal
+const whatsNewModal = document.getElementById('whatsNewModal');
+const closeWhatsNewBtn = document.getElementById('closeWhatsNewBtn');
+
+function renderWhatsNew() {
+  const body = document.getElementById('whatsNewBody');
+  body.innerHTML = CHANGELOG.map(entry => `
+    <div style="margin-bottom:20px;">
+      <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:6px;">
+        <span style="font-weight:700;color:#7dd3fc;">v${entry.version}</span>
+        <span style="font-size:0.8rem;color:#64748b;">${entry.date}</span>
+      </div>
+      <ul style="margin:0;padding-left:18px;color:#cbd5e1;font-size:0.9rem;line-height:1.7;">
+        ${entry.features.map(f => `<li>${f}</li>`).join('')}
+      </ul>
+    </div>
+  `).join('');
+}
+
+document.getElementById('whatsNewBtn').addEventListener('click', () => {
+  renderWhatsNew();
+  whatsNewModal.classList.remove('hidden');
+  whatsNewModal.setAttribute('aria-hidden', 'false');
+});
+
+closeWhatsNewBtn.addEventListener('click', () => {
+  whatsNewModal.classList.add('hidden');
+  whatsNewModal.setAttribute('aria-hidden', 'true');
+});
+
+whatsNewModal.addEventListener('click', (e) => {
+  if (e.target === whatsNewModal) {
+    whatsNewModal.classList.add('hidden');
+    whatsNewModal.setAttribute('aria-hidden', 'true');
+  }
+});
+
 manageCustomersBtn.addEventListener('click', openCustomersModal);
 closeCustomersModalBtn.addEventListener('click', closeCustomersModal);
 customersModal.addEventListener('click', (e) => { if (e.target === customersModal) closeCustomersModal(); });
