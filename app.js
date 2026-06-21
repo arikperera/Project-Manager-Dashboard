@@ -769,7 +769,7 @@ function renderTable() {
           <th>Start</th>
           <th>End</th>
           <th>Project Health</th>
-          <th>Budget consumption</th>
+          <th>Project Budget</th>
           <th>Project Status</th>
           <th>Manager Notes</th>
           <th>Actions</th>
@@ -988,7 +988,7 @@ function renderBackupMain(backup) {
         <table class="pm-table">
           <thead><tr>
             <th>Customer</th><th>Project</th><th>Jira / AT</th><th>NRR(h)</th>
-            <th>Start</th><th>End</th><th>Project Health</th><th>Budget consumption</th>
+            <th>Start</th><th>End</th><th>Project Health</th><th>Project Budget</th>
             <th>Project Status</th><th>Manager Notes</th>
           </tr></thead>
           <tbody>
@@ -1655,7 +1655,7 @@ function generateHTMLReport() {
           <th style="text-align:left;padding:8px;color:#bfdbfe;border-bottom:1px solid #223249">Start</th>
           <th style="text-align:left;padding:8px;color:#bfdbfe;border-bottom:1px solid #223249">End</th>
           <th style="text-align:left;padding:8px;color:#bfdbfe;border-bottom:1px solid #223249">Project Health</th>
-          <th style="text-align:left;padding:8px;color:#bfdbfe;border-bottom:1px solid #223249">Budget consumption</th>
+          <th style="text-align:left;padding:8px;color:#bfdbfe;border-bottom:1px solid #223249">Project Budget</th>
           <th style="text-align:left;padding:8px;color:#bfdbfe;border-bottom:1px solid #223249">Project Status</th>
           <th style="text-align:left;padding:8px;color:#bfdbfe;border-bottom:1px solid #223249">Manager Notes</th>
         </tr></thead>
@@ -1736,7 +1736,7 @@ ${newSection}
       <option value="Red">Red</option>
     </select>
     <select id="rProgressFilter" onchange="applyFilters()">
-      <option value="">All Budget consumption</option>
+      <option value="">All Project Budget</option>
       <option value="0-39">0–39%</option>
       <option value="40-69">40–69%</option>
       <option value="70-100">70–100%</option>
@@ -1747,7 +1747,7 @@ ${newSection}
     <table>
       <thead><tr>
         <th>Customer</th><th>Project</th><th>NRR(h)</th><th>Start</th><th>End</th>
-        <th>Project Health</th><th>Budget consumption</th><th>Project Status</th><th>Manager Notes</th>
+        <th>Project Health</th><th>Project Budget</th><th>Project Status</th><th>Manager Notes</th>
       </tr></thead>
       ${allProjectsRows}
     </table>
