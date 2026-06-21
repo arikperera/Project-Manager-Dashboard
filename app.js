@@ -799,7 +799,7 @@ function renderTable() {
             <td>
               <div class="health-wrap">
                 <span class="health-pill health-${(project.health || 'green').toLowerCase()}">${project.health || 'Green'}</span>
-                ${project.riskReason ? `<div class="health-tooltip">${escapeHtml(project.riskReason)}</div>` : ''}
+                <div class="health-tooltip">${escapeHtml(project.pmStatus || 'No info was set by PM')}</div>
               </div>
             </td>
             <td>
@@ -1012,7 +1012,7 @@ function renderBackupMain(backup) {
                 <td>
                   <div class="health-wrap">
                     <span class="health-pill health-${escapeHtml((p.health || 'green').toLowerCase())}">${escapeHtml(p.health || 'Green')}</span>
-                    ${p.riskReason ? `<div class="health-tooltip">${escapeHtml(p.riskReason)}</div>` : ''}
+                    <div class="health-tooltip">${escapeHtml(p.pmStatus || 'No info was set by PM')}</div>
                   </div>
                 </td>
                 <td>
@@ -1550,7 +1550,7 @@ function generateHTMLReport() {
 
   const uniquePMs = [...new Set(projects.map(p => p.manager).filter(Boolean))].sort();
 
-  function healthPill(health, riskReason) {
+  function healthPill(health, pmStatus) {
     const colors = {
       Green: 'background:rgba(74,222,128,0.16);color:#bbf7d0',
       Yellow: 'background:rgba(251,191,36,0.15);color:#fde68a',
@@ -1558,11 +1558,8 @@ function generateHTMLReport() {
     };
     const h = health || 'Green';
     const pill = `<span style="display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;font-size:0.82rem;font-weight:700;${colors[h]||colors.Green}">${h}</span>`;
-    if (riskReason) {
-      const tip = esc(riskReason);
-      return `<span class="rpt-health-wrap">${pill}<span class="rpt-tooltip" style="color:#fde68a">${tip}</span></span>`;
-    }
-    return pill;
+    const tip = esc(pmStatus || 'No info was set by PM');
+    return `<span class="rpt-health-wrap">${pill}<span class="rpt-tooltip" style="color:#fde68a">${tip}</span></span>`;
   }
 
   function progressBar(val, estimatedHours, remainingHours, actualHours, health, riskReason) {
@@ -1591,7 +1588,7 @@ function generateHTMLReport() {
     ? atRisk.map(p => `<tr>
         <td>${esc(p.customer||'-')}</td>
         <td><strong>${esc(p.name)}</strong></td>
-        <td>${healthPill(p.health)}</td>
+        <td>${healthPill(p.health, p.pmStatus)}</td>
         <td style="color:#fde68a">${esc(p.riskReason||'No risk reason provided')}</td>
       </tr>`).join('')
     : `<tr><td colspan="4" style="color:#94a3b8;font-style:italic;">No projects currently at risk.</td></tr>`;
@@ -1604,7 +1601,7 @@ function generateHTMLReport() {
         <td>${esc(String(p.nrr||0))} hrs</td>
         <td>${esc(formatDate(p.startDate))}</td>
         <td>${esc(formatDate(p.dueDate))}</td>
-        <td>${healthPill(p.health, p.riskReason)}</td>
+        <td>${healthPill(p.health, p.pmStatus)}</td>
         <td>${progressBar(p.progress, p.estimatedHours, p.remainingHours, p.actualHours, p.health, p.riskReason)}</td>
         <td>${p.statusText ? p.statusText : '<span style="color:#f97316;font-style:italic">No Status Yet</span>'}</td>
         <td>${esc((p.comments||'').split(', ').join('\n'))}</td>
@@ -1630,7 +1627,7 @@ function generateHTMLReport() {
       <td>${esc(String(p.nrr||0))} hrs</td>
       <td>${esc(formatDate(p.startDate))}</td>
       <td>${esc(formatDate(p.dueDate))}</td>
-      <td>${healthPill(p.health, p.riskReason)}</td>
+      <td>${healthPill(p.health, p.pmStatus)}</td>
       <td>${progressBar(p.progress, p.estimatedHours, p.remainingHours, null, p.health, p.riskReason)}</td>
       <td>${p.statusText ? p.statusText : '<span style="color:#f97316;font-style:italic">No Status Yet</span>'}</td>
       <td>${esc((p.comments||'').split(', ').join('\n'))}</td>
