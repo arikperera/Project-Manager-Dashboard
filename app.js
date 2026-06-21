@@ -868,7 +868,7 @@ function renderTable() {
                 <small class="progress-label ${progressTone}">${progressValue}%</small>
               </div>${(() => { const ack = project.riskReason; if (ack) return ''; if (progressValue > 90) return '<span class="progress-blink-wrap"><span class="progress-blink">⚠</span><span class="progress-blink-tip">Edit the project and set a risk reason</span></span>'; return ''; })()}
             </td>
-            <td><div class="cell-scroll">${project.statusText || '<span style="font-style:italic;opacity:0.5;">New Project. No Status Entered Yet</span>'}</div></td>
+            <td><div class="cell-scroll">${project.statusText || '<span style="font-style:italic;opacity:0.5;">No Status Entered</span>'}</div></td>
             <td><div class="cell-scroll">${(project.comments || '-').split(', ').join('<br>')}</div></td>
             <td style="white-space:nowrap;">
               <button type="button" class="secondary-btn small-btn" data-edit-project="${projects.indexOf(project)}">Edit</button>
@@ -946,7 +946,7 @@ function openEditProjectModal(projectIndex) {
     editStatusEditor.innerHTML = project.statusText;
     editStatusEditor.removeAttribute('data-placeholder-active');
   } else {
-    editStatusEditor.innerHTML = '<span style="font-style:italic;opacity:0.5;">New Project. No Status Entered Yet</span>';
+    editStatusEditor.innerHTML = '<span style="font-style:italic;opacity:0.5;">No Status Entered</span>';
     editStatusEditor.setAttribute('data-placeholder-active', '1');
   }
   editProjectForm.dataset.projectIndex = String(projectIndex);
@@ -1070,7 +1070,7 @@ function renderBackupMain(backup) {
                     <small class="progress-label ${getProgressTone(pv)}">${pv}%</small>
                   </div>${(() => { const ack = (p.health === 'Yellow' || p.health === 'Red') && p.riskReason; if (ack) return ''; if (pv > 90) return '<span class="progress-blink-wrap"><span class="progress-blink">⚠</span><span class="progress-blink-tip">Edit the project and set a risk reason</span></span>'; return ''; })()}
                 </td>
-                <td><div class="cell-scroll">${p.statusText || '<span style="font-style:italic;opacity:0.5;">New Project. No Status Entered Yet</span>'}</div></td>
+                <td><div class="cell-scroll">${p.statusText || '<span style="font-style:italic;opacity:0.5;">No Status Entered</span>'}</div></td>
                 <td><div class="cell-scroll">${escapeHtml((p.comments || '-').split(', ').join('\n'))}</div></td>
               </tr>`;
             }).join('')}
@@ -1561,7 +1561,7 @@ editStatusEditor.addEventListener('focus', () => {
 
 editStatusEditor.addEventListener('blur', () => {
   if (!editStatusEditor.textContent.trim() && !editStatusEditor.querySelector('img, br')) {
-    editStatusEditor.innerHTML = '<span style="font-style:italic;opacity:0.5;">New Project. No Status Entered Yet</span>';
+    editStatusEditor.innerHTML = '<span style="font-style:italic;opacity:0.5;">No Status Entered</span>';
     editStatusEditor.setAttribute('data-placeholder-active', '1');
   }
 });
@@ -1655,7 +1655,7 @@ function generateHTMLReport() {
         <td>${esc(formatDate(p.dueDate))}</td>
         <td>${healthPill(p.health, p.pmStatus)}</td>
         <td>${progressBar(p.progress, p.estimatedHours, p.remainingHours, p.actualHours, p.health, p.riskReason)}</td>
-        <td>${p.statusText ? p.statusText : '<span style="color:#f97316;font-style:italic">No Status Yet</span>'}</td>
+        <td>${p.statusText ? p.statusText : '<span style="font-style:italic;opacity:0.5;">No Status Entered</span>'}</td>
         <td>${esc((p.comments||'').split(', ').join('\n'))}</td>
       </tr>`).join('')
     : '';
@@ -1681,7 +1681,7 @@ function generateHTMLReport() {
       <td>${esc(formatDate(p.dueDate))}</td>
       <td>${healthPill(p.health, p.pmStatus)}</td>
       <td>${progressBar(p.progress, p.estimatedHours, p.remainingHours, null, p.health, p.riskReason)}</td>
-      <td>${p.statusText ? p.statusText : '<span style="color:#f97316;font-style:italic">No Status Yet</span>'}</td>
+      <td>${p.statusText ? p.statusText : '<span style="font-style:italic;opacity:0.5;">No Status Entered</span>'}</td>
       <td>${esc((p.comments||'').split(', ').join('\n'))}</td>
     </tr>`).join('');
     return `<tbody class="pm-group-body">
