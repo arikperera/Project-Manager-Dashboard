@@ -43,7 +43,7 @@
             <span>Healthy delivery</span>
           </article>
           <article class="stat-card accent-amber" id="atRiskCard" style="position:relative;cursor:default;">
-            <p>At risk</p>
+            <p>Project At risk (budget)</p>
             <h3 id="atRiskCount">0</h3>
             <span id="atRiskTrigger" style="color:#f97316;cursor:pointer;">Needs review</span>
             <div id="atRiskPopup" class="atrisk-popup hidden"></div>
@@ -99,7 +99,7 @@
     </div>
 
     <div id="editProjectModal" class="modal hidden" aria-hidden="true">
-      <div class="modal-card">
+      <div class="modal-card edit-project-modal-card">
         <div class="modal-header">
           <div>
             <p class="eyebrow">Edit project</p>
@@ -127,7 +127,7 @@
               <option value="Red">Red</option>
             </select>
           </label>
-          <label id="riskReasonLabel" style="display:none;">
+          <label id="riskReasonLabel">
             Risk Reason
             <select id="editRiskReason">
               <option value="">-- Select Risk Reason --</option>
@@ -164,6 +164,11 @@
             <span class="toolbar-sep"></span>
             <button type="button" class="ghost-btn small-btn" data-rich-command="outdent" title="Decrease indent">⇤</button>
             <button type="button" class="ghost-btn small-btn" data-rich-command="indent" title="Increase indent">⇥</button>
+            <span class="toolbar-sep"></span>
+            <label class="toolbar-color-label" title="Text color">
+              A&nbsp;<span id="editorColorSwatch" style="display:inline-block;width:12px;height:12px;border-radius:3px;background:#eff6ff;border:1px solid rgba(255,255,255,0.2);vertical-align:middle;"></span>
+              <input type="color" id="editorColorPicker" value="#eff6ff" style="width:0;height:0;opacity:0;position:absolute;pointer-events:none;">
+            </label>
           </div>
           <div id="editStatusEditor" class="rich-editor" contenteditable="true" spellcheck="true"></div>
           <div class="modal-actions">

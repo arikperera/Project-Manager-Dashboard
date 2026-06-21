@@ -1499,9 +1499,23 @@ portfolioGroups.addEventListener('click', (event) => {
 
 editProjectModal.addEventListener('click', (event) => {
   const toolbarButton = event.target.closest('[data-rich-command]');
-  if (!toolbarButton) return;
-  event.preventDefault();
-  document.execCommand(toolbarButton.dataset.richCommand, false, null);
+  if (toolbarButton) {
+    event.preventDefault();
+    document.execCommand(toolbarButton.dataset.richCommand, false, null);
+    editStatusEditor.focus();
+    return;
+  }
+  const colorLabel = event.target.closest('.toolbar-color-label');
+  if (colorLabel) {
+    event.preventDefault();
+    document.getElementById('editorColorPicker').click();
+  }
+});
+
+document.getElementById('editorColorPicker').addEventListener('change', (event) => {
+  const color = event.target.value;
+  document.getElementById('editorColorSwatch').style.background = color;
+  document.execCommand('foreColor', false, color);
   editStatusEditor.focus();
 });
 

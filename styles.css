@@ -150,6 +150,7 @@ th { color: #bfdbfe; font-weight:600; }
 .autocomplete-list li.autocomplete-add { color: #a78bfa; border-top: 1px solid var(--line); margin-top: 2px; padding-top: 8px; }
 .rich-editor { min-height: 180px; border: 1px solid var(--line); border-radius: 12px; background: #0b1220; color: var(--text); padding: 10px 12px; line-height: 1.5; }
 .rich-editor:focus { outline: 2px solid rgba(56, 189, 248, 0.35); border-color: rgba(56, 189, 248, 0.45); }
+.rich-editor a { color: #38bdf8; }
 .editor-toolbar { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:6px; align-items:center; }
 .editor-toolbar .small-btn { padding: 6px 10px; border-radius: 10px; }
 .toolbar-sep { width:1px; height:20px; background:var(--line); margin:0 2px; }
