@@ -475,6 +475,10 @@ async function syncProjectProgressFromJira() {
           const rrEntry = Object.entries(data.names).find(([, n]) => n === 'Risk Reason');
           if (rrEntry) cachedRiskReasonFieldId = rrEntry[0];
         }
+        if (!cachedVMForecastFieldId) {
+          const vmEntry = Object.entries(data.names).find(([, n]) => n === 'VM Forecast Commit Date');
+          if (vmEntry) cachedVMForecastFieldId = vmEntry[0];
+        }
         const estEntry = Object.entries(data.names).find(([, n]) => n === 'Estimated PS Hours');
         const remEntry = Object.entries(data.names).find(([, n]) => n === 'Remaining Effort');
         const actEntry = Object.entries(data.names).find(([, n]) => n === 'Actual Effort(H)');
@@ -731,6 +735,18 @@ async function writeDueDateToJira(issueKey, dateStr) {
 
   const writeResponse = await fetch(writeUrl, writeOpts);
   if (!writeResponse.ok) throw new Error(`Jira write failed: ${writeResponse.status}`);
+}
+
+function showToast(message, type = 'error') {
+  const existing = document.getElementById('appToast');
+  if (existing) existing.remove();
+  const toast = document.createElement('div');
+  toast.id = 'appToast';
+  toast.textContent = message;
+  const bg = type === 'error' ? '#7f1d1d' : '#14532d';
+  toast.style.cssText = `position:fixed;bottom:24px;right:24px;z-index:9999;background:${bg};color:#fff;padding:12px 18px;border-radius:12px;font-size:0.9rem;box-shadow:0 4px 16px rgba(0,0,0,0.4);max-width:360px;`;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 5000);
 }
 
 function showEditModalWarning(message) {
@@ -1250,8 +1266,8 @@ editProjectForm.addEventListener('submit', async (event) => {
 
   const issueKey = getJiraIssueKey(selectedProject.jira);
   if (issueKey) {
-    writeRiskReasonToJira(issueKey, riskOptionId || null).catch(() => {});
-    if (newDueDate) writeDueDateToJira(issueKey, newDueDate).catch(() => {});
+    writeRiskReasonToJira(issueKey, riskOptionId || null).catch(e => { console.error('[riskReason→Jira]', e); showToast(`Jira risk reason sync failed: ${e.message}`); });
+    if (newDueDate) writeDueDateToJira(issueKey, newDueDate).catch(e => { console.error('[dueDate→Jira]', e); showToast(`Jira due date sync failed: ${e.message}`); });
   }
 });
 
