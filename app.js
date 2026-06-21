@@ -1275,12 +1275,12 @@ modalProjectForm.addEventListener('submit', (event) => {
     comments: `NRR: ${formatCurrency(nrrValue || '0')}, MRR: ${formatCurrency(mrrValue || '0')}, CSM: ${csmName || '-'}, Sales: ${salesName || '-'}`,
   });
 
+  const newProjectJiraKey = getJiraIssueKey(document.getElementById('modalProjectJira').value.trim());
+  const newProjectDueDate = parseDateInput(document.getElementById('modalProjectDueDate').value);
   saveProjects();
   renderAll();
   closeModal();
   syncProjectProgressFromJira();
-  const newProjectJiraKey = getJiraIssueKey(document.getElementById('modalProjectJira').value.trim());
-  const newProjectDueDate = parseDateInput(document.getElementById('modalProjectDueDate').value);
   if (newProjectJiraKey && newProjectDueDate) {
     writeDueDateToJira(newProjectJiraKey, newProjectDueDate).catch(() => {});
   }
