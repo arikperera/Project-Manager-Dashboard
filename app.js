@@ -2355,7 +2355,11 @@ function closeImportModal() {
 
 importFromJiraBtn.addEventListener('click', openImportModal);
 closeImportModalBtn.addEventListener('click', closeImportModal);
-importModal.addEventListener('click', (e) => { if (e.target === importModal) closeImportModal(); });
+let _importSelecting = false;
+importModal.addEventListener('click', (e) => {
+  if (e.target === importModal && !_importSelecting) closeImportModal();
+  _importSelecting = false;
+});
 
 // Step 1: PM search autocomplete
 importPmSearch.addEventListener('input', () => {
@@ -2398,6 +2402,7 @@ importPmResults.addEventListener('mousedown', (e) => {
   const li = e.target.closest('li[data-account-id]');
   if (!li) return;
   e.preventDefault();
+  _importSelecting = true;
   const accountId = li.getAttribute('data-account-id');
   const displayName = li.getAttribute('data-display-name');
   importSelectedPm = { accountId, displayName };
@@ -2410,6 +2415,7 @@ importPmResults.addEventListener('mousedown', (e) => {
 async function loadImportStep2(pm) {
   importStep1.classList.add('hidden');
   importStep2.classList.remove('hidden');
+  importPmResults.classList.add('hidden');
   importStep2Header.innerHTML = `Importing projects for <strong>${escapeHtml(pm.displayName)}</strong>`;
   importProjectList.innerHTML = '<p style="color:#64748b;padding:8px 0;">Loading...</p>';
   importCount.textContent = '';
