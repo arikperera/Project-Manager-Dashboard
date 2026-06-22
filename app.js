@@ -2353,9 +2353,10 @@ importPmSearch.addEventListener('input', () => {
   }, 300);
 });
 
-importPmResults.addEventListener('click', (e) => {
+importPmResults.addEventListener('mousedown', (e) => {
   const li = e.target.closest('li[data-account-id]');
   if (!li) return;
+  e.preventDefault();
   importSelectedPm = { accountId: li.dataset.accountId, displayName: li.dataset.displayName };
   importPmResults.classList.add('hidden');
   loadImportStep2(importSelectedPm);
