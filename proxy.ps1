@@ -300,6 +300,49 @@ try {
             continue
         }
 
+        if ($req.HttpMethod -eq "GET" -and $path -eq "/jira/user/search") {
+            $s = Get-JiraSettings
+            if (-not $s -or -not $s.jiraEmail -or -not $s.jiraToken) {
+                Write-Response $res 401 '{"error":"No credentials."}'
+                continue
+            }
+            $query = $req.QueryString["query"]
+            $creds = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes("$($s.jiraEmail):$($s.jiraToken)"))
+            try {
+                $wr = [System.Net.WebRequest]::Create("https://kaltura.atlassian.net/rest/api/3/user/search?query=$([Uri]::EscapeDataString($query))&maxResults=10")
+                $wr.Method = "GET"
+                $wr.Headers.Add("Authorization", "Basic $creds")
+                $wr.Accept = "application/json"
+                $wr.Timeout = 45000
+                $wresp = $wr.GetResponse()
+                try {
+                    $sr = New-Object System.IO.StreamReader($wresp.GetResponseStream())
+                    $body = $sr.ReadToEnd()
+                    $sr.Close()
+                } finally {
+                    $wresp.Close()
+                }
+                Write-Response $res 200 $body
+                Write-Host "  OK  /jira/user/search?query=$query" -ForegroundColor Green
+            } catch [System.Net.WebException] {
+                $wresp = $_.Exception.Response
+                if ($wresp) {
+                    try {
+                        $sr = New-Object System.IO.StreamReader($wresp.GetResponseStream())
+                        $body = $sr.ReadToEnd()
+                        $sr.Close()
+                    } finally {
+                        $wresp.Close()
+                    }
+                    Write-Response $res ([int]$wresp.StatusCode) $body
+                } else {
+                    Write-Response $res 502 "{`"error`":`"$($_.Exception.Message)`"}"
+                }
+                Write-Host "  ERR /jira/user/search $($_.Exception.Message)" -ForegroundColor Red
+            }
+            continue
+        }
+
         if ($path.StartsWith("/jira/")) {
             $s = Get-JiraSettings
             if (-not $s -or -not $s.jiraEmail -or -not $s.jiraToken) {
