@@ -1901,8 +1901,10 @@ editStatusEditor.addEventListener('focus', () => {
   }
 });
 
-editStatusEditor.addEventListener('blur', () => {
-  if (!editStatusEditor.textContent.trim() && !editStatusEditor.querySelector('img, br')) {
+editStatusEditor.addEventListener('blur', (e) => {
+  // Don't trigger placeholder if focus moved to an element inside the edit modal
+  if (e.relatedTarget && editProjectModal.contains(e.relatedTarget)) return;
+  if (!editStatusEditor.textContent.trim() && !editStatusEditor.querySelector('img, br, li, div')) {
     editStatusEditor.innerHTML = '<span style="font-style:italic;opacity:0.5;">No Status Entered</span>';
     editStatusEditor.setAttribute('data-placeholder-active', '1');
   }
