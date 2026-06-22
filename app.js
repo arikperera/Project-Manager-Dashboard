@@ -2359,8 +2359,8 @@ importPmResults.addEventListener('mousedown', (e) => {
   e.preventDefault();
   const accountId = li.getAttribute('data-account-id');
   const displayName = li.getAttribute('data-display-name');
-  console.log('[import select]', { accountId, displayName });
   importSelectedPm = { accountId, displayName };
+  importPmSearch.value = displayName;
   importPmResults.classList.add('hidden');
   loadImportStep2(importSelectedPm);
 });
