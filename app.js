@@ -2357,7 +2357,10 @@ importPmResults.addEventListener('mousedown', (e) => {
   const li = e.target.closest('li[data-account-id]');
   if (!li) return;
   e.preventDefault();
-  importSelectedPm = { accountId: li.dataset.accountId, displayName: li.dataset.displayName };
+  const accountId = li.getAttribute('data-account-id');
+  const displayName = li.getAttribute('data-display-name');
+  console.log('[import select]', { accountId, displayName });
+  importSelectedPm = { accountId, displayName };
   importPmResults.classList.add('hidden');
   loadImportStep2(importSelectedPm);
 });
@@ -2373,14 +2376,10 @@ async function loadImportStep2(pm) {
   importProgress.textContent = '';
 
   const jql = `issuetype = Initiative AND assignee = "${pm.accountId}" AND (status = Open OR status = "in progress") ORDER BY created ASC`;
-  const url = `http://localhost:8081/jira/issue/search`;
+  const url = `http://localhost:8081/jira/issue/search?jql=${encodeURIComponent(jql)}&fields=summary,status,assignee,created&maxResults=50`;
 
   try {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify({ jql, fields: ['summary', 'status', 'assignee', 'created'], maxResults: 50 }),
-    });
+    const res = await fetch(url, { headers: { Accept: 'application/json' } });
     if (!res.ok) {
       const errText = await res.text();
       console.error('[import search]', res.status, errText);
