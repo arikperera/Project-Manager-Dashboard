@@ -48,6 +48,9 @@ let cachedRemEffortFieldId = null;
 let cachedActEffortFieldId = null;
 let cachedRiskRateFieldId = null;
 let cachedRiskRateOptions = null;
+let cachedAccountNameFieldId = null;
+let cachedMrrFieldId = null;
+let cachedNrrFieldId = null;
 
 const BACKUPS_KEY = 'project-dashboard-backups-v1';
 let backups = JSON.parse(localStorage.getItem(BACKUPS_KEY) || '[]');
@@ -503,6 +506,9 @@ async function resolveJiraFieldIds() {
       if (f.name === 'Remaining Effort') cachedRemEffortFieldId = f.id;
       if (f.name === 'Actual Effort(H)') cachedActEffortFieldId = f.id;
       if (f.name === 'Risk Rate') cachedRiskRateFieldId = f.id;
+      if (f.name === 'Account Name') cachedAccountNameFieldId = f.id;
+      if (f.name === 'MRR (USD)') cachedMrrFieldId = f.id;
+      if (f.name === 'NRR(USD)') cachedNrrFieldId = f.id;
     }
     if (cachedRiskRateFieldId && !cachedRiskRateOptions) {
       await resolveRiskRateOptions(cachedRiskRateFieldId);
@@ -613,20 +619,20 @@ function buildProjectFromEnrichment(issue, sfData) {
   };
   const manager = pmMapping[issue.assigneeEmail] || issue.assigneeDisplayName || 'Unassigned';
   const startDate = issue.created ? issue.created.slice(0, 10) : '';
-  const nrr = sfData && !sfData.sfSkipped && !sfData.sfError ? (sfData.nrr ?? '') : '';
-  const mrr = sfData && !sfData.sfSkipped && !sfData.sfError ? (sfData.mrr ?? '') : '';
+  const nrr = sfData && !sfData.sfSkipped && !sfData.sfError ? (sfData.nrr ?? '') : (issue.nrrUsd ?? '');
+  const mrr = sfData && !sfData.sfSkipped && !sfData.sfError ? (sfData.mrr ?? '') : (issue.mrrUsd ?? '');
   const csmName = sfData && !sfData.sfSkipped && !sfData.sfError ? (sfData.csmName ?? '') : '';
   const salesName = sfData && !sfData.sfSkipped && !sfData.sfError ? (sfData.salesName ?? '') : '';
   const sfOk = sfData && !sfData.sfSkipped && !sfData.sfError;
   return {
-    customer:    sfOk ? (sfData.customer || '') : '',
+    customer:    sfOk ? (sfData.customer || '') : (issue.accountName || ''),
     name:        sfOk ? (sfData.name || issue.summary) : issue.summary,
     manager,
     jira:        issue.jiraUrl,
-    nrr:         sfOk ? (sfData.nrrHours ?? '') : '',
+    nrr:         sfOk ? (sfData.nrrHours ?? '') : (issue.estimatedHours ?? ''),
     comments:    `NRR: ${formatCurrency(nrr || '0')}, MRR: ${formatCurrency(mrr || '0')}, CSM: ${csmName || '-'}, Sales: ${salesName || '-'}`,
     startDate,
-    dueDate:     '',
+    dueDate:     issue.dueDate || '',
     health:      'Green',
     status:      'On Track',
     progress:    0,
@@ -2376,7 +2382,8 @@ async function loadImportStep2(pm) {
   importProgress.textContent = '';
 
   const jql = `issuetype = Initiative AND assignee = "${pm.accountId}" AND (status = Open OR status = "in progress") ORDER BY created ASC`;
-  const url = `http://localhost:8081/jira/search/jql?jql=${encodeURIComponent(jql)}&fields=summary,status,assignee,created&maxResults=50`;
+  const extraFields = [cachedAccountNameFieldId, cachedMrrFieldId, cachedNrrFieldId, cachedEstHoursFieldId, cachedVMForecastFieldId].filter(Boolean).join(',');
+  const url = `http://localhost:8081/jira/search/jql?jql=${encodeURIComponent(jql)}&fields=summary,status,assignee,created${extraFields ? ',' + extraFields : ''}&maxResults=50`;
 
   try {
     const res = await fetch(url, { headers: { Accept: 'application/json' } });
@@ -2395,6 +2402,11 @@ async function loadImportStep2(pm) {
       assigneeDisplayName: i.fields.assignee?.displayName || pm.displayName,
       created: i.fields.created || '',
       status: i.fields.status?.name || '',
+      accountName: cachedAccountNameFieldId ? (i.fields[cachedAccountNameFieldId] || '') : '',
+      mrrUsd: cachedMrrFieldId ? (i.fields[cachedMrrFieldId] ?? '') : '',
+      nrrUsd: cachedNrrFieldId ? (i.fields[cachedNrrFieldId] ?? '') : '',
+      estimatedHours: cachedEstHoursFieldId ? (i.fields[cachedEstHoursFieldId] ?? '') : '',
+      dueDate: cachedVMForecastFieldId ? (i.fields[cachedVMForecastFieldId] || '') : '',
     }));
 
     const existing = getExistingJiraKeys();
