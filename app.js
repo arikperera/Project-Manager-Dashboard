@@ -975,6 +975,7 @@ async function writeStatusToJira(issueKey, statusText) {
     ? `http://localhost:8081/jira/issue/${issueKey}`
     : `https://kaltura.atlassian.net/rest/api/3/issue/${issueKey}`;
   const adf = htmlToAdf(statusText || '');
+  console.log('[writeStatusToJira] ADF being sent:', JSON.stringify(adf, null, 2));
   const res = await fetch(url, {
     method: 'PUT',
     ...(useProxy ? {} : { credentials: 'include' }),
