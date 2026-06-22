@@ -2726,12 +2726,8 @@ importConfirmBtn.addEventListener('click', async () => {
   }
 
   saveProjects();
-  renderAll();
-  syncProjectProgressFromJira();
   closeImportModal();
-  importConfirmBtn.disabled = false;
-  importBackBtn.disabled = false;
-  showToast(`Imported ${done} project${done !== 1 ? 's' : ''}`, 'success');
+  location.reload();
 });
 
 renderAll();
