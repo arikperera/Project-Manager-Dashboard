@@ -146,7 +146,7 @@ try {
             $allIssues = [System.Collections.Generic.List[object]]::new()
             foreach ($email in $watched) {
                 $jql = [Uri]::EscapeDataString("assignee=`"$email`" AND project=PSVAMB AND created>=-30d ORDER BY created DESC")
-                $jiraUrl = "https://kaltura.atlassian.net/rest/api/3/search?jql=$jql&fields=summary,assignee,created,status&maxResults=50"
+                $jiraUrl = "https://kaltura.atlassian.net/rest/api/3/search/jql?jql=$jql&fields=summary,assignee,created,status&maxResults=50"
                 try {
                     $wr = [System.Net.WebRequest]::Create($jiraUrl)
                     $wr.Method = "GET"
