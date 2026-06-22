@@ -2372,11 +2372,20 @@ async function loadImportStep2(pm) {
   importProgress.textContent = '';
 
   const jql = `issuetype = Initiative AND assignee = "${pm.accountId}" AND (status = Open OR status = "in progress") ORDER BY created ASC`;
-  const url = `http://localhost:8081/jira/issue/search?jql=${encodeURIComponent(jql)}&fields=summary,status,assignee,created&maxResults=50`;
+  const url = `http://localhost:8081/jira/issue/search`;
 
   try {
-    const res = await fetch(url, { headers: { Accept: 'application/json' } });
-    if (!res.ok) { importProjectList.innerHTML = '<p style="color:#ef4444;">Failed to load projects.</p>'; return; }
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ jql, fields: ['summary', 'status', 'assignee', 'created'], maxResults: 50 }),
+    });
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error('[import search]', res.status, errText);
+      importProjectList.innerHTML = '<p style="color:#ef4444;">Failed to load projects.</p>';
+      return;
+    }
     const data = await res.json();
     importFetchedIssues = (data.issues || []).map(i => ({
       key: i.key,
