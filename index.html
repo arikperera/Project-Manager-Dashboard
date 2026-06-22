@@ -26,6 +26,7 @@
           </div>
           <div class="topbar-actions">
             <button id="addProjectBtn" class="secondary-btn">Add new project</button>
+            <button id="importFromJiraBtn" class="secondary-btn">Import from Jira</button>
             <button id="manageUsersBtn" class="secondary-btn">Manage users</button>
             <button id="manageCustomersBtn" class="secondary-btn">Manage customers</button>
             <button id="createBackupBtn" class="secondary-btn">Create backup</button>
@@ -464,6 +465,37 @@
     <div id="newProjectsBanner" class="new-projects-banner hidden" role="status" aria-live="polite">
       <span id="newProjectsBannerMsg"></span>
       <button id="newProjectsBannerDismiss" class="ghost-btn" style="padding:2px 8px;font-size:0.8rem;">Dismiss</button>
+    </div>
+
+    <div id="importModal" class="modal hidden" aria-hidden="true">
+      <div class="modal-card" style="max-width:520px;">
+        <div class="modal-header">
+          <h3>Import from Jira</h3>
+          <button id="closeImportModalBtn" class="ghost-btn" type="button">✕</button>
+        </div>
+        <div id="importStep1">
+          <label style="display:block;margin-bottom:8px;color:#bfdbfe;">Search PM by name</label>
+          <input id="importPmSearch" type="text" placeholder="e.g. Tal Sabo" autocomplete="off"
+                 style="width:100%;border:1px solid var(--line);background:#0b1220;color:var(--text);border-radius:12px;padding:10px 12px;font-size:0.95rem;" />
+          <div id="importPmResults" class="autocomplete-list hidden"></div>
+          <p id="importPmStatus" style="color:#64748b;font-size:0.88rem;margin-top:8px;min-height:20px;"></p>
+        </div>
+        <div id="importStep2" class="hidden">
+          <div id="importStep2Header" style="margin-bottom:12px;color:#bfdbfe;"></div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <label style="display:flex;align-items:center;gap:6px;color:#bfdbfe;font-size:0.9rem;cursor:pointer;">
+              <input type="checkbox" id="importSelectAll"> Select all new
+            </label>
+            <span id="importCount" style="font-size:0.88rem;color:#64748b;"></span>
+          </div>
+          <div id="importProjectList" style="max-height:340px;overflow-y:auto;display:grid;gap:6px;"></div>
+          <div class="modal-actions" style="margin-top:12px;">
+            <button id="importBackBtn" class="ghost-btn">← Back</button>
+            <button id="importConfirmBtn" class="primary-btn">Import selected</button>
+          </div>
+          <p id="importProgress" style="color:#7dd3fc;font-size:0.88rem;margin-top:8px;text-align:center;min-height:20px;"></p>
+        </div>
+      </div>
     </div>
 
     <div id="whatsNewModal" class="modal hidden" aria-hidden="true">
