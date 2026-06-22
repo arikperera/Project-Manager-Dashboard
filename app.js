@@ -610,6 +610,44 @@ async function syncProjectProgressFromJira() {
   renderAll();
 }
 
+async function syncStatusFromJira() {
+  const useProxy = settings.jiraEmail && settings.jiraToken;
+  if (!useProxy) return;
+  let changed = false;
+
+  for (const project of projects) {
+    const issueKey = getJiraIssueKey(project.jira);
+    if (!issueKey) continue;
+    try {
+      const url = `http://localhost:8081/jira/issue/${issueKey}?fields=description,updated`;
+      const res = await fetch(url, { headers: { Accept: 'application/json' } });
+      if (!res.ok) continue;
+      const data = await res.json();
+      const jiraUpdated = data.fields?.updated || '';
+      const localUpdated = project.statusUpdatedAt || '';
+
+      if (!localUpdated || jiraUpdated > localUpdated) {
+        // Jira is newer (or no local timestamp) — pull from Jira
+        const adf = data.fields?.description;
+        const text = adf ? adfToText(adf) : '';
+        if (text !== project.statusText) {
+          project.statusText = text;
+          project.statusUpdatedAt = jiraUpdated;
+          changed = true;
+        }
+      } else if (localUpdated > jiraUpdated) {
+        // Dashboard is newer — push to Jira silently
+        writeStatusToJira(issueKey, project.statusText).catch(() => {});
+      }
+    } catch {}
+  }
+
+  if (changed) {
+    saveProjects();
+    renderAll();
+  }
+}
+
 function inlineToText(node) {
   if (node.type === 'text') return node.text || '';
   if (node.type === 'hardBreak') return '\n';
@@ -2645,4 +2683,5 @@ wireDateField('modalProjectStartDate', 'modalProjectStartDateHidden', 'modalStar
 wireDateField('modalProjectDueDate', 'modalProjectDueDateHidden', 'modalEndPickerBtn');
 
 syncProjectProgressFromJira();
+syncStatusFromJira();
 startAutoProjectPoll();
