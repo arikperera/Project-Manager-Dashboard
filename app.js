@@ -686,9 +686,6 @@ function startAutoProjectPoll() {
 let _bannerTimer = null;
 let _dismissHideTimer = null;
 
-function escapeHtml(str) {
-  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
 
 function showNewProjectsBanner(addedKeys) {
   if (_dismissHideTimer) { clearTimeout(_dismissHideTimer); _dismissHideTimer = null; }

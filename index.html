@@ -475,9 +475,11 @@
         </div>
         <div id="importStep1">
           <label style="display:block;margin-bottom:8px;color:#bfdbfe;">Search PM by name</label>
-          <input id="importPmSearch" type="text" placeholder="e.g. Tal Sabo" autocomplete="off"
-                 style="width:100%;border:1px solid var(--line);background:#0b1220;color:var(--text);border-radius:12px;padding:10px 12px;font-size:0.95rem;" />
-          <div id="importPmResults" class="autocomplete-list hidden"></div>
+          <div class="autocomplete-wrap">
+            <input id="importPmSearch" type="text" placeholder="e.g. Tal Sabo" autocomplete="off"
+                   style="width:100%;border:1px solid var(--line);background:#0b1220;color:var(--text);border-radius:12px;padding:10px 12px;font-size:0.95rem;" />
+            <div id="importPmResults" class="autocomplete-list hidden"></div>
+          </div>
           <p id="importPmStatus" style="color:#64748b;font-size:0.88rem;margin-top:8px;min-height:20px;"></p>
         </div>
         <div id="importStep2" class="hidden">
