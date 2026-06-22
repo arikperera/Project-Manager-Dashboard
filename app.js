@@ -641,6 +641,7 @@ async function syncStatusFromJira() {
           project.statusUpdatedAt = jiraUpdated;
           changed = true;
         }
+      }
       // Note: push-on-load disabled — Jira's issue-level `updated` tracks all field changes,
       // not just description, so it cannot reliably determine if dashboard status is newer.
       // Dashboard→Jira sync happens only on explicit edit-modal save.
