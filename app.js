@@ -2372,7 +2372,7 @@ async function loadImportStep2(pm) {
   importProgress.textContent = '';
 
   const jql = `issuetype = Initiative AND assignee = "${pm.accountId}" AND (status = Open OR status = "in progress") ORDER BY created ASC`;
-  const url = `http://localhost:8081/jira/search?jql=${encodeURIComponent(jql)}&fields=summary,status,assignee,created&maxResults=50`;
+  const url = `http://localhost:8081/jira/issue/search?jql=${encodeURIComponent(jql)}&fields=summary,status,assignee,created&maxResults=50`;
 
   try {
     const res = await fetch(url, { headers: { Accept: 'application/json' } });
