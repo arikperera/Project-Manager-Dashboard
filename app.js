@@ -843,6 +843,21 @@ async function writeRiskReasonToJira(issueKey, optionId) {
   if (!res.ok) throw new Error(`Jira write failed: ${res.status}`);
 }
 
+async function writeStatusToJira(issueKey, statusText) {
+  const useProxy = settings.jiraEmail && settings.jiraToken;
+  const url = useProxy
+    ? `http://localhost:8081/jira/issue/${issueKey}`
+    : `https://kaltura.atlassian.net/rest/api/3/issue/${issueKey}`;
+  const adf = textToAdf(statusText || '');
+  const res = await fetch(url, {
+    method: 'PUT',
+    ...(useProxy ? {} : { credentials: 'include' }),
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ fields: { description: adf } }),
+  });
+  if (!res.ok) throw new Error(`Jira description write failed: ${res.status}`);
+}
+
 async function writeRiskRateToJira(issueKey, health) {
   if (!cachedRiskRateFieldId || !cachedRiskRateOptions) await resolveJiraFieldIds();
   if (!cachedRiskRateFieldId) throw new Error('Risk Rate field ID not resolved');
@@ -1418,6 +1433,7 @@ editProjectForm.addEventListener('submit', async (event) => {
   if (newDueDate) selectedProject.dueDate = newDueDate;
   const rawStatus = editStatusEditor.getAttribute('data-placeholder-active') ? '' : editStatusEditor.innerHTML.trim();
   selectedProject.statusText = isEmptyStatus(rawStatus) ? '' : rawStatus;
+  selectedProject.statusUpdatedAt = new Date().toISOString();
 
   saveProjects();
   renderAll();
@@ -1428,6 +1444,7 @@ editProjectForm.addEventListener('submit', async (event) => {
     writeRiskReasonToJira(issueKey, riskOptionId || null).catch(e => { console.error('[riskReason→Jira]', e); showToast(`Jira risk reason sync failed: ${e.message}`); });
     writeRiskRateToJira(issueKey, selectedProject.health).catch(e => { console.error('[riskRate→Jira]', e); showToast(`Jira risk rate sync failed: ${e.message}`); });
     if (newDueDate) writeDueDateToJira(issueKey, newDueDate).catch(e => { console.error('[dueDate→Jira]', e); showToast(`Jira due date sync failed: ${e.message}`); });
+    writeStatusToJira(issueKey, selectedProject.statusText).catch(e => { console.error('[status→Jira]', e); showToast(`Jira status sync failed: ${e.message}`); });
   }
 });
 
