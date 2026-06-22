@@ -2451,7 +2451,7 @@ async function loadImportStep2(pm) {
       const isExisting = existing.has(issue.key);
       return `
         <label class="import-project-row${isExisting ? ' existing' : ''}">
-          <input type="checkbox" value="${escapeHtml(issue.key)}" ${isExisting ? 'checked disabled' : 'checked'}>
+          <input type="checkbox" value="${escapeHtml(issue.key)}" ${isExisting ? 'checked disabled' : ''}>
           <span class="import-key">${escapeHtml(issue.key)}</span>
           <span class="import-summary" title="${escapeHtml(issue.summary)}">${escapeHtml(issue.summary)}</span>
           <span class="import-status">${escapeHtml(issue.status)}</span>
