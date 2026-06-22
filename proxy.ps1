@@ -145,7 +145,7 @@ try {
             $creds = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes("$($s.jiraEmail):$($s.jiraToken)"))
             $allIssues = [System.Collections.Generic.List[object]]::new()
             foreach ($email in $watched) {
-                $jql = [Uri]::EscapeDataString("assignee=`"$email`" AND project=PSVAMB AND created>=-30d ORDER BY created DESC")
+                $jql = [Uri]::EscapeDataString("issuetype = Initiative AND assignee=`"$email`" AND project=PSVAMB AND status = Open AND created>=-30d ORDER BY created DESC")
                 $jiraUrl = "https://kaltura.atlassian.net/rest/api/3/search/jql?jql=$jql&fields=summary,assignee,created,status&maxResults=50"
                 try {
                     $wr = [System.Net.WebRequest]::Create($jiraUrl)

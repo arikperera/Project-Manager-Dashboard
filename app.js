@@ -663,6 +663,28 @@ async function pollForNewProjects() {
 
   const addedKeys = [];
   for (const issue of toAdd) {
+    // Enrich issue with extra Jira fields (account name, hours, MRR/NRR, due date)
+    const extraFieldIds = [cachedAccountNameFieldId, cachedMrrFieldId, cachedNrrFieldId, cachedEstHoursFieldId, cachedVMForecastFieldId].filter(Boolean);
+    if (extraFieldIds.length) {
+      try {
+        const useProxy = settings.jiraEmail && settings.jiraToken;
+        const fieldsParam = extraFieldIds.join(',');
+        const extraUrl = useProxy
+          ? `http://localhost:8081/jira/issue/${issue.key}?fields=${fieldsParam}`
+          : `https://kaltura.atlassian.net/rest/api/3/issue/${issue.key}?fields=${fieldsParam}`;
+        const extraResp = await fetch(extraUrl, useProxy ? { headers: { Accept: 'application/json' } } : { credentials: 'include', headers: { Accept: 'application/json' } });
+        if (extraResp.ok) {
+          const extraData = await extraResp.json();
+          const f = extraData.fields || {};
+          if (cachedAccountNameFieldId) issue.accountName = f[cachedAccountNameFieldId] || '';
+          if (cachedMrrFieldId) issue.mrrUsd = f[cachedMrrFieldId] ?? '';
+          if (cachedNrrFieldId) issue.nrrUsd = f[cachedNrrFieldId] ?? '';
+          if (cachedEstHoursFieldId) issue.estimatedHours = f[cachedEstHoursFieldId] ?? '';
+          if (cachedVMForecastFieldId) issue.dueDate = f[cachedVMForecastFieldId] || '';
+        }
+      } catch {}
+    }
+
     let sfData = { sfSkipped: true };
     try {
       const sfResp = await fetch(`http://localhost:8081/sf/enrich?jiraKey=${encodeURIComponent(issue.key)}`, {
