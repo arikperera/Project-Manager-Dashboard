@@ -180,6 +180,7 @@ const cancelEditModalBtn = document.getElementById('cancelEditModalBtn');
 const editProjectForm = document.getElementById('editProjectForm');
 const editCustomerName = document.getElementById('editCustomerName');
 const editProjectName = document.getElementById('editProjectName');
+const editProjectManager = document.getElementById('editProjectManager');
 const editStatusEditor = document.getElementById('editStatusEditor');
 const editHealth = document.getElementById('editHealth');
 const editPmStatus = document.getElementById('editPmStatus');
@@ -1007,6 +1008,11 @@ function openEditProjectModal(projectIndex) {
 
   editCustomerName.value = project.customer || '';
   editProjectName.value = project.name;
+  const pmNames = getUsersByRole('PM');
+  editProjectManager.innerHTML = pmNames.map(n => `<option value="${escapeHtml(n)}"${n === project.manager ? ' selected' : ''}>${escapeHtml(n)}</option>`).join('');
+  if (!pmNames.includes(project.manager) && project.manager) {
+    editProjectManager.innerHTML = `<option value="${escapeHtml(project.manager)}" selected>${escapeHtml(project.manager)}</option>` + editProjectManager.innerHTML;
+  }
   editHealth.value = project.health || 'Green';
   editPmStatus.value = project.pmStatus || '';
   const isAtRisk = ['Yellow', 'Red'].includes(project.health);
@@ -1334,6 +1340,7 @@ editProjectForm.addEventListener('submit', async (event) => {
   const newName = editProjectName.value.trim();
   if (newCustomer) selectedProject.customer = newCustomer;
   if (newName) selectedProject.name = newName;
+  if (editProjectManager.value) selectedProject.manager = editProjectManager.value;
   selectedProject.health = editHealth.value;
   selectedProject.pmStatus = ['Yellow', 'Red'].includes(selectedProject.health)
     ? editPmStatus.value.trim()
