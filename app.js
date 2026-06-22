@@ -641,12 +641,9 @@ async function syncStatusFromJira() {
           project.statusUpdatedAt = jiraUpdated;
           changed = true;
         }
-      } else if (localTime > jiraTime) {
-        // Dashboard is newer — push to Jira silently
-        await writeStatusToJira(issueKey, project.statusText).catch(() => {});
-        project.statusUpdatedAt = new Date().toISOString();
-        changed = true;
-      }
+      // Note: push-on-load disabled — Jira's issue-level `updated` tracks all field changes,
+      // not just description, so it cannot reliably determine if dashboard status is newer.
+      // Dashboard→Jira sync happens only on explicit edit-modal save.
     } catch {}
   }
 
@@ -702,8 +699,14 @@ function adfInlineToHtml(node) {
     if (mark.type === 'strong') text = `<strong>${text}</strong>`;
     else if (mark.type === 'em') text = `<em>${text}</em>`;
     else if (mark.type === 'underline') text = `<u>${text}</u>`;
-    else if (mark.type === 'textColor') text = `<span style="color:${escapeHtml(mark.attrs?.color || '')}">${text}</span>`;
-    else if (mark.type === 'link') text = `<a href="${escapeHtml(mark.attrs?.href || '')}">${text}</a>`;
+    else if (mark.type === 'textColor') {
+      const color = mark.attrs?.color || '';
+      if (/^#[0-9a-fA-F]{3,8}$|^rgb\(/.test(color)) text = `<span style="color:${escapeHtml(color)}">${text}</span>`;
+    }
+    else if (mark.type === 'link') {
+      const href = mark.attrs?.href || '';
+      if (/^https?:|^mailto:/i.test(href)) text = `<a href="${escapeHtml(href)}">${text}</a>`;
+    }
   }
   return text;
 }
@@ -726,11 +729,14 @@ function htmlNodesToAdf(nodes) {
       const tag = node.tagName.toLowerCase();
       if (tag === 'ul' || tag === 'ol') {
         const listType = tag === 'ul' ? 'bulletList' : 'orderedList';
-        const items = [...node.children].map(li => ({
-          type: 'listItem',
-          content: htmlNodesToAdf(li.childNodes).filter(n => n.type !== 'paragraph' || (n.content && n.content.length > 0))
-            .map(n => n.type === 'paragraph' ? n : n),
-        })).filter(item => item.content.length > 0);
+        const items = [...node.children].map(li => {
+          const parsed = htmlNodesToAdf(li.childNodes);
+          // Ensure all content is block nodes — wrap bare inline/text in paragraph
+          const content = parsed.length
+            ? parsed.map(n => (n.type === 'paragraph' || n.type === 'bulletList' || n.type === 'orderedList') ? n : { type: 'paragraph', content: [n] })
+            : [{ type: 'paragraph', content: [] }];
+          return { type: 'listItem', content };
+        }).filter(item => item.content.length > 0);
         if (items.length) result.push({ type: listType, content: items });
       } else if (tag === 'li') {
         const inner = htmlNodesToAdf(node.childNodes);
