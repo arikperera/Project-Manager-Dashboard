@@ -235,6 +235,21 @@ const salesList = null;
 const healthFilter = document.getElementById('healthFilter');
 const progressFilter = document.getElementById('progressFilter');
 const duemonthFilter = document.getElementById('duemonthFilter');
+const importFromJiraBtn = document.getElementById('importFromJiraBtn');
+const importModal = document.getElementById('importModal');
+const closeImportModalBtn = document.getElementById('closeImportModalBtn');
+const importPmSearch = document.getElementById('importPmSearch');
+const importPmResults = document.getElementById('importPmResults');
+const importPmStatus = document.getElementById('importPmStatus');
+const importStep1 = document.getElementById('importStep1');
+const importStep2 = document.getElementById('importStep2');
+const importStep2Header = document.getElementById('importStep2Header');
+const importSelectAll = document.getElementById('importSelectAll');
+const importCount = document.getElementById('importCount');
+const importProjectList = document.getElementById('importProjectList');
+const importBackBtn = document.getElementById('importBackBtn');
+const importConfirmBtn = document.getElementById('importConfirmBtn');
+const importProgress = document.getElementById('importProgress');
 
 function saveProjects() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
@@ -2275,6 +2290,182 @@ function positionTooltip(container, e) {
 
 portfolioGroups.addEventListener('mousemove', (e) => positionTooltip(portfolioGroups, e));
 backupMain.addEventListener('mousemove', (e) => positionTooltip(backupMain, e));
+
+// ── Jira Import ──────────────────────────────────────────────────────────────
+
+let importDebounceTimer = null;
+let importSelectedPm = null; // { accountId, displayName }
+let importFetchedIssues = []; // raw Jira issue objects
+
+function openImportModal() {
+  importPmSearch.value = '';
+  importPmResults.classList.add('hidden');
+  importPmStatus.textContent = '';
+  importStep1.classList.remove('hidden');
+  importStep2.classList.add('hidden');
+  importSelectedPm = null;
+  importFetchedIssues = [];
+  importModal.classList.remove('hidden');
+  importModal.setAttribute('aria-hidden', 'false');
+  setTimeout(() => importPmSearch.focus(), 50);
+}
+
+function closeImportModal() {
+  importModal.classList.add('hidden');
+  importModal.setAttribute('aria-hidden', 'true');
+}
+
+importFromJiraBtn.addEventListener('click', openImportModal);
+closeImportModalBtn.addEventListener('click', closeImportModal);
+importModal.addEventListener('click', (e) => { if (e.target === importModal) closeImportModal(); });
+
+// Step 1: PM search autocomplete
+importPmSearch.addEventListener('input', () => {
+  clearTimeout(importDebounceTimer);
+  const q = importPmSearch.value.trim();
+  if (q.length < 2) {
+    importPmResults.classList.add('hidden');
+    importPmStatus.textContent = '';
+    return;
+  }
+  importPmStatus.textContent = 'Searching...';
+  importDebounceTimer = setTimeout(async () => {
+    try {
+      const res = await fetch(`http://localhost:8081/jira/user/search?query=${encodeURIComponent(q)}`, {
+        headers: { Accept: 'application/json' },
+      });
+      if (!res.ok) { importPmStatus.textContent = 'Search failed.'; return; }
+      const users = await res.json();
+      importPmStatus.textContent = '';
+      if (!users.length) {
+        importPmResults.innerHTML = '<li style="padding:8px 14px;color:#64748b;">No users found</li>';
+        importPmResults.classList.remove('hidden');
+        return;
+      }
+      importPmResults.innerHTML = users.map(u => `
+        <li data-account-id="${escapeHtml(u.accountId)}" data-display-name="${escapeHtml(u.displayName)}"
+            style="padding:8px 14px;cursor:pointer;">
+          <span style="font-weight:600;color:#eff6ff;">${escapeHtml(u.displayName)}</span>
+          <span style="color:#64748b;font-size:0.85rem;margin-left:6px;">${escapeHtml(u.emailAddress || '')}</span>
+        </li>
+      `).join('');
+      importPmResults.classList.remove('hidden');
+    } catch {
+      importPmStatus.textContent = 'Search failed.';
+    }
+  }, 300);
+});
+
+importPmResults.addEventListener('click', (e) => {
+  const li = e.target.closest('li[data-account-id]');
+  if (!li) return;
+  importSelectedPm = { accountId: li.dataset.accountId, displayName: li.dataset.displayName };
+  importPmResults.classList.add('hidden');
+  loadImportStep2(importSelectedPm);
+});
+
+// Step 2: Load initiatives for selected PM
+async function loadImportStep2(pm) {
+  importStep1.classList.add('hidden');
+  importStep2.classList.remove('hidden');
+  importStep2Header.innerHTML = `Importing projects for <strong>${escapeHtml(pm.displayName)}</strong>`;
+  importProjectList.innerHTML = '<p style="color:#64748b;padding:8px 0;">Loading...</p>';
+  importCount.textContent = '';
+  importSelectAll.checked = false;
+  importProgress.textContent = '';
+
+  const jql = `issuetype = Initiative AND assignee = "${pm.accountId}" AND (status = Open OR status = "in progress") ORDER BY created ASC`;
+  const url = `http://localhost:8081/jira/search?jql=${encodeURIComponent(jql)}&fields=summary,status,assignee,created&maxResults=50`;
+
+  try {
+    const res = await fetch(url, { headers: { Accept: 'application/json' } });
+    if (!res.ok) { importProjectList.innerHTML = '<p style="color:#ef4444;">Failed to load projects.</p>'; return; }
+    const data = await res.json();
+    importFetchedIssues = (data.issues || []).map(i => ({
+      key: i.key,
+      summary: i.fields.summary,
+      jiraUrl: `https://kaltura.atlassian.net/browse/${i.key}`,
+      assigneeEmail: i.fields.assignee?.emailAddress || '',
+      assigneeDisplayName: i.fields.assignee?.displayName || pm.displayName,
+      created: i.fields.created || '',
+      status: i.fields.status?.name || '',
+    }));
+
+    const existing = getExistingJiraKeys();
+    const alreadyImported = importFetchedIssues.filter(i => existing.has(i.key)).length;
+    importCount.textContent = `${importFetchedIssues.length} project${importFetchedIssues.length !== 1 ? 's' : ''} · ${alreadyImported} already imported`;
+
+    if (!importFetchedIssues.length) {
+      importProjectList.innerHTML = '<p style="color:#64748b;padding:8px 0;">No active initiatives found.</p>';
+      return;
+    }
+
+    importProjectList.innerHTML = importFetchedIssues.map(issue => {
+      const isExisting = existing.has(issue.key);
+      return `
+        <label class="import-project-row${isExisting ? ' existing' : ''}">
+          <input type="checkbox" value="${escapeHtml(issue.key)}" ${isExisting ? 'checked disabled' : 'checked'}>
+          <span class="import-key">${escapeHtml(issue.key)}</span>
+          <span class="import-summary" title="${escapeHtml(issue.summary)}">${escapeHtml(issue.summary)}</span>
+          <span class="import-status">${escapeHtml(issue.status)}</span>
+          ${isExisting ? '<span class="import-badge-existing">Already imported</span>' : '<span></span>'}
+        </label>
+      `;
+    }).join('');
+  } catch {
+    importProjectList.innerHTML = '<p style="color:#ef4444;">Failed to load projects.</p>';
+  }
+}
+
+// Select all new toggle
+importSelectAll.addEventListener('change', () => {
+  importProjectList.querySelectorAll('input[type="checkbox"]:not(:disabled)').forEach(cb => {
+    cb.checked = importSelectAll.checked;
+  });
+});
+
+// Back button
+importBackBtn.addEventListener('click', () => {
+  importStep2.classList.add('hidden');
+  importStep1.classList.remove('hidden');
+  importPmSearch.value = '';
+  importPmResults.classList.add('hidden');
+  importPmStatus.textContent = '';
+});
+
+// Import selected
+importConfirmBtn.addEventListener('click', async () => {
+  const checked = [...importProjectList.querySelectorAll('input[type="checkbox"]:not(:disabled):checked')]
+    .map(cb => cb.value);
+  if (!checked.length) { importProgress.textContent = 'No new projects selected.'; return; }
+
+  importConfirmBtn.disabled = true;
+  importBackBtn.disabled = true;
+  const toImport = importFetchedIssues.filter(i => checked.includes(i.key));
+  let done = 0;
+
+  for (const issue of toImport) {
+    importProgress.textContent = `Importing ${done + 1} of ${toImport.length}...`;
+    let sfData = { sfSkipped: true };
+    try {
+      const sfResp = await fetch(`http://localhost:8081/sf/enrich?jiraKey=${encodeURIComponent(issue.key)}`, {
+        headers: { Accept: 'application/json' },
+      });
+      if (sfResp.ok) sfData = await sfResp.json();
+    } catch {}
+    const project = buildProjectFromEnrichment(issue, sfData);
+    projects.unshift(project);
+    done++;
+  }
+
+  saveProjects();
+  renderAll();
+  syncProjectProgressFromJira();
+  closeImportModal();
+  importConfirmBtn.disabled = false;
+  importBackBtn.disabled = false;
+  showToast(`Imported ${done} project${done !== 1 ? 's' : ''}`, 'success');
+});
 
 renderAll();
 initAutocompletes();
