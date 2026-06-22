@@ -747,8 +747,16 @@ function htmlNodesToAdf(nodes) {
         const content = htmlInlineToAdf(node);
         result.push({ type: 'heading', attrs: { level }, content });
       } else if (tag === 'div' || tag === 'p') {
-        const content = htmlInlineToAdf(node);
-        result.push({ type: 'paragraph', content });
+        // If div contains block-level children (ul/ol/div/p), recurse as blocks
+        const hasBlockChildren = [...node.childNodes].some(c =>
+          c.nodeType === Node.ELEMENT_NODE && /^(ul|ol|div|p|h[1-6]|br)$/.test(c.tagName.toLowerCase())
+        );
+        if (hasBlockChildren) {
+          result.push(...htmlNodesToAdf(node.childNodes));
+        } else {
+          const content = htmlInlineToAdf(node);
+          result.push({ type: 'paragraph', content });
+        }
       } else if (tag === 'br') {
         result.push({ type: 'paragraph', content: [] });
       } else {
@@ -1561,7 +1569,7 @@ editProjectForm.addEventListener('submit', async (event) => {
   if (newDueDate) selectedProject.dueDate = newDueDate;
   const rawStatus = editStatusEditor.getAttribute('data-placeholder-active') ? '' : editStatusEditor.innerHTML.trim();
   selectedProject.statusText = isEmptyStatus(rawStatus) ? '' : rawStatus;
-  selectedProject.statusUpdatedAt = new Date().toISOString();
+  selectedProject.statusUpdatedAt = new Date(Date.now() + 30000).toISOString();
 
   saveProjects();
   renderAll();
