@@ -2330,11 +2330,17 @@ let importSelectedPm = null; // { accountId, displayName }
 let importFetchedIssues = []; // raw Jira issue objects
 
 function openImportModal() {
+  clearTimeout(importDebounceTimer);
   importPmSearch.value = '';
   importPmResults.classList.add('hidden');
   importPmStatus.textContent = '';
   importStep1.classList.remove('hidden');
   importStep2.classList.add('hidden');
+  importProjectList.innerHTML = '';
+  importStep2Header.textContent = '';
+  importCount.textContent = '';
+  importProgress.textContent = '';
+  importSelectAll.checked = false;
   importSelectedPm = null;
   importFetchedIssues = [];
   importModal.classList.remove('hidden');
@@ -2447,7 +2453,7 @@ async function loadImportStep2(pm) {
       return;
     }
 
-    importProjectList.innerHTML = importFetchedIssues.map(issue => {
+    importProjectList.innerHTML = [...importFetchedIssues].sort((a, b) => (a.accountName || '').localeCompare(b.accountName || '')).map(issue => {
       const isExisting = existing.has(issue.key);
       return `
         <label class="import-project-row${isExisting ? ' existing' : ''}">
