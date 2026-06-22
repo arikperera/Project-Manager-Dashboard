@@ -158,6 +158,7 @@ function migrateProjects() {
     if (p.estimatedHours === undefined) { p.estimatedHours = null; changed = true; }
     if (p.remainingHours === undefined) { p.remainingHours = null; changed = true; }
     if (p.actualHours === undefined) { p.actualHours = null; changed = true; }
+    if (p.statusUpdatedAt === undefined) { p.statusUpdatedAt = ''; changed = true; }
   }
   if (changed) saveProjects();
 }
@@ -607,6 +608,70 @@ async function syncProjectProgressFromJira() {
 
   saveProjects();
   renderAll();
+}
+
+function inlineToText(node) {
+  if (node.type === 'text') return node.text || '';
+  if (node.type === 'hardBreak') return '\n';
+  return '';
+}
+
+function blockToText(node, depth) {
+  if (node.type === 'paragraph') {
+    const text = (node.content || []).map(inlineToText).join('');
+    return text + '\n';
+  }
+  if (node.type === 'bulletList' || node.type === 'orderedList') {
+    return (node.content || []).map((item, idx) => {
+      const prefix = '\t'.repeat(depth) + (node.type === 'orderedList' ? `${idx + 1}.` : '•') + ' ';
+      const children = item.content || [];
+      const textNodes = children.filter(c => c.type === 'paragraph');
+      const listNodes = children.filter(c => c.type === 'bulletList' || c.type === 'orderedList');
+      const itemText = textNodes.map(p => (p.content || []).map(inlineToText).join('')).join('');
+      const nested = listNodes.map(l => blockToText(l, depth + 1)).join('');
+      return prefix + itemText + '\n' + nested;
+    }).join('');
+  }
+  if (node.type === 'hardBreak') return '\n';
+  return '';
+}
+
+function adfToText(adf) {
+  if (!adf || !adf.content) return '';
+  return adf.content.map(node => blockToText(node, 0)).join('').trimEnd();
+}
+
+function textToAdf(text) {
+  if (!text) return { version: 1, type: 'doc', content: [{ type: 'paragraph', content: [] }] };
+  const lines = text.split('\n');
+  const content = [];
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+    if (/^[•\-] /.test(line) || /^\t[•\-] /.test(line)) {
+      const items = [];
+      while (i < lines.length && (/^[•\-] /.test(lines[i]) || /^\t[•\-] /.test(lines[i]))) {
+        const d0 = /^[•\-] (.*)/.exec(lines[i]);
+        const d1 = /^\t[•\-] (.*)/.exec(lines[i]);
+        if (d0) {
+          items.push({ type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: d0[1] }] }] });
+        } else if (d1) {
+          const nested = { type: 'bulletList', content: [{ type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: d1[1] }] }] }] };
+          if (items.length > 0) {
+            items[items.length - 1].content.push(nested);
+          } else {
+            items.push({ type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: d1[1] }] }, nested] });
+          }
+        }
+        i++;
+      }
+      content.push({ type: 'bulletList', content: items });
+    } else {
+      content.push({ type: 'paragraph', content: line.trim() ? [{ type: 'text', text: line }] : [] });
+      i++;
+    }
+  }
+  return { version: 1, type: 'doc', content };
 }
 
 function getExistingJiraKeys() {
