@@ -612,32 +612,40 @@ async function syncProjectProgressFromJira() {
 
 async function syncStatusFromJira() {
   const useProxy = settings.jiraEmail && settings.jiraToken;
-  if (!useProxy) return;
   let changed = false;
 
   for (const project of projects) {
     const issueKey = getJiraIssueKey(project.jira);
     if (!issueKey) continue;
     try {
-      const url = `http://localhost:8081/jira/issue/${issueKey}?fields=description,updated`;
-      const res = await fetch(url, { headers: { Accept: 'application/json' } });
+      const url = useProxy
+        ? `http://localhost:8081/jira/issue/${issueKey}?fields=description,updated`
+        : `https://kaltura.atlassian.net/rest/api/3/issue/${issueKey}?fields=description,updated`;
+      const opts = useProxy
+        ? { headers: { Accept: 'application/json' } }
+        : { credentials: 'include', headers: { Accept: 'application/json' } };
+      const res = await fetch(url, opts);
       if (!res.ok) continue;
       const data = await res.json();
       const jiraUpdated = data.fields?.updated || '';
       const localUpdated = project.statusUpdatedAt || '';
+      const jiraTime = jiraUpdated ? new Date(jiraUpdated).getTime() : 0;
+      const localTime = localUpdated ? new Date(localUpdated).getTime() : 0;
 
-      if (!localUpdated || jiraUpdated > localUpdated) {
+      if (!localTime || jiraTime > localTime) {
         // Jira is newer (or no local timestamp) — pull from Jira
         const adf = data.fields?.description;
-        const text = adf ? adfToText(adf) : '';
-        if (text !== project.statusText) {
-          project.statusText = text;
+        const html = adf ? adfToHtml(adf) : '';
+        if (html !== project.statusText) {
+          project.statusText = html;
           project.statusUpdatedAt = jiraUpdated;
           changed = true;
         }
-      } else if (localUpdated > jiraUpdated) {
+      } else if (localTime > jiraTime) {
         // Dashboard is newer — push to Jira silently
-        writeStatusToJira(issueKey, project.statusText).catch(() => {});
+        await writeStatusToJira(issueKey, project.statusText).catch(() => {});
+        project.statusUpdatedAt = new Date().toISOString();
+        changed = true;
       }
     } catch {}
   }
@@ -648,68 +656,141 @@ async function syncStatusFromJira() {
   }
 }
 
-function inlineToText(node) {
-  if (node.type === 'text') return node.text || '';
-  if (node.type === 'hardBreak') return '\n';
-  return '';
-}
-
-function blockToText(node, depth) {
-  if (node.type === 'paragraph') {
-    const text = (node.content || []).map(inlineToText).join('');
-    return text + '\n';
-  }
-  if (node.type === 'bulletList' || node.type === 'orderedList') {
-    return (node.content || []).map((item, idx) => {
-      const prefix = '\t'.repeat(depth) + (node.type === 'orderedList' ? `${idx + 1}.` : '•') + ' ';
-      const children = item.content || [];
-      const textNodes = children.filter(c => c.type === 'paragraph');
-      const listNodes = children.filter(c => c.type === 'bulletList' || c.type === 'orderedList');
-      const itemText = textNodes.map(p => (p.content || []).map(inlineToText).join('')).join('');
-      const nested = listNodes.map(l => blockToText(l, depth + 1)).join('');
-      return prefix + itemText + '\n' + nested;
-    }).join('');
-  }
-  if (node.type === 'hardBreak') return '\n';
-  return '';
-}
-
-function adfToText(adf) {
+function adfToHtml(adf) {
   if (!adf || !adf.content) return '';
-  return adf.content.map(node => blockToText(node, 0)).join('').trimEnd();
+  return adf.content.map(node => adfBlockToHtml(node)).join('');
 }
 
-function textToAdf(text) {
-  if (!text) return { version: 1, type: 'doc', content: [{ type: 'paragraph', content: [] }] };
-  const lines = text.split('\n');
-  const content = [];
-  let i = 0;
-  while (i < lines.length) {
-    const line = lines[i];
-    if (/^[•\-] /.test(line) || /^\t[•\-] /.test(line)) {
-      const items = [];
-      while (i < lines.length && (/^[•\-] /.test(lines[i]) || /^\t[•\-] /.test(lines[i]))) {
-        const d0 = /^[•\-] (.*)/.exec(lines[i]);
-        const d1 = /^\t[•\-] (.*)/.exec(lines[i]);
-        if (d0) {
-          items.push({ type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: d0[1] }] }] });
-        } else if (d1) {
-          const nested = { type: 'bulletList', content: [{ type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: d1[1] }] }] }] };
-          if (items.length > 0) {
-            items[items.length - 1].content.push(nested);
-          } else {
-            items.push({ type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: d1[1] }] }, nested] });
-          }
-        }
-        i++;
+function adfBlockToHtml(node) {
+  if (!node) return '';
+  if (node.type === 'paragraph') {
+    const inner = (node.content || []).map(adfInlineToHtml).join('');
+    return `<div>${inner || '<br>'}</div>`;
+  }
+  if (node.type === 'bulletList') {
+    const items = (node.content || []).map(item => {
+      const children = (item.content || []).map(adfBlockToHtml).join('');
+      return `<li>${children}</li>`;
+    }).join('');
+    return `<ul>${items}</ul>`;
+  }
+  if (node.type === 'orderedList') {
+    const items = (node.content || []).map((item, idx) => {
+      const children = (item.content || []).map(adfBlockToHtml).join('');
+      return `<li>${children}</li>`;
+    }).join('');
+    return `<ol>${items}</ol>`;
+  }
+  if (node.type === 'heading') {
+    const level = node.attrs?.level || 1;
+    const inner = (node.content || []).map(adfInlineToHtml).join('');
+    return `<h${level}>${inner}</h${level}>`;
+  }
+  if (node.type === 'hardBreak') return '<br>';
+  // fallback: render content if present
+  return (node.content || []).map(adfBlockToHtml).join('');
+}
+
+function adfInlineToHtml(node) {
+  if (!node) return '';
+  if (node.type === 'hardBreak') return '<br>';
+  if (node.type !== 'text') return '';
+  let text = escapeHtml(node.text || '');
+  if (!text) return '';
+  const marks = node.marks || [];
+  for (const mark of marks) {
+    if (mark.type === 'strong') text = `<strong>${text}</strong>`;
+    else if (mark.type === 'em') text = `<em>${text}</em>`;
+    else if (mark.type === 'underline') text = `<u>${text}</u>`;
+    else if (mark.type === 'textColor') text = `<span style="color:${escapeHtml(mark.attrs?.color || '')}">${text}</span>`;
+    else if (mark.type === 'link') text = `<a href="${escapeHtml(mark.attrs?.href || '')}">${text}</a>`;
+  }
+  return text;
+}
+
+function htmlToAdf(html) {
+  if (!html || !html.trim()) return { version: 1, type: 'doc', content: [{ type: 'paragraph', content: [] }] };
+  const div = document.createElement('div');
+  div.innerHTML = html;
+  const content = htmlNodesToAdf(div.childNodes);
+  return { version: 1, type: 'doc', content: content.length ? content : [{ type: 'paragraph', content: [] }] };
+}
+
+function htmlNodesToAdf(nodes) {
+  const result = [];
+  for (const node of nodes) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const text = node.textContent || '';
+      if (text.trim()) result.push({ type: 'paragraph', content: [{ type: 'text', text }] });
+    } else if (node.nodeType === Node.ELEMENT_NODE) {
+      const tag = node.tagName.toLowerCase();
+      if (tag === 'ul' || tag === 'ol') {
+        const listType = tag === 'ul' ? 'bulletList' : 'orderedList';
+        const items = [...node.children].map(li => ({
+          type: 'listItem',
+          content: htmlNodesToAdf(li.childNodes).filter(n => n.type !== 'paragraph' || (n.content && n.content.length > 0))
+            .map(n => n.type === 'paragraph' ? n : n),
+        })).filter(item => item.content.length > 0);
+        if (items.length) result.push({ type: listType, content: items });
+      } else if (tag === 'li') {
+        const inner = htmlNodesToAdf(node.childNodes);
+        result.push({ type: 'listItem', content: inner.length ? inner : [{ type: 'paragraph', content: [] }] });
+      } else if (/^h[1-6]$/.test(tag)) {
+        const level = parseInt(tag[1]);
+        const content = htmlInlineToAdf(node);
+        result.push({ type: 'heading', attrs: { level }, content });
+      } else if (tag === 'div' || tag === 'p') {
+        const content = htmlInlineToAdf(node);
+        result.push({ type: 'paragraph', content });
+      } else if (tag === 'br') {
+        result.push({ type: 'paragraph', content: [] });
+      } else {
+        // span, b, i, strong, em, etc. at block level — wrap in paragraph
+        const content = htmlInlineToAdf(node);
+        if (content.length) result.push({ type: 'paragraph', content });
       }
-      content.push({ type: 'bulletList', content: items });
-    } else {
-      content.push({ type: 'paragraph', content: line.trim() ? [{ type: 'text', text: line }] : [] });
-      i++;
     }
   }
-  return { version: 1, type: 'doc', content };
+  return result;
+}
+
+function htmlInlineToAdf(el) {
+  const result = [];
+  for (const node of el.childNodes) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const text = node.textContent || '';
+      if (text) result.push({ type: 'text', text });
+    } else if (node.nodeType === Node.ELEMENT_NODE) {
+      const tag = node.tagName.toLowerCase();
+      if (tag === 'br') {
+        result.push({ type: 'hardBreak' });
+      } else {
+        const inner = htmlInlineToAdf(node);
+        if (tag === 'strong' || tag === 'b') {
+          inner.forEach(n => { if (n.type === 'text') { n.marks = [...(n.marks || []), { type: 'strong' }]; } });
+        } else if (tag === 'em' || tag === 'i') {
+          inner.forEach(n => { if (n.type === 'text') { n.marks = [...(n.marks || []), { type: 'em' }]; } });
+        } else if (tag === 'u') {
+          inner.forEach(n => { if (n.type === 'text') { n.marks = [...(n.marks || []), { type: 'underline' }]; } });
+        } else if (tag === 'a') {
+          const href = node.getAttribute('href') || '';
+          inner.forEach(n => { if (n.type === 'text') { n.marks = [...(n.marks || []), { type: 'link', attrs: { href } }]; } });
+        } else if (tag === 'span') {
+          const color = node.style?.color || '';
+          if (color) {
+            inner.forEach(n => { if (n.type === 'text') { n.marks = [...(n.marks || []), { type: 'textColor', attrs: { color } }]; } });
+          }
+        } else if (tag === 'font') {
+          const color = node.getAttribute('color') || '';
+          if (color) {
+            inner.forEach(n => { if (n.type === 'text') { n.marks = [...(n.marks || []), { type: 'textColor', attrs: { color } }]; } });
+          }
+        }
+        result.push(...inner);
+      }
+    }
+  }
+  return result.filter(n => n.type !== 'text' || n.text);
 }
 
 function getExistingJiraKeys() {
@@ -886,7 +967,7 @@ async function writeStatusToJira(issueKey, statusText) {
   const url = useProxy
     ? `http://localhost:8081/jira/issue/${issueKey}`
     : `https://kaltura.atlassian.net/rest/api/3/issue/${issueKey}`;
-  const adf = textToAdf(statusText || '');
+  const adf = htmlToAdf(statusText || '');
   const res = await fetch(url, {
     method: 'PUT',
     ...(useProxy ? {} : { credentials: 'include' }),
