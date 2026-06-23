@@ -444,14 +444,12 @@ function getJiraIssueKey(jira) {
 }
 
 function formatCurrency(val) {
-  if (!val) return '0';
-  const str = String(val).trim();
-  const prefix = str.match(/^[^0-9.]*/)?.[0] || '';
-  const num = parseFloat(str.replace(/[^0-9.]/g, ''));
-  if (isNaN(num)) return str;
+  if (val === null || val === undefined || val === '') return '$0K';
+  const num = parseFloat(String(val).replace(/[^0-9.]/g, ''));
+  if (isNaN(num)) return String(val);
   const k = num / 1000;
   const rounded = Math.round(k * 10) / 10;
-  return `${prefix}${rounded}K`;
+  return `$${rounded}K`;
 }
 
 function formatDate(dateStr) {
