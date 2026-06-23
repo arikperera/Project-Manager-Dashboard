@@ -2783,9 +2783,33 @@ importConfirmBtn.addEventListener('click', async () => {
     } catch {}
     const project = buildProjectFromEnrichment(issue, sfData);
     projects.unshift(project);
+
+    // Auto-create PM user if not already in users list
+    const pmDisplayName = project.manager;
+    if (pmDisplayName && pmDisplayName !== 'Unassigned') {
+      const alreadyExists = users.some(u => getUserDisplayName(u) === pmDisplayName);
+      if (!alreadyExists) {
+        const parts = pmDisplayName.trim().split(/\s+/);
+        const firstName = parts[0] || pmDisplayName;
+        const lastName = parts.slice(1).join(' ') || '';
+        users.push({ id: `u_${Date.now()}_${users.length}`, firstName, lastName, roles: ['PM'] });
+      }
+    }
+
+    // Auto-create customer if not already in customers list
+    const customerName = project.customer;
+    if (customerName) {
+      const customerExists = customers.some(c => c.name === customerName);
+      if (!customerExists) {
+        customers.push({ id: `cust_${Date.now()}_${done}`, name: customerName, sfLink: project.oppLink || '' });
+      }
+    }
+
     done++;
   }
 
+  saveUsers();
+  saveCustomers();
   saveProjects();
   closeImportModal();
   location.reload();
