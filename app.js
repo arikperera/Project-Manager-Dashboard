@@ -636,11 +636,14 @@ async function syncStatusFromJira() {
         // Jira is newer (or no local timestamp) — pull from Jira
         const adf = data.fields?.description;
         const html = adf ? adfToHtml(adf) : '';
+        console.log(`[sync] ${issueKey}: jiraTime=${jiraTime} localTime=${localTime} pulling=${html !== project.statusText}`);
         if (html !== project.statusText) {
           project.statusText = html;
           project.statusUpdatedAt = jiraUpdated;
           changed = true;
         }
+      } else {
+        console.log(`[sync] ${issueKey}: skipped (localTime=${localTime} >= jiraTime=${jiraTime})`);
       }
       // Note: push-on-load disabled — Jira's issue-level `updated` tracks all field changes,
       // not just description, so it cannot reliably determine if dashboard status is newer.
@@ -688,9 +691,9 @@ function adfBlockToHtml(node) {
     const items = (node.content || []).map(item => {
       const checked = item.attrs?.state === 'DONE' ? ' checked' : '';
       const text = (item.content || []).map(adfInlineToHtml).join('');
-      return `<div style="display:flex;align-items:baseline;gap:6px;margin:2px 0;"><input type="checkbox"${checked} disabled style="margin-top:3px;"> <span>${text}</span></div>`;
+      return `<div><input type="checkbox"${checked} disabled> ${text}</div>`;
     }).join('');
-    return `<div style="margin:4px 0;">${items}</div>`;
+    return items;
   }
   if (node.type === 'hardBreak') return '<br>';
   // fallback: render content if present
@@ -1598,7 +1601,7 @@ editProjectForm.addEventListener('submit', async (event) => {
   if (newDueDate) selectedProject.dueDate = newDueDate;
   const rawStatus = editStatusEditor.getAttribute('data-placeholder-active') ? '' : editStatusEditor.innerHTML.trim();
   selectedProject.statusText = isEmptyStatus(rawStatus) ? '' : rawStatus;
-  selectedProject.statusUpdatedAt = new Date(Date.now() + 30000).toISOString();
+  selectedProject.statusUpdatedAt = new Date(Date.now() + 5000).toISOString();
 
   saveProjects();
   renderAll();
