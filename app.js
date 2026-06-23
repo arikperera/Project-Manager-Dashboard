@@ -2631,9 +2631,14 @@ importPmSearch.addEventListener('input', () => {
   importPmStatus.textContent = 'Searching...';
   importDebounceTimer = setTimeout(async () => {
     try {
-      const res = await fetch(`http://localhost:8081/jira/user/search?query=${encodeURIComponent(q)}`, {
-        headers: { Accept: 'application/json' },
-      });
+      const useProxy = settings.jiraEmail && settings.jiraToken;
+      const userSearchUrl = useProxy
+        ? `http://localhost:8081/jira/user/search?query=${encodeURIComponent(q)}`
+        : `https://kaltura.atlassian.net/rest/api/3/user/search?query=${encodeURIComponent(q)}&maxResults=10`;
+      const userSearchOpts = useProxy
+        ? { headers: { Accept: 'application/json' } }
+        : { credentials: 'include', headers: { Accept: 'application/json' } };
+      const res = await fetch(userSearchUrl, userSearchOpts);
       if (!res.ok) { importPmStatus.textContent = 'Search failed.'; return; }
       const users = await res.json();
       importPmStatus.textContent = '';
@@ -2682,10 +2687,16 @@ async function loadImportStep2(pm) {
 
   const jql = `issuetype = Initiative AND assignee = "${pm.accountId}" AND (status = Open OR status = "in progress") ORDER BY created ASC`;
   const extraFields = [cachedAccountNameFieldId, cachedMrrFieldId, cachedNrrFieldId, cachedEstHoursFieldId, cachedVMForecastFieldId].filter(Boolean).join(',');
-  const url = `http://localhost:8081/jira/search/jql?jql=${encodeURIComponent(jql)}&fields=summary,status,assignee,created${extraFields ? ',' + extraFields : ''}&maxResults=50`;
+  const useProxy = settings.jiraEmail && settings.jiraToken;
+  const url = useProxy
+    ? `http://localhost:8081/jira/search/jql?jql=${encodeURIComponent(jql)}&fields=summary,status,assignee,created${extraFields ? ',' + extraFields : ''}&maxResults=50`
+    : `https://kaltura.atlassian.net/rest/api/3/search/jql?jql=${encodeURIComponent(jql)}&fields=summary,status,assignee,created${extraFields ? ',' + extraFields : ''}&maxResults=50`;
+  const fetchOpts = useProxy
+    ? { headers: { Accept: 'application/json' } }
+    : { credentials: 'include', headers: { Accept: 'application/json' } };
 
   try {
-    const res = await fetch(url, { headers: { Accept: 'application/json' } });
+    const res = await fetch(url, fetchOpts);
     if (!res.ok) {
       const errText = await res.text();
       console.error('[import search]', res.status, url, errText);
