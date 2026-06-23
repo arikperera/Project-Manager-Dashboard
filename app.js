@@ -686,8 +686,8 @@ function adfBlockToHtml(node) {
   }
   if (node.type === 'taskList') {
     const items = (node.content || []).map(item => {
+      console.log('[taskItem]', JSON.stringify(item));
       const checked = item.attrs?.state === 'DONE' ? ' checked' : '';
-      // taskItem content is paragraph nodes — extract inline text directly
       const text = (item.content || []).flatMap(p => (p.content || []).map(adfInlineToHtml)).join('');
       return `<div style="display:flex;align-items:baseline;gap:6px;margin:2px 0;"><input type="checkbox"${checked} disabled style="margin-top:3px;"> <span>${text}</span></div>`;
     }).join('');
