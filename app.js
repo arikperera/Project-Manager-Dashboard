@@ -510,33 +510,61 @@ function getProgressFillTone(value) {
   return 'progress-fill-red';
 }
 
+function applyFieldNames(names) {
+  for (const [id, name] of Object.entries(names)) {
+    if (name === 'Risk Reason') cachedRiskReasonFieldId = id;
+    if (name === 'VM Forecast Commit Date') cachedVMForecastFieldId = id;
+    if (name === 'Project Progress Percentage') cachedProgressPctFieldId = id;
+    if (name === 'Estimated PS Hours') cachedEstHoursFieldId = id;
+    if (name === 'Remaining Effort') cachedRemEffortFieldId = id;
+    if (name === 'Actual Effort(H)') cachedActEffortFieldId = id;
+    if (name === 'Risk Rate') cachedRiskRateFieldId = id;
+    if (name === 'Account Name') cachedAccountNameFieldId = id;
+    if (name === 'MRR (USD)') cachedMrrFieldId = id;
+    if (name === 'NRR(USD)') cachedNrrFieldId = id;
+  }
+}
+
 async function resolveJiraFieldIds() {
   const useProxy = true;
-  const url = useProxy
-    ? 'https://pm-proxy.demo.qa.kaltura.ai/jira/field'
-    : 'https://kaltura.atlassian.net/rest/api/3/field';
   const opts = useProxy
     ? { headers: { Accept: 'application/json' } }
     : { credentials: 'include', headers: { Accept: 'application/json' } };
+
+  // First try /jira/field (lightweight)
   try {
+    const url = useProxy
+      ? 'https://pm-proxy.demo.qa.kaltura.ai/jira/field'
+      : 'https://kaltura.atlassian.net/rest/api/3/field';
     const res = await fetch(url, opts);
-    if (!res.ok) return;
-    const fields = await res.json();
-    for (const f of fields) {
-      if (f.name === 'Risk Reason') cachedRiskReasonFieldId = f.id;
-      if (f.name === 'VM Forecast Commit Date') cachedVMForecastFieldId = f.id;
-      if (f.name === 'Project Progress Percentage') cachedProgressPctFieldId = f.id;
-      if (f.name === 'Estimated PS Hours') cachedEstHoursFieldId = f.id;
-      if (f.name === 'Remaining Effort') cachedRemEffortFieldId = f.id;
-      if (f.name === 'Actual Effort(H)') cachedActEffortFieldId = f.id;
-      if (f.name === 'Risk Rate') cachedRiskRateFieldId = f.id;
-      if (f.name === 'Account Name') cachedAccountNameFieldId = f.id;
-      if (f.name === 'MRR (USD)') cachedMrrFieldId = f.id;
-      if (f.name === 'NRR(USD)') cachedNrrFieldId = f.id;
+    if (res.ok) {
+      const fields = await res.json();
+      const namesMap = {};
+      for (const f of fields) namesMap[f.id] = f.name;
+      applyFieldNames(namesMap);
     }
-    if (cachedRiskRateFieldId && !cachedRiskRateOptions) {
-      await resolveRiskRateOptions(cachedRiskRateFieldId);
+  } catch {}
+
+  // If critical fields are still missing, fetch from a real issue's names map
+  if (!cachedAccountNameFieldId || !cachedVMForecastFieldId || !cachedEstHoursFieldId) {
+    const firstKey = projects.map(p => getJiraIssueKey(p.jira)).filter(Boolean)[0];
+    if (firstKey) {
+      try {
+        const url = useProxy
+          ? `https://pm-proxy.demo.qa.kaltura.ai/jira/issue/${firstKey}?fields=*all&expand=names`
+          : `https://kaltura.atlassian.net/rest/api/3/issue/${firstKey}?fields=*all&expand=names`;
+        const res = await fetch(url, opts);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.names) applyFieldNames(data.names);
+        }
+      } catch {}
     }
+  }
+
+  if (cachedRiskRateFieldId && !cachedRiskRateOptions) {
+    await resolveRiskRateOptions(cachedRiskRateFieldId);
+  }
   } catch {}
 }
 
