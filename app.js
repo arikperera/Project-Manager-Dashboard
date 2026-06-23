@@ -636,14 +636,11 @@ async function syncStatusFromJira() {
         // Jira is newer (or no local timestamp) — pull from Jira
         const adf = data.fields?.description;
         const html = adf ? adfToHtml(adf) : '';
-        console.log(`[sync] ${issueKey}: jiraTime=${jiraTime} localTime=${localTime} pulling=${html !== project.statusText}`);
         if (html !== project.statusText) {
           project.statusText = html;
           project.statusUpdatedAt = jiraUpdated;
           changed = true;
         }
-      } else {
-        console.log(`[sync] ${issueKey}: skipped (localTime=${localTime} >= jiraTime=${jiraTime})`);
       }
       // Note: push-on-load disabled — Jira's issue-level `updated` tracks all field changes,
       // not just description, so it cannot reliably determine if dashboard status is newer.
@@ -1014,9 +1011,7 @@ async function writeStatusToJira(issueKey, statusText) {
   const url = useProxy
     ? `http://localhost:8081/jira/issue/${issueKey}`
     : `https://kaltura.atlassian.net/rest/api/3/issue/${issueKey}`;
-  console.log('[writeStatusToJira] HTML input:', statusText);
   const adf = htmlToAdf(statusText || '');
-  console.log('[writeStatusToJira] ADF being sent:', JSON.stringify(adf, null, 2));
   const res = await fetch(url, {
     method: 'PUT',
     ...(useProxy ? {} : { credentials: 'include' }),
