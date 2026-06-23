@@ -1572,11 +1572,11 @@ function renderCustomersModal() {
   }
   customersModalBody.innerHTML = [...customers].sort((a, b) => a.name.localeCompare(b.name)).map(c => `
     <div class="user-row" data-customer-id="${escapeHtml(c.id)}">
-      <div>
-        <span>${escapeHtml(c.name)}</span>
+      <div style="min-width:0;overflow:hidden;">
+        <span style="word-break:break-word;">${escapeHtml(c.name)}</span>
         ${c.sfLink ? `<br><a href="${escapeHtml(c.sfLink)}" target="_blank" rel="noreferrer" style="font-size:0.82rem;color:#7dd3fc;">SF link</a>` : ''}
       </div>
-      <div>
+      <div style="flex-shrink:0;margin-left:8px;">
         <button type="button" class="ghost-btn small-btn" data-edit-customer="${escapeHtml(c.id)}">Edit</button>
         <button type="button" class="ghost-btn small-btn" data-delete-customer="${escapeHtml(c.id)}">Delete</button>
       </div>
