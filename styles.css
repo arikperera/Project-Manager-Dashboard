@@ -108,7 +108,7 @@ h1 { font-size: 1.9rem; margin-bottom: 8px; }
 .pm-table th:nth-child(9), .pm-table td:nth-child(9) { width: 21%; }
 .pm-table th:nth-child(10), .pm-table td:nth-child(10) { width: 12%; }
 .pm-table th:nth-child(11), .pm-table td:nth-child(11) { width: 8%; }
-.cell-scroll { max-height: 84px; overflow-y: auto; overflow-x: hidden; display: block; padding-right: 4px; }
+.cell-scroll { max-height: 190px; overflow-y: auto; overflow-x: hidden; display: block; padding-right: 4px; }
 th, td { text-align:left; padding:10px 8px; border-bottom: 1px solid var(--line); font-size: 0.95rem; }
 th { color: #bfdbfe; font-weight:600; }
 .status-badge { display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:999px; font-size:0.85rem; font-weight:700; }
