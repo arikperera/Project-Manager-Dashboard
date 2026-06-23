@@ -1,5 +1,15 @@
-const APP_VERSION = '1.1.0';
+const APP_VERSION = '1.2.0';
 const CHANGELOG = [
+  {
+    version: '1.2.0',
+    date: '2026-06-23',
+    features: [
+      'Shared proxy — all Jira API calls route through a shared cloud worker; no local proxy needed',
+      'Auto-create users and customers on import — PM and customer are added automatically if they don\'t exist',
+      'No import limit — project import returns up to 200 projects per PM',
+      'Project Budget tooltip — projects with zero actual hours now show "No hours reported yet"',
+    ]
+  },
   {
     version: '1.1.0',
     date: '2026-06-23',
