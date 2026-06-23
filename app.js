@@ -730,14 +730,35 @@ function htmlNodesToAdf(nodes) {
       const tag = node.tagName.toLowerCase();
       if (tag === 'ul' || tag === 'ol') {
         const listType = tag === 'ul' ? 'bulletList' : 'orderedList';
-        const items = [...node.children].map(li => {
-          const parsed = htmlNodesToAdf(li.childNodes);
-          // Ensure all content is block nodes — wrap bare inline/text in paragraph
-          const content = parsed.length
-            ? parsed.map(n => (n.type === 'paragraph' || n.type === 'bulletList' || n.type === 'orderedList') ? n : { type: 'paragraph', content: [n] })
-            : [{ type: 'paragraph', content: [] }];
-          return { type: 'listItem', content };
-        }).filter(item => item.content.length > 0);
+        const items = [];
+        for (const child of node.children) {
+          const childTag = child.tagName.toLowerCase();
+          if (childTag === 'ul' || childTag === 'ol') {
+            // Bare nested list (browser indent quirk) — attach to last listItem
+            const nestedType = childTag === 'ul' ? 'bulletList' : 'orderedList';
+            const nestedItems = [...child.children].map(li => {
+              const parsed = htmlNodesToAdf(li.childNodes);
+              const content = parsed.length
+                ? parsed.map(n => (n.type === 'paragraph' || n.type === 'bulletList' || n.type === 'orderedList') ? n : { type: 'paragraph', content: [n] })
+                : [{ type: 'paragraph', content: [] }];
+              return { type: 'listItem', content };
+            }).filter(i => i.content.length > 0);
+            if (nestedItems.length) {
+              const nested = { type: nestedType, content: nestedItems };
+              if (items.length > 0) {
+                items[items.length - 1].content.push(nested);
+              } else {
+                items.push({ type: 'listItem', content: [{ type: 'paragraph', content: [] }, nested] });
+              }
+            }
+          } else if (childTag === 'li') {
+            const parsed = htmlNodesToAdf(child.childNodes);
+            const content = parsed.length
+              ? parsed.map(n => (n.type === 'paragraph' || n.type === 'bulletList' || n.type === 'orderedList') ? n : { type: 'paragraph', content: [n] })
+              : [{ type: 'paragraph', content: [] }];
+            items.push({ type: 'listItem', content });
+          }
+        }
         if (items.length) result.push({ type: listType, content: items });
       } else if (tag === 'li') {
         const inner = htmlNodesToAdf(node.childNodes);
