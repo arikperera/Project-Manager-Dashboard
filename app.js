@@ -684,6 +684,14 @@ function adfBlockToHtml(node) {
     const inner = (node.content || []).map(adfInlineToHtml).join('');
     return `<h${level}>${inner}</h${level}>`;
   }
+  if (node.type === 'taskList') {
+    const items = (node.content || []).map(item => {
+      const checked = item.attrs?.state === 'DONE' ? ' checked' : '';
+      const inner = (item.content || []).map(adfBlockToHtml).join('');
+      return `<div style="display:flex;align-items:baseline;gap:6px;"><input type="checkbox"${checked} disabled>${inner}</div>`;
+    }).join('');
+    return `<div>${items}</div>`;
+  }
   if (node.type === 'hardBreak') return '<br>';
   // fallback: render content if present
   return (node.content || []).map(adfBlockToHtml).join('');
