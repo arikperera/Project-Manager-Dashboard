@@ -685,12 +685,11 @@ function adfBlockToHtml(node) {
     return `<h${level}>${inner}</h${level}>`;
   }
   if (node.type === 'taskList') {
-    const items = (node.content || []).map(item => {
+    return (node.content || []).map(item => {
       const checked = item.attrs?.state === 'DONE' ? ' checked' : '';
       const text = (item.content || []).map(adfInlineToHtml).join('');
-      return `<div><input type="checkbox"${checked} disabled> ${text}</div>`;
+      return `<div><input type="checkbox"${checked} disabled style="vertical-align:middle;margin-right:4px;">${text}</div>`;
     }).join('');
-    return items;
   }
   if (node.type === 'hardBreak') return '<br>';
   // fallback: render content if present
