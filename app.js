@@ -1192,6 +1192,10 @@ function renderTable() {
                   } else if (project.estimatedHours != null && project.remainingHours != null) {
                     const used = project.actualHours != null ? project.actualHours : (project.estimatedHours - project.remainingHours);
                     tip = `${used} hours have been completed out of ${project.estimatedHours}, with ${project.remainingHours} hours remaining`;
+                  } else if (project.actualHours != null && project.estimatedHours != null) {
+                    tip = `${project.actualHours} hours have been completed out of ${project.estimatedHours}`;
+                  } else if (project.actualHours != null) {
+                    tip = project.actualHours === 0 ? 'No hours reported yet' : `${project.actualHours} hours reported`;
                   }
                   return tip ? `<div class="progress-tooltip">${escapeHtml(tip).replace(/\n/g,'<br>')}</div>` : '';
                 })()}
@@ -2008,6 +2012,10 @@ function generateHTMLReport() {
     else if (estimatedHours != null && remainingHours != null) {
       const used = actualHours != null ? actualHours : (estimatedHours - remainingHours);
       tip = `${used} hours have been completed out of ${estimatedHours}, with ${remainingHours} hours remaining`;
+    } else if (actualHours != null && estimatedHours != null) {
+      tip = `${actualHours} hours have been completed out of ${estimatedHours}`;
+    } else if (actualHours != null) {
+      tip = actualHours === 0 ? 'No hours reported yet' : `${actualHours} hours reported`;
     }
     const bar = `<div style="width:100%;background:#142033;border-radius:999px;overflow:hidden;height:8px;margin-bottom:4px"><div style="height:100%;border-radius:999px;width:${Math.min(v,100)}%;background:${fill}"></div></div><small style="color:${color};font-weight:700">${v}%</small>`;
     const barWithTip = tip ? `<span class="rpt-progress-wrap">${bar}<span class="rpt-tooltip">${tip.replace(/\n/g,'<br>')}</span></span>` : bar;
