@@ -686,9 +686,9 @@ function adfBlockToHtml(node) {
   }
   if (node.type === 'taskList') {
     return (node.content || []).map(item => {
-      const checked = item.attrs?.state === 'DONE' ? ' checked' : '';
+      const box = item.attrs?.state === 'DONE' ? '☑' : '☐';
       const text = (item.content || []).map(adfInlineToHtml).join('');
-      return `<div><input type="checkbox"${checked} disabled style="vertical-align:middle;margin-right:4px;">${text}</div>`;
+      return `<div>${box} ${text}</div>`;
     }).join('');
   }
   if (node.type === 'hardBreak') return '<br>';
