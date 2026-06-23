@@ -565,7 +565,6 @@ async function resolveJiraFieldIds() {
   if (cachedRiskRateFieldId && !cachedRiskRateOptions) {
     await resolveRiskRateOptions(cachedRiskRateFieldId);
   }
-  } catch {}
 }
 
 async function resolveRiskRateOptions(fieldId) {
