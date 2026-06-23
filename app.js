@@ -687,10 +687,11 @@ function adfBlockToHtml(node) {
   if (node.type === 'taskList') {
     const items = (node.content || []).map(item => {
       const checked = item.attrs?.state === 'DONE' ? ' checked' : '';
-      const inner = (item.content || []).map(adfBlockToHtml).join('');
-      return `<div style="display:flex;align-items:baseline;gap:6px;"><input type="checkbox"${checked} disabled>${inner}</div>`;
+      // taskItem content is paragraph nodes — extract inline text directly
+      const text = (item.content || []).flatMap(p => (p.content || []).map(adfInlineToHtml)).join('');
+      return `<div style="display:flex;align-items:baseline;gap:6px;margin:2px 0;"><input type="checkbox"${checked} disabled style="margin-top:3px;"> <span>${text}</span></div>`;
     }).join('');
-    return `<div>${items}</div>`;
+    return `<div style="margin:4px 0;">${items}</div>`;
   }
   if (node.type === 'hardBreak') return '<br>';
   // fallback: render content if present
