@@ -2703,6 +2703,9 @@ async function loadImportStep2(pm) {
   importSelectAll.checked = false;
   importProgress.textContent = '';
 
+  // Ensure custom field IDs are resolved before building search URL
+  if (!cachedAccountNameFieldId || !cachedVMForecastFieldId) await resolveJiraFieldIds();
+
   const jql = `issuetype = Initiative AND assignee = "${pm.accountId}" AND (status = Open OR status = "in progress") ORDER BY created ASC`;
   const extraFields = [cachedAccountNameFieldId, cachedMrrFieldId, cachedNrrFieldId, cachedEstHoursFieldId, cachedVMForecastFieldId].filter(Boolean).join(',');
   const useProxy = true;
