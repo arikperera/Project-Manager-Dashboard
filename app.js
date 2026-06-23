@@ -501,9 +501,9 @@ function getProgressFillTone(value) {
 }
 
 async function resolveJiraFieldIds() {
-  const useProxy = settings.jiraEmail && settings.jiraToken;
+  const useProxy = true;
   const url = useProxy
-    ? 'http://localhost:8081/jira/field'
+    ? 'https://pm-proxy.demo.qa.kaltura.ai/jira/field'
     : 'https://kaltura.atlassian.net/rest/api/3/field';
   const opts = useProxy
     ? { headers: { Accept: 'application/json' } }
@@ -533,9 +533,9 @@ async function resolveJiraFieldIds() {
 async function resolveRiskRateOptions(fieldId) {
   const issueKey = projects.map(p => getJiraIssueKey(p.jira)).filter(Boolean)[0];
   if (!issueKey) return;
-  const useProxy = settings.jiraEmail && settings.jiraToken;
+  const useProxy = true;
   const url = useProxy
-    ? `http://localhost:8081/jira/issue/${issueKey}/editmeta`
+    ? `https://pm-proxy.demo.qa.kaltura.ai/jira/issue/${issueKey}/editmeta`
     : `https://kaltura.atlassian.net/rest/api/3/issue/${issueKey}/editmeta`;
   const opts = useProxy
     ? { headers: { Accept: 'application/json' } }
@@ -560,7 +560,7 @@ async function syncProjectProgressFromJira() {
 
   if (!issueKeys.length) return;
 
-  const useProxy = settings.jiraEmail && settings.jiraToken;
+  const useProxy = true;
 
   await resolveJiraFieldIds();
 
@@ -571,7 +571,7 @@ async function syncProjectProgressFromJira() {
   for (const key of [...new Set(issueKeys)]) {
     try {
       const url = useProxy
-        ? `http://localhost:8081/jira/issue/${key}?fields=${fieldsParam}`
+        ? `https://pm-proxy.demo.qa.kaltura.ai/jira/issue/${key}?fields=${fieldsParam}`
         : `https://kaltura.atlassian.net/rest/api/3/issue/${key}?fields=${fieldsParam}`;
       const fetchOpts = useProxy
         ? { headers: { Accept: 'application/json' } }
@@ -623,7 +623,7 @@ async function syncProjectProgressFromJira() {
 }
 
 async function syncStatusFromJira() {
-  const useProxy = settings.jiraEmail && settings.jiraToken;
+  const useProxy = true;
   let changed = false;
 
   for (const project of projects) {
@@ -631,7 +631,7 @@ async function syncStatusFromJira() {
     if (!issueKey) continue;
     try {
       const url = useProxy
-        ? `http://localhost:8081/jira/issue/${issueKey}?fields=description,updated`
+        ? `https://pm-proxy.demo.qa.kaltura.ai/jira/issue/${issueKey}?fields=description,updated`
         : `https://kaltura.atlassian.net/rest/api/3/issue/${issueKey}?fields=description,updated`;
       const opts = useProxy
         ? { headers: { Accept: 'application/json' } }
@@ -889,7 +889,7 @@ async function pollForNewProjects() {
   if (!settings.jiraEmail || !settings.jiraToken) return;
   let newIssues;
   try {
-    const resp = await fetch('http://localhost:8081/jira/new-assignments', {
+    const resp = await fetch('https://pm-proxy.demo.qa.kaltura.ai/jira/new-assignments', {
       headers: { Accept: 'application/json' },
     });
     if (!resp.ok) return;
@@ -907,10 +907,10 @@ async function pollForNewProjects() {
     const extraFieldIds = [cachedAccountNameFieldId, cachedMrrFieldId, cachedNrrFieldId, cachedEstHoursFieldId, cachedVMForecastFieldId].filter(Boolean);
     if (extraFieldIds.length) {
       try {
-        const useProxy = settings.jiraEmail && settings.jiraToken;
+        const useProxy = true;
         const fieldsParam = extraFieldIds.join(',');
         const extraUrl = useProxy
-          ? `http://localhost:8081/jira/issue/${issue.key}?fields=${fieldsParam}`
+          ? `https://pm-proxy.demo.qa.kaltura.ai/jira/issue/${issue.key}?fields=${fieldsParam}`
           : `https://kaltura.atlassian.net/rest/api/3/issue/${issue.key}?fields=${fieldsParam}`;
         const extraResp = await fetch(extraUrl, useProxy ? { headers: { Accept: 'application/json' } } : { credentials: 'include', headers: { Accept: 'application/json' } });
         if (extraResp.ok) {
@@ -927,7 +927,7 @@ async function pollForNewProjects() {
 
     let sfData = { sfSkipped: true };
     try {
-      const sfResp = await fetch(`http://localhost:8081/sf/enrich?jiraKey=${encodeURIComponent(issue.key)}`, {
+      const sfResp = await fetch(`https://pm-proxy.demo.qa.kaltura.ai/sf/enrich?jiraKey=${encodeURIComponent(issue.key)}`, {
         headers: { Accept: 'application/json' },
       });
       if (sfResp.ok) sfData = await sfResp.json();
@@ -1004,9 +1004,9 @@ document.getElementById('newProjectsBannerDismiss').addEventListener('click', di
 async function writeRiskReasonToJira(issueKey, optionId) {
   if (!cachedRiskReasonFieldId) await resolveJiraFieldIds();
   if (!cachedRiskReasonFieldId) throw new Error('Risk Reason field ID not resolved');
-  const useProxy = settings.jiraEmail && settings.jiraToken;
+  const useProxy = true;
   const url = useProxy
-    ? `http://localhost:8081/jira/issue/${issueKey}`
+    ? `https://pm-proxy.demo.qa.kaltura.ai/jira/issue/${issueKey}`
     : `https://kaltura.atlassian.net/rest/api/3/issue/${issueKey}`;
   const res = await fetch(url, {
     method: 'PUT',
@@ -1018,9 +1018,9 @@ async function writeRiskReasonToJira(issueKey, optionId) {
 }
 
 async function writeStatusToJira(issueKey, statusText) {
-  const useProxy = settings.jiraEmail && settings.jiraToken;
+  const useProxy = true;
   const url = useProxy
-    ? `http://localhost:8081/jira/issue/${issueKey}`
+    ? `https://pm-proxy.demo.qa.kaltura.ai/jira/issue/${issueKey}`
     : `https://kaltura.atlassian.net/rest/api/3/issue/${issueKey}`;
   const adf = htmlToAdf(statusText || '');
   const res = await fetch(url, {
@@ -1038,9 +1038,9 @@ async function writeRiskRateToJira(issueKey, health) {
   if (!cachedRiskRateOptions) throw new Error('Risk Rate options not resolved');
   const optionId = cachedRiskRateOptions[health];
   if (!optionId) throw new Error(`Risk Rate option not found for health: ${health}`);
-  const useProxy = settings.jiraEmail && settings.jiraToken;
+  const useProxy = true;
   const url = useProxy
-    ? `http://localhost:8081/jira/issue/${issueKey}`
+    ? `https://pm-proxy.demo.qa.kaltura.ai/jira/issue/${issueKey}`
     : `https://kaltura.atlassian.net/rest/api/3/issue/${issueKey}`;
   const res = await fetch(url, {
     method: 'PUT',
@@ -1057,9 +1057,9 @@ async function writeDueDateToJira(issueKey, dateStr) {
   if (!dateStr) return;
   if (!cachedVMForecastFieldId) await resolveJiraFieldIds();
   if (!cachedVMForecastFieldId) throw new Error('VM Forecast Commit Date field ID not resolved');
-  const useProxy = settings.jiraEmail && settings.jiraToken;
+  const useProxy = true;
   const url = useProxy
-    ? `http://localhost:8081/jira/issue/${issueKey}`
+    ? `https://pm-proxy.demo.qa.kaltura.ai/jira/issue/${issueKey}`
     : `https://kaltura.atlassian.net/rest/api/3/issue/${issueKey}`;
   const res = await fetch(url, {
     method: 'PUT',
@@ -1724,7 +1724,7 @@ saveSettingsBtn.addEventListener('click', async () => {
   saveSettings();
 
   try {
-    await fetch('http://localhost:8081/settings', {
+    await fetch('https://pm-proxy.demo.qa.kaltura.ai/settings', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ jiraEmail: settings.jiraEmail, jiraToken: settings.jiraToken, watchedAssignees: settings.watchedAssignees, pollIntervalMinutes: settings.pollIntervalMinutes }),
@@ -1739,7 +1739,7 @@ saveSettingsBtn.addEventListener('click', async () => {
   const sfClientSecret = document.getElementById('settingsSFClientSecret').value.trim();
   if (sfUsername && sfPassword && sfClientId && sfClientSecret) {
     try {
-      await fetch('http://localhost:8081/settings/sf', {
+      await fetch('https://pm-proxy.demo.qa.kaltura.ai/settings/sf', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sfUsername, sfPasswordWithToken: sfPassword, sfClientId, sfClientSecret }),
@@ -2631,9 +2631,9 @@ importPmSearch.addEventListener('input', () => {
   importPmStatus.textContent = 'Searching...';
   importDebounceTimer = setTimeout(async () => {
     try {
-      const useProxy = settings.jiraEmail && settings.jiraToken;
+      const useProxy = true;
       const userSearchUrl = useProxy
-        ? `http://localhost:8081/jira/user/search?query=${encodeURIComponent(q)}`
+        ? `https://pm-proxy.demo.qa.kaltura.ai/jira/user/search?query=${encodeURIComponent(q)}`
         : `https://kaltura.atlassian.net/rest/api/3/user/search?query=${encodeURIComponent(q)}&maxResults=10`;
       const userSearchOpts = useProxy
         ? { headers: { Accept: 'application/json' } }
@@ -2687,9 +2687,9 @@ async function loadImportStep2(pm) {
 
   const jql = `issuetype = Initiative AND assignee = "${pm.accountId}" AND (status = Open OR status = "in progress") ORDER BY created ASC`;
   const extraFields = [cachedAccountNameFieldId, cachedMrrFieldId, cachedNrrFieldId, cachedEstHoursFieldId, cachedVMForecastFieldId].filter(Boolean).join(',');
-  const useProxy = settings.jiraEmail && settings.jiraToken;
+  const useProxy = true;
   const url = useProxy
-    ? `http://localhost:8081/jira/search/jql?jql=${encodeURIComponent(jql)}&fields=summary,status,assignee,created${extraFields ? ',' + extraFields : ''}&maxResults=50`
+    ? `https://pm-proxy.demo.qa.kaltura.ai/jira/search/jql?jql=${encodeURIComponent(jql)}&fields=summary,status,assignee,created${extraFields ? ',' + extraFields : ''}&maxResults=50`
     : `https://kaltura.atlassian.net/rest/api/3/search/jql?jql=${encodeURIComponent(jql)}&fields=summary,status,assignee,created${extraFields ? ',' + extraFields : ''}&maxResults=50`;
   const fetchOpts = useProxy
     ? { headers: { Accept: 'application/json' } }
@@ -2776,7 +2776,7 @@ importConfirmBtn.addEventListener('click', async () => {
     importProgress.textContent = `Importing ${done + 1} of ${toImport.length}...`;
     let sfData = { sfSkipped: true };
     try {
-      const sfResp = await fetch(`http://localhost:8081/sf/enrich?jiraKey=${encodeURIComponent(issue.key)}`, {
+      const sfResp = await fetch(`https://pm-proxy.demo.qa.kaltura.ai/sf/enrich?jiraKey=${encodeURIComponent(issue.key)}`, {
         headers: { Accept: 'application/json' },
       });
       if (sfResp.ok) sfData = await sfResp.json();
