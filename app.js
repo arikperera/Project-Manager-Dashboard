@@ -1,5 +1,14 @@
-const APP_VERSION = '1.2.0';
+const APP_VERSION = '1.2.1';
 const CHANGELOG = [
+  {
+    version: '1.2.1',
+    date: '2026-06-24',
+    features: [
+      'Import fix — Customer name, NRR(h), End date, NRR(USD) and MRR(USD) now correctly populated from Jira on import',
+      'Currency format — values now show with $ prefix (e.g. $14.8K instead of 14.8K)',
+      'Customer list — Edit/Delete buttons stay on same line for long customer names',
+    ]
+  },
   {
     version: '1.2.0',
     date: '2026-06-23',
