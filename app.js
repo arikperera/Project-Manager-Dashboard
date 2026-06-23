@@ -1,5 +1,17 @@
-const APP_VERSION = '1.0.0';
+const APP_VERSION = '1.1.0';
 const CHANGELOG = [
+  {
+    version: '1.1.0',
+    date: '2026-06-23',
+    features: [
+      'Import from Jira — bulk import initiatives by PM name with live autocomplete; auto-fills customer, NRR hours, MRR/NRR, due date from Jira',
+      'Project Status ↔ Jira sync — bidirectional sync with Jira Initiative Description on page load and save; supports bullet lists, numbered lists, nested indentation, and task lists (☐/☑)',
+      'Reassign PM — edit modal now has a PM selector to move a project between PMs',
+      'Project Health → Jira Risk Rate — changing health updates the Jira Risk Rate field automatically',
+      'Larger status cell — Project Status column shows ~10 lines before scrolling',
+      'Editor improvements — content no longer lost when clicking toolbar buttons',
+    ]
+  },
   {
     version: '1.0.0',
     date: '2026-06-21',
