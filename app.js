@@ -1,5 +1,5 @@
 const PROXY_BASE = 'https://pm-proxy.demo.qa.kaltura.ai';
-const KV_SECRET = 'dashboard-kv-2026';
+const KV_SECRET = 'HPZTjoBph4Cz9AMGwiSsYcJf086bdgRX';
 const APP_VERSION = '1.2.1';
 const CHANGELOG = [
   {
