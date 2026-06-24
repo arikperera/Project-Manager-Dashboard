@@ -1021,7 +1021,7 @@ function buildProjectFromEnrichment(issue, sfData) {
     comments:    `NRR: ${formatCurrency(nrr || '0')}, MRR: ${formatCurrency(mrr || '0')}, CSM: ${csmName || '-'}, Sales: ${salesName || '-'}`,
     startDate,
     dueDate:     issue.dueDate || '',
-    health:      'Green',
+    health:      issue.healthFromJira || 'Green',
     status:      'On Track',
     progress:    0,
     statusText:  '',
@@ -2865,10 +2865,10 @@ async function loadImportStep2(pm) {
   importProgress.textContent = '';
 
   // Ensure custom field IDs are resolved before building search URL
-  if (!cachedAccountNameFieldId || !cachedVMForecastFieldId || !cachedNrrFieldId || !cachedMrrFieldId || !cachedEstHoursFieldId || !cachedRiskReasonFieldId) await resolveJiraFieldIds();
+  if (!cachedAccountNameFieldId || !cachedVMForecastFieldId || !cachedNrrFieldId || !cachedMrrFieldId || !cachedEstHoursFieldId || !cachedRiskReasonFieldId || !cachedRiskRateFieldId) await resolveJiraFieldIds();
 
   const jql = `issuetype = Initiative AND assignee = "${pm.accountId}" AND (status = Open OR status = "in progress") ORDER BY created ASC`;
-  const extraFields = [cachedAccountNameFieldId, cachedMrrFieldId, cachedNrrFieldId, cachedEstHoursFieldId, cachedVMForecastFieldId, cachedRiskReasonFieldId].filter(Boolean).join(',');
+  const extraFields = [cachedAccountNameFieldId, cachedMrrFieldId, cachedNrrFieldId, cachedEstHoursFieldId, cachedVMForecastFieldId, cachedRiskReasonFieldId, cachedRiskRateFieldId].filter(Boolean).join(',');
   const useProxy = true;
   const url = useProxy
     ? `https://pm-proxy.demo.qa.kaltura.ai/jira/search/jql?jql=${encodeURIComponent(jql)}&fields=summary,status,assignee,created${extraFields ? ',' + extraFields : ''}&maxResults=200`
@@ -2900,6 +2900,7 @@ async function loadImportStep2(pm) {
       estimatedHours: cachedEstHoursFieldId ? (i.fields[cachedEstHoursFieldId] ?? '') : '',
       dueDate: cachedVMForecastFieldId ? (i.fields[cachedVMForecastFieldId] || '') : '',
       riskReason: cachedRiskReasonFieldId ? (i.fields[cachedRiskReasonFieldId]?.value || '') : '',
+      healthFromJira: cachedRiskRateFieldId ? (i.fields[cachedRiskRateFieldId]?.value || 'Green') : 'Green',
     }));
 
     const existing = getExistingJiraKeys();
