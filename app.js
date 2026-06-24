@@ -49,21 +49,21 @@ const CHANGELOG = [
 const STORAGE_KEY = 'project-dashboard-projects-v1';
 
 const USERS_KEY = 'project-dashboard-users-v1';
-let users = JSON.parse(localStorage.getItem(USERS_KEY) || '[]');
+let users;
 
 function saveUsers() {
   localStorage.setItem(USERS_KEY, JSON.stringify(users));
 }
 
 const SETTINGS_KEY = 'project-dashboard-settings-v1';
-let settings = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
+let settings;
 
 function saveSettings() {
   localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
 }
 
 const CUSTOMERS_KEY = 'project-dashboard-customers-v1';
-let customers = JSON.parse(localStorage.getItem(CUSTOMERS_KEY) || '[]');
+let customers;
 
 function saveCustomers() {
   localStorage.setItem(CUSTOMERS_KEY, JSON.stringify(customers));
@@ -284,8 +284,7 @@ function migrateProjects() {
   if (changed) saveProjects();
 }
 
-let projects = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null') || defaultProjects;
-migrateProjects();
+let projects;
 
 const statusClasses = {
   'On Track': 'status-ontrack',
