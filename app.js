@@ -1078,9 +1078,11 @@ async function pollForNewProjects() {
   showNewProjectsBanner(addedKeys);
 }
 
+let _kvPollTimer = null;
 function startKvPoll() {
-  const intervalMs = ((settings && settings.pollInterval) || 30) * 1000;
-  setInterval(async () => {
+  const intervalMs = (settings.pollIntervalMinutes ?? 15) * 60 * 1000;
+  if (_kvPollTimer) clearInterval(_kvPollTimer);
+  _kvPollTimer = setInterval(async () => {
     const fresh = await kvGet(STORAGE_KEY);
     if (!fresh) return;
     const currentSig = JSON.stringify(projects);
