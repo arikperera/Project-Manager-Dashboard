@@ -255,7 +255,11 @@ export default {
       const key = path.substring('/kv/'.length);
       if (!key) return json({ error: 'key required' }, 400);
       const value = await env.DASHBOARD_KV.get(key, 'text');
-      return json(value === null ? null : JSON.parse(value));
+      if (value === null) return json(null);
+      return new Response(value, {
+        status: 200,
+        headers: { ...CORS_HEADERS, 'Content-Type': 'application/json; charset=utf-8' },
+      });
     }
 
     // PUT /kv/:key
