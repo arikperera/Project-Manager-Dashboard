@@ -1002,7 +1002,7 @@ function buildProjectFromEnrichment(issue, sfData) {
     statusText:  '',
     oppLink:     sfOk ? (sfData.oppUrl || '') : '',
     atLink:      '',
-    riskReason:  '',
+    riskReason:  issue.riskReason || '',
     csm:         csmName,
     sales:       salesName,
   };
@@ -2840,10 +2840,10 @@ async function loadImportStep2(pm) {
   importProgress.textContent = '';
 
   // Ensure custom field IDs are resolved before building search URL
-  if (!cachedAccountNameFieldId || !cachedVMForecastFieldId || !cachedNrrFieldId || !cachedMrrFieldId || !cachedEstHoursFieldId) await resolveJiraFieldIds();
+  if (!cachedAccountNameFieldId || !cachedVMForecastFieldId || !cachedNrrFieldId || !cachedMrrFieldId || !cachedEstHoursFieldId || !cachedRiskReasonFieldId) await resolveJiraFieldIds();
 
   const jql = `issuetype = Initiative AND assignee = "${pm.accountId}" AND (status = Open OR status = "in progress") ORDER BY created ASC`;
-  const extraFields = [cachedAccountNameFieldId, cachedMrrFieldId, cachedNrrFieldId, cachedEstHoursFieldId, cachedVMForecastFieldId].filter(Boolean).join(',');
+  const extraFields = [cachedAccountNameFieldId, cachedMrrFieldId, cachedNrrFieldId, cachedEstHoursFieldId, cachedVMForecastFieldId, cachedRiskReasonFieldId].filter(Boolean).join(',');
   const useProxy = true;
   const url = useProxy
     ? `https://pm-proxy.demo.qa.kaltura.ai/jira/search/jql?jql=${encodeURIComponent(jql)}&fields=summary,status,assignee,created${extraFields ? ',' + extraFields : ''}&maxResults=200`
@@ -2874,6 +2874,7 @@ async function loadImportStep2(pm) {
       nrrUsd: cachedNrrFieldId ? (i.fields[cachedNrrFieldId] ?? '') : '',
       estimatedHours: cachedEstHoursFieldId ? (i.fields[cachedEstHoursFieldId] ?? '') : '',
       dueDate: cachedVMForecastFieldId ? (i.fields[cachedVMForecastFieldId] || '') : '',
+      riskReason: cachedRiskReasonFieldId ? (i.fields[cachedRiskReasonFieldId]?.value || '') : '',
     }));
 
     const existing = getExistingJiraKeys();
