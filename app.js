@@ -109,6 +109,69 @@ async function kvPut(key, value) {
   }
 }
 
+async function initData() {
+  let kvProjects, kvUsers, kvSettings, kvCustomers, kvBackups;
+  try {
+    [kvProjects, kvUsers, kvSettings, kvCustomers, kvBackups] = await Promise.all([
+      kvGet(STORAGE_KEY),
+      kvGet(USERS_KEY),
+      kvGet(SETTINGS_KEY),
+      kvGet(CUSTOMERS_KEY),
+      kvGet(BACKUPS_KEY),
+    ]);
+  } catch {
+    kvProjects = kvUsers = kvSettings = kvCustomers = kvBackups = null;
+  }
+
+  const workerUnreachable = kvProjects === null && kvUsers === null;
+  if (workerUnreachable) {
+    showOfflineBanner();
+    projects = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null') || defaultProjects;
+    users = JSON.parse(localStorage.getItem(USERS_KEY) || '[]');
+    settings = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
+    customers = JSON.parse(localStorage.getItem(CUSTOMERS_KEY) || '[]');
+    backups = JSON.parse(localStorage.getItem(BACKUPS_KEY) || '[]');
+    return;
+  }
+
+  const isFirstLoad = kvProjects === null && kvUsers === null && kvSettings === null
+    && kvCustomers === null && kvBackups === null;
+
+  if (isFirstLoad) {
+    const lsProjects = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null') || defaultProjects;
+    const lsUsers = JSON.parse(localStorage.getItem(USERS_KEY) || '[]');
+    const lsSettings = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
+    const lsCustomers = JSON.parse(localStorage.getItem(CUSTOMERS_KEY) || '[]');
+    const lsBackups = JSON.parse(localStorage.getItem(BACKUPS_KEY) || '[]');
+
+    await Promise.all([
+      kvPut(STORAGE_KEY, lsProjects),
+      kvPut(USERS_KEY, lsUsers),
+      kvPut(SETTINGS_KEY, lsSettings),
+      kvPut(CUSTOMERS_KEY, lsCustomers),
+      kvPut(BACKUPS_KEY, lsBackups),
+    ]);
+
+    projects = lsProjects;
+    users = lsUsers;
+    settings = lsSettings;
+    customers = lsCustomers;
+    backups = lsBackups;
+
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(USERS_KEY);
+    localStorage.removeItem(SETTINGS_KEY);
+    localStorage.removeItem(CUSTOMERS_KEY);
+    localStorage.removeItem(BACKUPS_KEY);
+  } else {
+    projects = kvProjects ?? defaultProjects;
+    users = kvUsers ?? [];
+    settings = kvSettings ?? {};
+    customers = kvCustomers ?? [];
+    backups = kvBackups ?? [];
+  }
+}
+
 let backups = JSON.parse(localStorage.getItem(BACKUPS_KEY) || '[]');
 
 function saveBackups() {
