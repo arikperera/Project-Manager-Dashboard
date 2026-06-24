@@ -10,6 +10,7 @@
  *   SF_PASSWORD_TOKEN  — Salesforce password + security token concatenated
  *   SF_CLIENT_ID       — Salesforce connected app client ID
  *   SF_CLIENT_SECRET   — Salesforce connected app client secret
+ *   KV_SECRET          — Shared secret for KV read/write routes (set in kvibe dashboard)
  *
  * Routes (mirrors proxy.ps1):
  *   GET  /health
@@ -29,7 +30,7 @@ const JIRA_BASE = 'https://kaltura.atlassian.net/rest/api/3';
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, PUT, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Accept',
+  'Access-Control-Allow-Headers': 'Content-Type, Accept, X-KV-Secret',
 };
 
 function json(data, status = 200) {
@@ -252,6 +253,7 @@ export default {
 
     // GET /kv/:key
     if (method === 'GET' && path.startsWith('/kv/')) {
+      if (request.headers.get('X-KV-Secret') !== env.KV_SECRET) return json({ error: 'Unauthorized' }, 401);
       const key = path.substring('/kv/'.length);
       if (!key) return json({ error: 'key required' }, 400);
       const value = await env.DASHBOARD_KV.get(key, 'text');
@@ -264,6 +266,7 @@ export default {
 
     // PUT /kv/:key
     if (method === 'PUT' && path.startsWith('/kv/')) {
+      if (request.headers.get('X-KV-Secret') !== env.KV_SECRET) return json({ error: 'Unauthorized' }, 401);
       const key = path.substring('/kv/'.length);
       if (!key) return json({ error: 'key required' }, 400);
       const body = await request.text();

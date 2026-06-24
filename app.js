@@ -1,4 +1,5 @@
 const PROXY_BASE = 'https://pm-proxy.demo.qa.kaltura.ai';
+const KV_SECRET = 'dashboard-kv-2026';
 const APP_VERSION = '1.2.1';
 const CHANGELOG = [
   {
@@ -92,7 +93,9 @@ let backups;
 
 async function kvGet(key) {
   try {
-    const res = await fetch(`${PROXY_BASE}/kv/${encodeURIComponent(key)}`);
+    const res = await fetch(`${PROXY_BASE}/kv/${encodeURIComponent(key)}`, {
+      headers: { 'X-KV-Secret': KV_SECRET },
+    });
     if (!res.ok) return null;
     return await res.json();
   } catch {
@@ -104,7 +107,7 @@ async function kvPut(key, value) {
   try {
     const res = await fetch(`${PROXY_BASE}/kv/${encodeURIComponent(key)}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-KV-Secret': KV_SECRET },
       body: JSON.stringify(value),
     });
     return res.ok;
@@ -117,7 +120,9 @@ async function initData() {
   // Check if worker is reachable before touching KV
   let workerHealthy = false;
   try {
-    const healthRes = await fetch(`${PROXY_BASE}/health`);
+    const healthRes = await fetch(`${PROXY_BASE}/health`, {
+      headers: { 'X-KV-Secret': KV_SECRET },
+    });
     workerHealthy = healthRes.ok;
   } catch {
     workerHealthy = false;
@@ -141,39 +146,22 @@ async function initData() {
     kvGet(BACKUPS_KEY),
   ]);
 
-  const isFirstLoad = kvProjects === null && kvUsers === null && kvSettings === null
-    && kvCustomers === null && kvBackups === null;
-
-  if (isFirstLoad) {
-    const lsProjects = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null') || defaultProjects;
-    const lsUsers = JSON.parse(localStorage.getItem(USERS_KEY) || '[]');
-    const lsSettings = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
-    const lsCustomers = JSON.parse(localStorage.getItem(CUSTOMERS_KEY) || '[]');
-    const lsBackups = JSON.parse(localStorage.getItem(BACKUPS_KEY) || '[]');
-
-    const putResults = await Promise.all([
-      kvPut(STORAGE_KEY, lsProjects),
-      kvPut(USERS_KEY, lsUsers),
-      kvPut(SETTINGS_KEY, lsSettings),
-      kvPut(CUSTOMERS_KEY, lsCustomers),
-      kvPut(BACKUPS_KEY, lsBackups),
-    ]);
-
-    projects = lsProjects;
-    users = lsUsers;
-    settings = lsSettings;
-    customers = lsCustomers;
-    backups = lsBackups;
-
-    const keys = [STORAGE_KEY, USERS_KEY, SETTINGS_KEY, CUSTOMERS_KEY, BACKUPS_KEY];
-    putResults.forEach((ok, i) => { if (ok) localStorage.removeItem(keys[i]); });
-  } else {
-    projects = kvProjects ?? defaultProjects;
-    users = kvUsers ?? [];
-    settings = kvSettings ?? {};
-    customers = kvCustomers ?? [];
-    backups = kvBackups ?? [];
+  async function hydrateKey(kvValue, lsKey, fallback) {
+    if (kvValue !== null) return kvValue;
+    const lsValue = JSON.parse(localStorage.getItem(lsKey) || 'null');
+    const value = lsValue !== null ? lsValue : fallback;
+    const ok = await kvPut(lsKey, value);
+    if (ok) localStorage.removeItem(lsKey);
+    return value;
   }
+
+  [projects, users, settings, customers, backups] = await Promise.all([
+    hydrateKey(kvProjects, STORAGE_KEY, defaultProjects),
+    hydrateKey(kvUsers, USERS_KEY, []),
+    hydrateKey(kvSettings, SETTINGS_KEY, {}),
+    hydrateKey(kvCustomers, CUSTOMERS_KEY, []),
+    hydrateKey(kvBackups, BACKUPS_KEY, []),
+  ]);
 }
 
 async function saveBackups() {
@@ -272,7 +260,7 @@ const defaultProjects = [
   { customer: 'Reporting Customer', name: 'Reporting Hub', manager: 'Liam', jira: 'https://jira.example.com/RH', nrr: 60, startDate: '2026-03-10', dueDate: '2026-06-10', status: 'Completed', statusText: 'All stakeholders have approved the final dashboard.', health: 'Green', progress: 100, comments: 'NRR: 60h, MRR: 4k, CSM: Alex, Sales: Nina' },
 ];
 
-function migrateProjects() {
+async function migrateProjects() {
   let changed = false;
   for (const p of projects) {
     if (p.pmStatus === undefined) { p.pmStatus = ''; changed = true; }
@@ -282,7 +270,7 @@ function migrateProjects() {
     if (p.actualHours === undefined) { p.actualHours = null; changed = true; }
     if (p.statusUpdatedAt === undefined) { p.statusUpdatedAt = ''; changed = true; }
   }
-  if (changed) saveProjects();
+  if (changed) await saveProjects();
 }
 
 let projects;
@@ -1612,17 +1600,17 @@ function renderBackupMain(backup) {
     document.getElementById('restoreConfirm').style.display = 'none';
   });
 
-  document.getElementById('confirmRestoreBtn').addEventListener('click', () => {
+  document.getElementById('confirmRestoreBtn').addEventListener('click', async () => {
     const restoreProjectsEl = document.getElementById('restoreProjects');
     const restoreUsersEl = document.getElementById('restoreUsers');
     if (!restoreProjectsEl.checked && !restoreUsersEl.checked) return;
     if (restoreProjectsEl.checked) {
       projects = JSON.parse(JSON.stringify(backup.projects));
-      saveProjects();
+      await saveProjects();
     }
     if (restoreUsersEl.checked) {
       users = JSON.parse(JSON.stringify(backup.users));
-      saveUsers();
+      await saveUsers();
     }
     renderAll();
     closeBackupsModal();
@@ -1769,7 +1757,7 @@ editProjectForm.addEventListener('submit', async (event) => {
   selectedProject.statusText = isEmptyStatus(rawStatus) ? '' : rawStatus;
   selectedProject.statusUpdatedAt = new Date(Date.now() + 5000).toISOString();
 
-  saveProjects();
+  await saveProjects();
   renderAll();
   closeEditProjectModal();
 
@@ -3016,7 +3004,7 @@ wireDateField('modalProjectDueDate', 'modalProjectDueDateHidden', 'modalEndPicke
 
 async function init() {
   await initData();
-  migrateProjects();
+  await migrateProjects();
   renderAll();
   startKvPoll();
   initAutocompletes();
