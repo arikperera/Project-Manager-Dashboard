@@ -112,15 +112,35 @@ export default {
 
     // GET /kv/:key — read from KV
     if (method === 'GET' && path.startsWith('/kv/')) {
-      const key = path.substring(4); // e.g. "project-dashboard-projects-v1"
+      const key = path.substring(4);
+      const ALLOWED_KEYS = new Set([
+        'project-dashboard-projects-v1',
+        'project-dashboard-users-v1',
+        'project-dashboard-settings-v1',
+        'project-dashboard-customers-v1',
+        'project-dashboard-backups-v1',
+      ]);
+      if (!ALLOWED_KEYS.has(key)) return json({ error: 'Invalid key' }, 400);
       const value = await env.DASHBOARD_KV.get(key);
-      return json(value ? JSON.parse(value) : null);
+      if (!value) return json(null);
+      let parsed;
+      try { parsed = JSON.parse(value); } catch { return json({ error: 'Corrupt KV value' }, 500); }
+      return json(parsed);
     }
 
     // PUT /kv/:key — write to KV
     if (method === 'PUT' && path.startsWith('/kv/')) {
       const key = path.substring(4);
+      const ALLOWED_KEYS = new Set([
+        'project-dashboard-projects-v1',
+        'project-dashboard-users-v1',
+        'project-dashboard-settings-v1',
+        'project-dashboard-customers-v1',
+        'project-dashboard-backups-v1',
+      ]);
+      if (!ALLOWED_KEYS.has(key)) return json({ error: 'Invalid key' }, 400);
       const body = await request.text();
+      try { JSON.parse(body); } catch { return json({ error: 'Invalid JSON' }, 400); }
       await env.DASHBOARD_KV.put(key, body);
       return json({ ok: true });
     }

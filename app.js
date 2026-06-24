@@ -56,26 +56,27 @@ async function loadKv(key) {
 }
 
 async function saveKv(key, value) {
-  try {
-    await fetch(`${PROXY}/kv/${encodeURIComponent(key)}`, {
+  const body = JSON.stringify(value);
+  const attempt = async () => {
+    const res = await fetch(`${PROXY}/kv/${encodeURIComponent(key)}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(value),
+      body,
     });
-  } catch (err) {
-    // Retry once after 3 seconds
-    await new Promise(r => setTimeout(r, 3000));
-    try {
-      await fetch(`${PROXY}/kv/${encodeURIComponent(key)}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(value),
-      });
-    } catch {
-      showToast('Save failed — changes may not sync');
-      try { localStorage.setItem(key, JSON.stringify(value)); } catch {}
-    }
-  }
+    return res.ok;
+  };
+  try {
+    if (await attempt()) return true;
+  } catch {}
+  // Retry once after 3 seconds
+  await new Promise(r => setTimeout(r, 3000));
+  try {
+    if (await attempt()) return true;
+  } catch {}
+  // Both attempts failed — buffer locally and show toast
+  try { localStorage.setItem(key, body); } catch {}
+  showToast('Save failed — changes may not sync');
+  return false;
 }
 
 const STORAGE_KEY = 'project-dashboard-projects-v1';
@@ -335,8 +336,8 @@ async function initData() {
     if (!local) return null;
     try {
       const parsed = JSON.parse(local);
-      await saveKv(lsKey, parsed);
-      localStorage.removeItem(lsKey);
+      const saved = await saveKv(lsKey, parsed);
+      if (saved) localStorage.removeItem(lsKey);
       return parsed;
     } catch { return null; }
   }
@@ -357,6 +358,9 @@ async function initData() {
 
 function startKvRefresh() {
   setInterval(async () => {
+    // Skip refresh while any modal is open to avoid clobbering unsaved edits
+    const anyModalOpen = document.querySelector('.modal:not(.hidden)');
+    if (anyModalOpen) return;
     try {
       const fresh = await loadKv(STORAGE_KEY);
       if (fresh) {
