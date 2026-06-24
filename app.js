@@ -1078,6 +1078,20 @@ async function pollForNewProjects() {
   showNewProjectsBanner(addedKeys);
 }
 
+function startKvPoll() {
+  const intervalMs = ((settings && settings.pollInterval) || 30) * 1000;
+  setInterval(async () => {
+    const fresh = await kvGet(STORAGE_KEY);
+    if (!fresh) return;
+    const currentSig = JSON.stringify(projects);
+    const freshSig = JSON.stringify(fresh);
+    if (currentSig !== freshSig) {
+      projects = fresh;
+      renderAll();
+    }
+  }, intervalMs);
+}
+
 let _pollTimer = null;
 function startAutoProjectPoll() {
   pollForNewProjects();
@@ -2997,6 +3011,7 @@ async function init() {
   await initData();
   migrateProjects();
   renderAll();
+  startKvPoll();
   initAutocompletes();
   startAutoProjectPoll();
   syncStatusFromJira();
