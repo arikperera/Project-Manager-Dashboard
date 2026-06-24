@@ -50,7 +50,7 @@ const CHANGELOG = [
 const STORAGE_KEY = 'project-dashboard-projects-v1';
 
 const USERS_KEY = 'project-dashboard-users-v1';
-let users;
+let users = JSON.parse(localStorage.getItem('project-dashboard-users-v1') || '[]');
 
 async function saveUsers() {
   const ok = await kvPut(USERS_KEY, users);
@@ -58,7 +58,7 @@ async function saveUsers() {
 }
 
 const SETTINGS_KEY = 'project-dashboard-settings-v1';
-let settings;
+let settings = JSON.parse(localStorage.getItem('project-dashboard-settings-v1') || '{}');
 
 async function saveSettings() {
   const ok = await kvPut(SETTINGS_KEY, settings);
@@ -66,7 +66,7 @@ async function saveSettings() {
 }
 
 const CUSTOMERS_KEY = 'project-dashboard-customers-v1';
-let customers;
+let customers = JSON.parse(localStorage.getItem('project-dashboard-customers-v1') || '[]');
 
 async function saveCustomers() {
   const ok = await kvPut(CUSTOMERS_KEY, customers);
@@ -89,7 +89,7 @@ let cachedMrrFieldId = null;
 let cachedNrrFieldId = null;
 
 const BACKUPS_KEY = 'project-dashboard-backups-v1';
-let backups;
+let backups = JSON.parse(localStorage.getItem('project-dashboard-backups-v1') || '[]');
 
 async function kvGet(key) {
   try {
@@ -273,7 +273,8 @@ async function migrateProjects() {
   if (changed) await saveProjects();
 }
 
-let projects;
+// Pre-populate from localStorage for instant render while KV loads in background
+let projects = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null') || defaultProjects;
 
 const statusClasses = {
   'On Track': 'status-ontrack',
