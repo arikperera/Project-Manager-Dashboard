@@ -53,7 +53,7 @@ let users;
 
 async function saveUsers() {
   const ok = await kvPut(USERS_KEY, users);
-  if (!ok) showToast('Save failed — retrying...', 'error');
+  if (!ok) showToast('Save failed — please try again.', 'error');
 }
 
 const SETTINGS_KEY = 'project-dashboard-settings-v1';
@@ -61,7 +61,7 @@ let settings;
 
 async function saveSettings() {
   const ok = await kvPut(SETTINGS_KEY, settings);
-  if (!ok) showToast('Save failed — retrying...', 'error');
+  if (!ok) showToast('Save failed — please try again.', 'error');
 }
 
 const CUSTOMERS_KEY = 'project-dashboard-customers-v1';
@@ -69,7 +69,7 @@ let customers;
 
 async function saveCustomers() {
   const ok = await kvPut(CUSTOMERS_KEY, customers);
-  if (!ok) showToast('Save failed — retrying...', 'error');
+  if (!ok) showToast('Save failed — please try again.', 'error');
 }
 
 function getCustomerNames() {
@@ -151,7 +151,7 @@ async function initData() {
     const lsCustomers = JSON.parse(localStorage.getItem(CUSTOMERS_KEY) || '[]');
     const lsBackups = JSON.parse(localStorage.getItem(BACKUPS_KEY) || '[]');
 
-    await Promise.all([
+    const putResults = await Promise.all([
       kvPut(STORAGE_KEY, lsProjects),
       kvPut(USERS_KEY, lsUsers),
       kvPut(SETTINGS_KEY, lsSettings),
@@ -165,11 +165,8 @@ async function initData() {
     customers = lsCustomers;
     backups = lsBackups;
 
-    localStorage.removeItem(STORAGE_KEY);
-    localStorage.removeItem(USERS_KEY);
-    localStorage.removeItem(SETTINGS_KEY);
-    localStorage.removeItem(CUSTOMERS_KEY);
-    localStorage.removeItem(BACKUPS_KEY);
+    const keys = [STORAGE_KEY, USERS_KEY, SETTINGS_KEY, CUSTOMERS_KEY, BACKUPS_KEY];
+    putResults.forEach((ok, i) => { if (ok) localStorage.removeItem(keys[i]); });
   } else {
     projects = kvProjects ?? defaultProjects;
     users = kvUsers ?? [];
@@ -181,7 +178,7 @@ async function initData() {
 
 async function saveBackups() {
   const ok = await kvPut(BACKUPS_KEY, backups);
-  if (!ok) showToast('Save failed — retrying...', 'error');
+  if (!ok) showToast('Save failed — please try again.', 'error');
 }
 
 function formatBackupLabel(ts) {
@@ -382,7 +379,7 @@ const importProgress = document.getElementById('importProgress');
 
 async function saveProjects() {
   const ok = await kvPut(STORAGE_KEY, projects);
-  if (!ok) showToast('Save failed — retrying...', 'error');
+  if (!ok) showToast('Save failed — please try again.', 'error');
 }
 
 let addUserReturnContext = null;
@@ -2957,9 +2954,7 @@ importConfirmBtn.addEventListener('click', async () => {
     done++;
   }
 
-  saveUsers();
-  saveCustomers();
-  saveProjects();
+  await Promise.all([saveUsers(), saveCustomers(), saveProjects()]);
   closeImportModal();
   location.reload();
 });
