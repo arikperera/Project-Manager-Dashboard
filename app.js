@@ -292,7 +292,8 @@ async function migrateProjects() {
     if (p.actualHours === undefined) { p.actualHours = null; changed = true; }
     if (p.statusUpdatedAt === undefined) { p.statusUpdatedAt = ''; changed = true; }
   }
-  if (changed) await saveProjects();
+  // Never save if projects is still the default sample data — would overwrite real KV data
+  if (changed && projects !== defaultProjects) await saveProjects();
 }
 
 // Pre-populate from localStorage for instant render while KV loads in background
