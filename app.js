@@ -2874,7 +2874,7 @@ async function loadImportStep2(pm) {
       nrrUsd: cachedNrrFieldId ? (i.fields[cachedNrrFieldId] ?? '') : '',
       estimatedHours: cachedEstHoursFieldId ? (i.fields[cachedEstHoursFieldId] ?? '') : '',
       dueDate: cachedVMForecastFieldId ? (i.fields[cachedVMForecastFieldId] || '') : '',
-      riskReason: (() => { const v = cachedRiskReasonFieldId ? i.fields[cachedRiskReasonFieldId] : null; console.log('[import riskReason]', i.key, cachedRiskReasonFieldId, v); return v?.value || ''; })(),
+      riskReason: cachedRiskReasonFieldId ? (i.fields[cachedRiskReasonFieldId]?.value || '') : '',
     }));
 
     const existing = getExistingJiraKeys();
