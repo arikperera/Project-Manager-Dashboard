@@ -3030,7 +3030,8 @@ wireDateField('modalProjectStartDate', 'modalProjectStartDateHidden', 'modalStar
 wireDateField('modalProjectDueDate', 'modalProjectDueDateHidden', 'modalEndPickerBtn');
 
 // Render immediately from localStorage cache so the page is never blank
-migrateProjects();
+// NOTE: do NOT call migrateProjects() here — it calls saveProjects() which would
+// overwrite KV with defaultProjects if localStorage is empty after migration
 renderAll();
 initAutocompletes();
 
