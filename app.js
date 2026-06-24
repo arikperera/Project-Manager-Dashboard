@@ -3029,12 +3029,16 @@ function wireDateField(textId, hiddenId, btnId) {
 wireDateField('modalProjectStartDate', 'modalProjectStartDateHidden', 'modalStartPickerBtn');
 wireDateField('modalProjectDueDate', 'modalProjectDueDateHidden', 'modalEndPickerBtn');
 
+// Render immediately from localStorage cache so the page is never blank
+migrateProjects();
+renderAll();
+initAutocompletes();
+
 async function init() {
   await initData();
   await migrateProjects();
   renderAll();
   startKvPoll();
-  initAutocompletes();
   startAutoProjectPoll();
   syncStatusFromJira();
   syncProjectProgressFromJira();
