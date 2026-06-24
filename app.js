@@ -1,3 +1,4 @@
+const PROXY_BASE = 'https://pm-proxy.demo.qa.kaltura.ai';
 const APP_VERSION = '1.2.1';
 const CHANGELOG = [
   {
@@ -84,6 +85,30 @@ let cachedMrrFieldId = null;
 let cachedNrrFieldId = null;
 
 const BACKUPS_KEY = 'project-dashboard-backups-v1';
+
+async function kvGet(key) {
+  try {
+    const res = await fetch(`${PROXY_BASE}/kv/${encodeURIComponent(key)}`);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+async function kvPut(key, value) {
+  try {
+    const res = await fetch(`${PROXY_BASE}/kv/${encodeURIComponent(key)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(value),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 let backups = JSON.parse(localStorage.getItem(BACKUPS_KEY) || '[]');
 
 function saveBackups() {
