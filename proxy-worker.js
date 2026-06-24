@@ -250,6 +250,23 @@ export default {
       }
     }
 
+    // GET /kv/:key
+    if (method === 'GET' && path.startsWith('/kv/')) {
+      const key = path.substring('/kv/'.length);
+      if (!key) return json({ error: 'key required' }, 400);
+      const value = await env.DASHBOARD_KV.get(key, 'text');
+      return json(value === null ? null : JSON.parse(value));
+    }
+
+    // PUT /kv/:key
+    if (method === 'PUT' && path.startsWith('/kv/')) {
+      const key = path.substring('/kv/'.length);
+      if (!key) return json({ error: 'key required' }, 400);
+      const body = await request.text();
+      await env.DASHBOARD_KV.put(key, body);
+      return json({ ok: true });
+    }
+
     return json({ error: 'Not found' }, 404);
   },
 };
