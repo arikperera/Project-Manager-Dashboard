@@ -65,7 +65,8 @@ let users = JSON.parse(localStorage.getItem('project-dashboard-users-v1') || '[]
 
 async function saveUsers() {
   const ok = await kvPut(USERS_KEY, users);
-  if (!ok) showToast('Save failed — please try again.', 'error');
+  if (ok) try { localStorage.setItem(USERS_KEY, JSON.stringify(users)); } catch {}
+  else showToast('Save failed — please try again.', 'error');
 }
 
 const SETTINGS_KEY = 'project-dashboard-settings-v1';
@@ -73,7 +74,8 @@ let settings = JSON.parse(localStorage.getItem('project-dashboard-settings-v1') 
 
 async function saveSettings() {
   const ok = await kvPut(SETTINGS_KEY, settings);
-  if (!ok) showToast('Save failed — please try again.', 'error');
+  if (ok) try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch {}
+  else showToast('Save failed — please try again.', 'error');
 }
 
 const CUSTOMERS_KEY = 'project-dashboard-customers-v1';
@@ -81,7 +83,8 @@ let customers = JSON.parse(localStorage.getItem('project-dashboard-customers-v1'
 
 async function saveCustomers() {
   const ok = await kvPut(CUSTOMERS_KEY, customers);
-  if (!ok) showToast('Save failed — please try again.', 'error');
+  if (ok) try { localStorage.setItem(CUSTOMERS_KEY, JSON.stringify(customers)); } catch {}
+  else showToast('Save failed — please try again.', 'error');
 }
 
 function getCustomerNames() {
@@ -173,11 +176,19 @@ async function initData() {
     hydrateKey(kvCustomers, CUSTOMERS_KEY, []),
     hydrateKey(kvBackups, BACKUPS_KEY, []),
   ]);
+
+  // Cache KV data to localStorage so next load renders instantly
+  try { localStorage.setItem(STORAGE_KEY,   JSON.stringify(projects));  } catch {}
+  try { localStorage.setItem(USERS_KEY,     JSON.stringify(users));     } catch {}
+  try { localStorage.setItem(SETTINGS_KEY,  JSON.stringify(settings));  } catch {}
+  try { localStorage.setItem(CUSTOMERS_KEY, JSON.stringify(customers)); } catch {}
+  try { localStorage.setItem(BACKUPS_KEY,   JSON.stringify(backups));   } catch {}
 }
 
 async function saveBackups() {
   const ok = await kvPut(BACKUPS_KEY, backups);
-  if (!ok) showToast('Save failed — please try again.', 'error');
+  if (ok) try { localStorage.setItem(BACKUPS_KEY, JSON.stringify(backups)); } catch {}
+  else showToast('Save failed — please try again.', 'error');
 }
 
 function formatBackupLabel(ts) {
@@ -379,7 +390,8 @@ const importProgress = document.getElementById('importProgress');
 
 async function saveProjects() {
   const ok = await kvPut(STORAGE_KEY, projects);
-  if (!ok) showToast('Save failed — please try again.', 'error');
+  if (ok) try { localStorage.setItem(STORAGE_KEY, JSON.stringify(projects)); } catch {}
+  else showToast('Save failed — please try again.', 'error');
 }
 
 let addUserReturnContext = null;
