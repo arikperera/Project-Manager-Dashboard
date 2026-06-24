@@ -1,7 +1,18 @@
 const PROXY_BASE = 'https://pm-proxy.demo.qa.kaltura.ai';
 const KV_SECRET = 'HPZTjoBph4Cz9AMGwiSsYcJf086bdgRX';
-const APP_VERSION = '1.2.1';
+const APP_VERSION = '1.3.0';
 const CHANGELOG = [
+  {
+    version: '1.3.0',
+    date: '2026-06-24',
+    features: [
+      'Shared storage — all data stored in Cloudflare KV and shared across all users in real-time',
+      'Import: Risk Reason (Budget) now imported from Jira on project import',
+      'Edit modal: CSM and Sales names are now editable fields',
+      'No flash on reload — dashboard shows data instantly while KV syncs in background',
+      'Offline mode — falls back to local data with banner when worker is unreachable',
+    ]
+  },
   {
     version: '1.2.1',
     date: '2026-06-24',
