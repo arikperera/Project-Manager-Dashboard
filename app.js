@@ -2959,8 +2959,6 @@ importConfirmBtn.addEventListener('click', async () => {
   location.reload();
 });
 
-renderAll();
-initAutocompletes();
 const editDueDateTextEl = document.getElementById('editDueDateText');
 const editDueDateHiddenEl = document.getElementById('editDueDateHidden');
 const editDueDatePickerBtn = document.getElementById('editDueDatePickerBtn');
@@ -2995,6 +2993,14 @@ function wireDateField(textId, hiddenId, btnId) {
 wireDateField('modalProjectStartDate', 'modalProjectStartDateHidden', 'modalStartPickerBtn');
 wireDateField('modalProjectDueDate', 'modalProjectDueDateHidden', 'modalEndPickerBtn');
 
-syncProjectProgressFromJira();
-syncStatusFromJira();
-startAutoProjectPoll();
+async function init() {
+  await initData();
+  migrateProjects();
+  renderAll();
+  initAutocompletes();
+  startAutoProjectPoll();
+  syncStatusFromJira();
+  syncProjectProgressFromJira();
+}
+
+init();
