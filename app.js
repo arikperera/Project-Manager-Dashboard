@@ -85,6 +85,7 @@ let cachedMrrFieldId = null;
 let cachedNrrFieldId = null;
 
 const BACKUPS_KEY = 'project-dashboard-backups-v1';
+let backups;
 
 async function kvGet(key) {
   try {
@@ -174,8 +175,6 @@ async function initData() {
     backups = kvBackups ?? [];
   }
 }
-
-let backups = JSON.parse(localStorage.getItem(BACKUPS_KEY) || '[]');
 
 function saveBackups() {
   localStorage.setItem(BACKUPS_KEY, JSON.stringify(backups));
