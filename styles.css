@@ -253,3 +253,17 @@ tr.highlight-row td {
 .import-summary { color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .import-status { color:#94a3b8; font-size:0.82rem; white-space:nowrap; }
 .import-badge-existing { background:rgba(100,116,139,0.2); color:#94a3b8; border-radius:999px; padding:2px 8px; font-size:0.78rem; white-space:nowrap; }
+
+#offline-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: #c0392b;
+  color: #fff;
+  text-align: center;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  z-index: 10000;
+}

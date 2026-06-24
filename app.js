@@ -1233,6 +1233,11 @@ function showToast(message, type = 'error') {
   setTimeout(() => toast.remove(), 5000);
 }
 
+function showOfflineBanner() {
+  const el = document.getElementById('offline-banner');
+  if (el) el.style.display = 'block';
+}
+
 function showEditModalWarning(message) {
   const card = editProjectModal.querySelector('.modal-card');
   const existing = card.querySelector('.edit-warning-banner');
