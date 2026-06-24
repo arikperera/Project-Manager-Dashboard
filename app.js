@@ -1325,6 +1325,8 @@ function openEditProjectModal(projectIndex) {
   const editDueDateText = document.getElementById('editDueDateText');
   editDueDateText.value = project.dueDate ? formatDateDMY(project.dueDate) : '';
   document.getElementById('editAtLink').value = project.atLink || '';
+  document.getElementById('editCsm').value = project.csm || '';
+  document.getElementById('editSales').value = project.sales || '';
   document.getElementById('editDueDateHidden').value = project.dueDate || '';
   if (project.statusText) {
     editStatusEditor.innerHTML = project.statusText;
@@ -1651,6 +1653,9 @@ editProjectForm.addEventListener('submit', async (event) => {
   const riskOptionLabel = riskOptionId ? editRiskReason.options[editRiskReason.selectedIndex].text : '';
   selectedProject.riskReason = riskOptionLabel;
   selectedProject.atLink = document.getElementById('editAtLink').value.trim();
+  selectedProject.csm = document.getElementById('editCsm').value.trim();
+  selectedProject.sales = document.getElementById('editSales').value.trim();
+  selectedProject.comments = `NRR: ${formatCurrency(selectedProject.nrr || '0')}, MRR: ${formatCurrency(selectedProject.mrr || '0')}, CSM: ${selectedProject.csm || '-'}, Sales: ${selectedProject.sales || '-'}`;
   const newDueDate = parseDateInput(document.getElementById('editDueDateText').value);
   if (newDueDate) selectedProject.dueDate = newDueDate;
   const rawStatus = editStatusEditor.getAttribute('data-placeholder-active') ? '' : editStatusEditor.innerHTML.trim();
