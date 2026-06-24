@@ -110,21 +110,16 @@ async function kvPut(key, value) {
 }
 
 async function initData() {
-  let kvProjects, kvUsers, kvSettings, kvCustomers, kvBackups;
+  // Check if worker is reachable before touching KV
+  let workerHealthy = false;
   try {
-    [kvProjects, kvUsers, kvSettings, kvCustomers, kvBackups] = await Promise.all([
-      kvGet(STORAGE_KEY),
-      kvGet(USERS_KEY),
-      kvGet(SETTINGS_KEY),
-      kvGet(CUSTOMERS_KEY),
-      kvGet(BACKUPS_KEY),
-    ]);
+    const healthRes = await fetch(`${PROXY_BASE}/health`);
+    workerHealthy = healthRes.ok;
   } catch {
-    kvProjects = kvUsers = kvSettings = kvCustomers = kvBackups = null;
+    workerHealthy = false;
   }
 
-  const workerUnreachable = kvProjects === null && kvUsers === null;
-  if (workerUnreachable) {
+  if (!workerHealthy) {
     showOfflineBanner();
     projects = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null') || defaultProjects;
     users = JSON.parse(localStorage.getItem(USERS_KEY) || '[]');
@@ -133,6 +128,14 @@ async function initData() {
     backups = JSON.parse(localStorage.getItem(BACKUPS_KEY) || '[]');
     return;
   }
+
+  const [kvProjects, kvUsers, kvSettings, kvCustomers, kvBackups] = await Promise.all([
+    kvGet(STORAGE_KEY),
+    kvGet(USERS_KEY),
+    kvGet(SETTINGS_KEY),
+    kvGet(CUSTOMERS_KEY),
+    kvGet(BACKUPS_KEY),
+  ]);
 
   const isFirstLoad = kvProjects === null && kvUsers === null && kvSettings === null
     && kvCustomers === null && kvBackups === null;
