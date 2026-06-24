@@ -1419,7 +1419,7 @@ function renderSelect() {
 function renderSummary() {
   const total = projects.length;
   const onTrack = projects.filter((project) => project.status === 'On Track').length;
-  const atRisk = projects.filter((project) => project.health === 'Yellow' || project.health === 'Red').length;
+  const atRisk = projects.filter((project) => Number(project.progress) > 100).length;
 
   const now = new Date();
   const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -2587,7 +2587,7 @@ let atRiskHideTimer = null;
 
 function showAtRiskPopup() {
   clearTimeout(atRiskHideTimer);
-  const atRiskProjects = projects.filter(p => p.health === 'Yellow' || p.health === 'Red');
+  const atRiskProjects = projects.filter(p => Number(p.progress) > 100);
   if (!atRiskProjects.length) return;
   atRiskPopup.innerHTML = atRiskProjects.map((p, i) =>
     `<a href="#" data-scroll-project="${escapeHtml(p.name)}">${i + 1}. ${escapeHtml(p.customer ? p.customer + ' — ' : '')}${escapeHtml(p.name)}</a>`
