@@ -13,6 +13,8 @@
  *
  * Routes (mirrors proxy.ps1):
  *   GET  /health
+ *   GET  /kv/:key                   (read from KV — DASHBOARD_KV binding required)
+ *   PUT  /kv/:key                   (write to KV)
  *   GET  /jira/field
  *   GET  /jira/user/search?query=
  *   GET  /jira/new-assignments
@@ -106,6 +108,21 @@ export default {
     // CORS preflight
     if (method === 'OPTIONS') {
       return new Response(null, { status: 204, headers: CORS_HEADERS });
+    }
+
+    // GET /kv/:key — read from KV
+    if (method === 'GET' && path.startsWith('/kv/')) {
+      const key = path.substring(4); // e.g. "project-dashboard-projects-v1"
+      const value = await env.DASHBOARD_KV.get(key);
+      return json(value ? JSON.parse(value) : null);
+    }
+
+    // PUT /kv/:key — write to KV
+    if (method === 'PUT' && path.startsWith('/kv/')) {
+      const key = path.substring(4);
+      const body = await request.text();
+      await env.DASHBOARD_KV.put(key, body);
+      return json({ ok: true });
     }
 
     // Health check
