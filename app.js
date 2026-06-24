@@ -51,22 +51,25 @@ const STORAGE_KEY = 'project-dashboard-projects-v1';
 const USERS_KEY = 'project-dashboard-users-v1';
 let users;
 
-function saveUsers() {
-  localStorage.setItem(USERS_KEY, JSON.stringify(users));
+async function saveUsers() {
+  const ok = await kvPut(USERS_KEY, users);
+  if (!ok) showToast('Save failed — retrying...', 'error');
 }
 
 const SETTINGS_KEY = 'project-dashboard-settings-v1';
 let settings;
 
-function saveSettings() {
-  localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+async function saveSettings() {
+  const ok = await kvPut(SETTINGS_KEY, settings);
+  if (!ok) showToast('Save failed — retrying...', 'error');
 }
 
 const CUSTOMERS_KEY = 'project-dashboard-customers-v1';
 let customers;
 
-function saveCustomers() {
-  localStorage.setItem(CUSTOMERS_KEY, JSON.stringify(customers));
+async function saveCustomers() {
+  const ok = await kvPut(CUSTOMERS_KEY, customers);
+  if (!ok) showToast('Save failed — retrying...', 'error');
 }
 
 function getCustomerNames() {
@@ -176,8 +179,9 @@ async function initData() {
   }
 }
 
-function saveBackups() {
-  localStorage.setItem(BACKUPS_KEY, JSON.stringify(backups));
+async function saveBackups() {
+  const ok = await kvPut(BACKUPS_KEY, backups);
+  if (!ok) showToast('Save failed — retrying...', 'error');
 }
 
 function formatBackupLabel(ts) {
@@ -376,8 +380,9 @@ const importBackBtn = document.getElementById('importBackBtn');
 const importConfirmBtn = document.getElementById('importConfirmBtn');
 const importProgress = document.getElementById('importProgress');
 
-function saveProjects() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
+async function saveProjects() {
+  const ok = await kvPut(STORAGE_KEY, projects);
+  if (!ok) showToast('Save failed — retrying...', 'error');
 }
 
 let addUserReturnContext = null;
