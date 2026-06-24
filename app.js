@@ -1001,10 +1001,7 @@ function getExistingJiraKeys() {
 }
 
 function buildProjectFromEnrichment(issue, sfData) {
-  const pmMapping = settings.pmMapping || {
-    'arik.perera@kaltura.com': 'Arik',
-    'Srinivas.Duddu@kaltura.com': 'Srini',
-  };
+  const pmMapping = settings.pmMapping || {};
   const manager = pmMapping[issue.assigneeEmail] || issue.assigneeDisplayName || 'Unassigned';
   const startDate = issue.created ? issue.created.slice(0, 10) : '';
   const nrr = sfData && !sfData.sfSkipped && !sfData.sfError ? (sfData.nrr ?? '') : (issue.nrrUsd ?? '');
