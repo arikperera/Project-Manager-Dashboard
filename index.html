@@ -46,12 +46,15 @@
             <span>Active initiatives</span>
           </article>
           <article class="stat-card accent-green">
-            <p>On track</p>
-            <h3 id="onTrackCount">0</h3>
-            <span>Healthy delivery</span>
+            <p>Project health</p>
+            <div id="healthBreakdown" style="margin-top:4px;display:grid;gap:3px;font-size:0.92rem;">
+              <span>🟢 <span id="healthGreenCount">0</span> Green</span>
+              <span>🟡 <span id="healthYellowCount">0</span> Yellow</span>
+              <span>🔴 <span id="healthRedCount">0</span> Red</span>
+            </div>
           </article>
           <article class="stat-card accent-amber" id="atRiskCard" style="position:relative;cursor:default;">
-            <p>Project At risk (budget)</p>
+            <p>Over Budget Projects</p>
             <h3 id="atRiskCount">0</h3>
             <span id="atRiskTrigger" style="color:#f97316;cursor:pointer;">Needs review</span>
             <div id="atRiskPopup" class="atrisk-popup hidden"></div>

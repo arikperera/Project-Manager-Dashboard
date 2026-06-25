@@ -1427,15 +1427,19 @@ function renderSelect() {
 
 function renderSummary() {
   const total = projects.length;
-  const onTrack = projects.filter((project) => project.status === 'On Track').length;
   const atRisk = projects.filter((project) => Number(project.progress) >= 100).length;
+  const healthGreen  = projects.filter(p => (p.health || 'Green') === 'Green').length;
+  const healthYellow = projects.filter(p => p.health === 'Yellow').length;
+  const healthRed    = projects.filter(p => p.health === 'Red').length;
 
   const now = new Date();
   const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   const dueThisMonth = projects.filter((project) => (project.dueDate || '').startsWith(currentMonth));
 
   document.getElementById('totalProjects').textContent = total;
-  document.getElementById('onTrackCount').textContent = onTrack;
+  document.getElementById('healthGreenCount').textContent  = healthGreen;
+  document.getElementById('healthYellowCount').textContent = healthYellow;
+  document.getElementById('healthRedCount').textContent    = healthRed;
   document.getElementById('atRiskCount').textContent = atRisk;
   document.getElementById('dueThisMonthCount').textContent = dueThisMonth.length;
 }
@@ -2154,8 +2158,11 @@ function generateHTMLReport() {
   const dateLabel = `${dd}/${mm}/${yy} ${hh}:${min}`;
   const filename = `dashboard-report-${dd}-${mm}-${yy}-${hh}-${min}.html`;
 
-  const atRisk = projects.filter(p => p.health === 'Red' || p.health === 'Yellow')
-    .sort((a,b) => {
+  const atRisk = projects.filter(p => Number(p.progress) >= 100)
+    .sort((a, b) => Number(b.progress) - Number(a.progress));
+
+  const healthAtRisk = projects.filter(p => p.health === 'Red' || p.health === 'Yellow')
+    .sort((a, b) => {
       if (a.health === b.health) return 0;
       return a.health === 'Red' ? -1 : 1;
     });
@@ -2209,11 +2216,20 @@ function generateHTMLReport() {
   const atRiskRows = atRisk.length
     ? atRisk.map(p => `<tr>
         <td>${esc(p.customer||'-')}</td>
-        <td><strong>${esc(p.name)}</strong></td>
-        <td>${healthPill(p.health, p.pmStatus)}</td>
-        <td style="color:#fde68a">${esc(p.riskReason||'No risk reason provided')}</td>
+        <td>${p.jira ? `<a href="${esc(p.jira)}" style="color:#7dd3fc;">${esc(p.name)}</a>` : `<strong>${esc(p.name)}</strong>`}</td>
+        <td>${progressBar(p.progress, p.estimatedHours, p.remainingHours, p.actualHours, p.health, p.riskReason)}</td>
+        <td style="color:#fde68a">${esc(p.riskReason||'No risk reason set')}</td>
       </tr>`).join('')
-    : `<tr><td colspan="4" style="color:#94a3b8;font-style:italic;">No projects currently at risk.</td></tr>`;
+    : `<tr><td colspan="4" style="color:#94a3b8;font-style:italic;">No over-budget projects.</td></tr>`;
+
+  const healthRows = healthAtRisk.length
+    ? healthAtRisk.map(p => `<tr>
+        <td>${p.oppLink ? `<a href="${esc(p.oppLink)}" style="color:#7dd3fc;">${esc(p.customer||'-')}</a>` : esc(p.customer||'-')}</td>
+        <td>${p.jira ? `<a href="${esc(p.jira)}" style="color:#7dd3fc;">${esc(p.name)}</a>` : esc(p.name)}</td>
+        <td>${healthPill(p.health, p.pmStatus)}</td>
+        <td style="color:#cbd5e1;font-size:0.9rem;">${isEmptyStatus(p.pmStatus) ? '<em style="color:#64748b;">No status set by PM</em>' : p.pmStatus}</td>
+      </tr>`).join('')
+    : `<tr><td colspan="4" style="color:#94a3b8;font-style:italic;">No projects with Yellow or Red health.</td></tr>`;
 
   const newRows = newProjects.length
     ? newProjects.map(p => `<tr>
@@ -2325,18 +2341,28 @@ th{color:#bfdbfe;font-weight:600}
     <h3>${projects.length}</h3>
   </div>
   <div class="stat" style="border-top:4px solid ${atRisk.length > 0 ? '#f97316' : '#4ade80'}">
-    <p>At Risk</p>
+    <p>Over Budget</p>
     <h3 style="color:${atRisk.length > 0 ? '#f97316' : '#eff6ff'}">${atRisk.length}</h3>
   </div>
 </div>
 
 <section>
-  <h2>Projects At Risk</h2>
+  <h2>Over Budget Projects</h2>
   <table>
     <thead><tr>
-      <th>Customer</th><th>Project</th><th>Project Health</th><th>Risk Reason</th>
+      <th>Customer</th><th>Project</th><th>Project Budget</th><th>Risk Reason (Budget)</th>
     </tr></thead>
     <tbody>${atRiskRows}</tbody>
+  </table>
+</section>
+
+<section>
+  <h2>Project Health</h2>
+  <table>
+    <thead><tr>
+      <th>Customer</th><th>Project</th><th>Project Health</th><th>Project Status by PM</th>
+    </tr></thead>
+    <tbody>${healthRows}</tbody>
   </table>
 </section>
 
