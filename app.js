@@ -1,7 +1,20 @@
 const PROXY_BASE = 'https://pm-proxy.demo.qa.kaltura.ai';
 const KV_SECRET = 'HPZTjoBph4Cz9AMGwiSsYcJf086bdgRX';
-const APP_VERSION = '1.3.1';
+const APP_VERSION = '1.4.0';
 const CHANGELOG = [
+  {
+    version: '1.4.0',
+    date: '2026-06-25',
+    features: [
+      'Dashboard: "On track" replaced with "Project health" showing Green/Yellow/Red counts',
+      'Dashboard: "Project At risk" renamed to "Over Budget Projects" (counts projects ≥100% budget)',
+      'Report: 6 stat boxes — Total Projects, Total MRR/NRR, Project Health, Over Budget, Newly Added, Added MRR/NRR',
+      'Report: new "Project Health" section listing Yellow/Red projects with PM status',
+      'Report: "Over Budget" section shows Project Budget widget and Risk Reason',
+      'Report: PM column added to All Projects table, aligned with Newly Added Projects table',
+      'Report: links styled in correct color, Manager Notes displayed on separate lines',
+    ]
+  },
   {
     version: '1.3.1',
     date: '2026-06-25',
