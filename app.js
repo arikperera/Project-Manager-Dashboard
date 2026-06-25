@@ -2282,6 +2282,7 @@ function generateHTMLReport() {
     }).map(p => `<tr data-pm="${esc(p.manager||'')}" data-health="${esc(p.health||'Green')}" data-progress="${Math.round(Number(p.progress)||0)}">
       <td>${esc(p.customer||'-')}</td>
       <td>${esc(p.name)}</td>
+      <td>${esc(p.manager||'-')}</td>
       <td>${esc(String(p.nrr||0))} hrs</td>
       <td>${esc(formatDate(p.startDate))}</td>
       <td>${esc(formatDate(p.dueDate))}</td>
@@ -2451,11 +2452,11 @@ ${newSection}
   <div id="allTable">
     <table style="table-layout:fixed;width:100%">
       <colgroup>
-        <col style="width:10%"><col style="width:16%"><col style="width:5%"><col style="width:6%"><col style="width:6%">
-        <col style="width:8%"><col style="width:8%"><col style="width:22%"><col style="width:19%">
+        <col style="width:9%"><col style="width:15%"><col style="width:8%"><col style="width:5%"><col style="width:6%"><col style="width:6%">
+        <col style="width:8%"><col style="width:8%"><col style="width:21%"><col style="width:14%">
       </colgroup>
       <thead><tr>
-        <th>Customer</th><th>Project</th><th>NRR(h)</th><th>Start</th><th>End</th>
+        <th>Customer</th><th>Project</th><th>PM</th><th>NRR(h)</th><th>Start</th><th>End</th>
         <th>Project Health</th><th>Project Budget</th><th>Project Status</th><th>Manager Notes</th>
       </tr></thead>
       ${allProjectsRows}
