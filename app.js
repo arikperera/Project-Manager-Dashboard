@@ -2318,6 +2318,7 @@ function generateHTMLReport() {
 <style>
 *{box-sizing:border-box}
 body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Inter',Arial,sans-serif;background:#07111f;color:#eff6ff;padding:32px}
+a{color:#7dd3fc;text-decoration:none}a:hover{text-decoration:underline}
 h1{margin:0 0 4px;font-size:1.6rem}
 .eyebrow{text-transform:uppercase;letter-spacing:.2em;font-size:.72rem;color:#a5b4fc;margin-bottom:8px}
 .stats{display:flex;gap:16px;margin-bottom:32px}
