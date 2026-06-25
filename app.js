@@ -2301,7 +2301,11 @@ function generateHTMLReport() {
   const newSection = newProjects.length && backups.length >= 1 ? `
     <section style="margin-bottom:32px">
       <h2 style="font-size:1.1rem;color:#7dd3fc;margin-bottom:12px">Newly Added Projects</h2>
-      <table style="width:100%;border-collapse:collapse">
+      <table style="width:100%;border-collapse:collapse;table-layout:fixed">
+        <colgroup>
+          <col style="width:9%"><col style="width:15%"><col style="width:8%"><col style="width:5%"><col style="width:6%"><col style="width:6%">
+          <col style="width:8%"><col style="width:8%"><col style="width:21%"><col style="width:14%">
+        </colgroup>
         <thead><tr>
           <th style="text-align:left;padding:8px;color:#bfdbfe;border-bottom:1px solid #223249">Customer</th>
           <th style="text-align:left;padding:8px;color:#bfdbfe;border-bottom:1px solid #223249">Project</th>
@@ -2445,7 +2449,11 @@ ${newSection}
   </div>
   <button class="toggle-btn" onclick="toggleAll(this)">▶ Show all projects (${projects.length})</button>
   <div id="allTable">
-    <table>
+    <table style="table-layout:fixed;width:100%">
+      <colgroup>
+        <col style="width:10%"><col style="width:16%"><col style="width:5%"><col style="width:6%"><col style="width:6%">
+        <col style="width:8%"><col style="width:8%"><col style="width:22%"><col style="width:19%">
+      </colgroup>
       <thead><tr>
         <th>Customer</th><th>Project</th><th>NRR(h)</th><th>Start</th><th>End</th>
         <th>Project Health</th><th>Project Budget</th><th>Project Status</th><th>Manager Notes</th>
