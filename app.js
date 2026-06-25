@@ -2173,6 +2173,15 @@ function generateHTMLReport() {
   const dateLabel = `${dd}/${mm}/${yy} ${hh}:${min}`;
   const filename = `dashboard-report-${dd}-${mm}-${yy}-${hh}-${min}.html`;
 
+  // Strip inline color from <a> tags so report CSS controls link colors
+  function cleanStatusHtml(html) {
+    if (!html) return html;
+    return html.replace(/<a\b([^>]*)>/gi, (match, attrs) => {
+      const cleaned = attrs.replace(/\bstyle="[^"]*"/gi, '');
+      return `<a${cleaned}>`;
+    });
+  }
+
   const atRisk = projects.filter(p => Number(p.progress) >= 100)
     .sort((a, b) => Number(b.progress) - Number(a.progress));
 
@@ -2238,7 +2247,7 @@ function generateHTMLReport() {
         <td>${p.oppLink ? `<a href="${esc(p.oppLink)}" style="color:#7dd3fc;">${esc(p.customer||'-')}</a>` : esc(p.customer||'-')}</td>
         <td>${p.jira ? `<a href="${esc(p.jira)}" style="color:#7dd3fc;">${esc(p.name)}</a>` : esc(p.name)}</td>
         <td>${healthPill(p.health, p.pmStatus)}</td>
-        <td style="color:#cbd5e1;font-size:0.9rem;">${isEmptyStatus(p.pmStatus) ? '<em style="color:#64748b;">No status set by PM</em>' : p.pmStatus}</td>
+        <td style="color:#cbd5e1;font-size:0.9rem;">${isEmptyStatus(p.pmStatus) ? '<em style="color:#64748b;">No status set by PM</em>' : cleanStatusHtml(p.pmStatus)}</td>
       </tr>`).join('')
     : `<tr><td colspan="4" style="color:#94a3b8;font-style:italic;">No projects with Yellow or Red health.</td></tr>`;
 
@@ -2252,7 +2261,7 @@ function generateHTMLReport() {
         <td>${esc(formatDate(p.dueDate))}</td>
         <td>${healthPill(p.health, p.pmStatus)}</td>
         <td>${progressBar(p.progress, p.estimatedHours, p.remainingHours, p.actualHours, p.health, p.riskReason)}</td>
-        <td>${isEmptyStatus(p.statusText) ? STATUS_PLACEHOLDER : p.statusText}</td>
+        <td>${isEmptyStatus(p.statusText) ? STATUS_PLACEHOLDER : cleanStatusHtml(p.statusText)}</td>
         <td>${esc((p.comments||'').split(', ').join('\n'))}</td>
       </tr>`).join('')
     : '';
