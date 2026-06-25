@@ -1,7 +1,19 @@
 const PROXY_BASE = 'https://pm-proxy.demo.qa.kaltura.ai';
 const KV_SECRET = 'HPZTjoBph4Cz9AMGwiSsYcJf086bdgRX';
-const APP_VERSION = '1.3.0';
+const APP_VERSION = '1.3.1';
 const CHANGELOG = [
+  {
+    version: '1.3.1',
+    date: '2026-06-25',
+    features: [
+      'Project Health imported from Jira — Risk Rate (Green/Yellow/Red) now imported on project import',
+      'Project At risk (budget) — correctly counts projects at 100%+ budget consumption',
+      'PM name fix — full display name imported from Jira instead of short name',
+      'Due-month email — PM column added as first column, sorted by PM name',
+      'No blank flash on reload — dashboard renders instantly from local cache while KV loads',
+      'Data safety — guard prevents default sample data from overwriting real KV data',
+    ]
+  },
   {
     version: '1.3.0',
     date: '2026-06-24',
