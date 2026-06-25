@@ -2262,7 +2262,7 @@ function generateHTMLReport() {
         <td>${healthPill(p.health, p.pmStatus)}</td>
         <td>${progressBar(p.progress, p.estimatedHours, p.remainingHours, p.actualHours, p.health, p.riskReason)}</td>
         <td>${isEmptyStatus(p.statusText) ? STATUS_PLACEHOLDER : cleanStatusHtml(p.statusText)}</td>
-        <td>${(p.comments||'').split(', ').map(esc).join('<br>')}</td>
+        <td>${(p.comments||'').split(/, (?=NRR:|MRR:|CSM:|Sales:)/).map(esc).join('<br>')}</td>
       </tr>`).join('')
     : '';
 
@@ -2288,7 +2288,7 @@ function generateHTMLReport() {
       <td>${healthPill(p.health, p.pmStatus)}</td>
       <td>${progressBar(p.progress, p.estimatedHours, p.remainingHours, null, p.health, p.riskReason)}</td>
       <td>${isEmptyStatus(p.statusText) ? STATUS_PLACEHOLDER : p.statusText}</td>
-      <td>${esc((p.comments||'').split(', ').join('\n'))}</td>
+      <td>${(p.comments||'').split(/, (?=NRR:|MRR:|CSM:|Sales:)/).map(esc).join('<br>')}</td>
     </tr>`).join('');
     return `<tbody class="pm-group-body">
       <tr class="pm-group-header-row"><td colspan="9" style="padding:10px 8px 6px;color:#7dd3fc;font-weight:700;font-size:0.95rem;border-bottom:1px solid #223249">${esc(manager)} <span style="font-weight:400;font-size:0.85rem;color:#bfdbfe">(Number Of Projects: ${grouped[manager].length})</span></td></tr>
