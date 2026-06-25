@@ -303,8 +303,17 @@ async function migrateProjects() {
     if (p.remainingHours === undefined) { p.remainingHours = null; changed = true; }
     if (p.actualHours === undefined) { p.actualHours = null; changed = true; }
     if (p.statusUpdatedAt === undefined) { p.statusUpdatedAt = ''; changed = true; }
-    if (p.nrrUsd === undefined) { p.nrrUsd = null; changed = true; }
-    if (p.mrrUsd === undefined) { p.mrrUsd = null; changed = true; }
+    if (p.nrrUsd === undefined || p.nrrUsd === null) {
+      // Try to backfill from comments: "NRR: $14.8K, MRR: $0K, ..."
+      const nrrMatch = (p.comments || '').match(/NRR:\s*\$?([\d.]+)K?/i);
+      p.nrrUsd = nrrMatch ? parseFloat(nrrMatch[1]) * (nrrMatch[0].includes('K') ? 1000 : 1) : null;
+      changed = true;
+    }
+    if (p.mrrUsd === undefined || p.mrrUsd === null) {
+      const mrrMatch = (p.comments || '').match(/MRR:\s*\$?([\d.]+)K?/i);
+      p.mrrUsd = mrrMatch ? parseFloat(mrrMatch[1]) * (mrrMatch[0].includes('K') ? 1000 : 1) : null;
+      changed = true;
+    }
   }
   // Never save if projects is still the default sample data — would overwrite real KV data
   if (changed && projects !== defaultProjects) await saveProjects();
@@ -2351,7 +2360,7 @@ ${(() => {
     <h3>${projects.length}</h3>
   </div>
   <div class="stat" style="border-top:4px solid #a78bfa">
-    <p>MRR / NRR</p>
+    <p>Total MRR/NRR</p>
     <div style="font-size:0.95rem;margin-top:4px;line-height:1.8;">
       <div>MRR: <strong>${formatCurrency(totalMrr)}</strong></div>
       <div>NRR: <strong>${formatCurrency(totalNrr)}</strong></div>
@@ -2374,7 +2383,7 @@ ${(() => {
     <h3>${newProjects.length}</h3>
   </div>
   <div class="stat" style="border-top:4px solid #a78bfa">
-    <p>Added MRR / NRR</p>
+    <p>Added MRR/NRR</p>
     <div style="font-size:0.95rem;margin-top:4px;line-height:1.8;">
       <div>MRR: <strong>${formatCurrency(newMrr)}</strong></div>
       <div>NRR: <strong>${formatCurrency(newNrr)}</strong></div>
