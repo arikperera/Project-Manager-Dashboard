@@ -2262,7 +2262,7 @@ function generateHTMLReport() {
         <td>${healthPill(p.health, p.pmStatus)}</td>
         <td>${progressBar(p.progress, p.estimatedHours, p.remainingHours, p.actualHours, p.health, p.riskReason)}</td>
         <td>${isEmptyStatus(p.statusText) ? STATUS_PLACEHOLDER : cleanStatusHtml(p.statusText)}</td>
-        <td>${esc((p.comments||'').split(', ').join('\n'))}</td>
+        <td>${(p.comments||'').split(', ').map(esc).join('<br>')}</td>
       </tr>`).join('')
     : '';
 
