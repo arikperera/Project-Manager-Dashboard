@@ -303,6 +303,8 @@ async function migrateProjects() {
     if (p.remainingHours === undefined) { p.remainingHours = null; changed = true; }
     if (p.actualHours === undefined) { p.actualHours = null; changed = true; }
     if (p.statusUpdatedAt === undefined) { p.statusUpdatedAt = ''; changed = true; }
+    if (p.nrrUsd === undefined) { p.nrrUsd = null; changed = true; }
+    if (p.mrrUsd === undefined) { p.mrrUsd = null; changed = true; }
   }
   // Never save if projects is still the default sample data — would overwrite real KV data
   if (changed && projects !== defaultProjects) await saveProjects();
@@ -1027,6 +1029,8 @@ function buildProjectFromEnrichment(issue, sfData) {
     manager,
     jira:        issue.jiraUrl,
     nrr:         sfOk ? (sfData.nrrHours ?? '') : (issue.estimatedHours ?? ''),
+    nrrUsd:      nrr !== '' ? Number(nrr) || null : null,
+    mrrUsd:      mrr !== '' ? Number(mrr) || null : null,
     comments:    `NRR: ${formatCurrency(nrr || '0')}, MRR: ${formatCurrency(mrr || '0')}, CSM: ${csmName || '-'}, Sales: ${salesName || '-'}`,
     startDate,
     dueDate:     issue.dueDate || '',
@@ -1826,6 +1830,8 @@ modalProjectForm.addEventListener('submit', (event) => {
     manager: pmName || 'Unassigned',
     jira: document.getElementById('modalProjectJira').value.trim(),
     nrr: Number(document.getElementById('modalProjectNrr').value),
+    nrrUsd: nrrValue ? Number(nrrValue) || null : null,
+    mrrUsd: mrrValue ? Number(mrrValue) || null : null,
     startDate: parseDateInput(document.getElementById('modalProjectStartDate').value),
     dueDate: parseDateInput(document.getElementById('modalProjectDueDate').value),
     status: 'On Track',
@@ -2180,10 +2186,6 @@ function generateHTMLReport() {
     };
     const h = health || 'Green';
     const pill = `<span style="display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;font-size:0.82rem;font-weight:700;${colors[h]||colors.Green}">${h}</span>`;
-    if (h === 'Yellow' || h === 'Red') {
-      const tip = esc(pmStatus || 'No info was set by PM');
-      return `<span class="rpt-health-wrap">${pill}<span class="rpt-tooltip" style="color:#fde68a">${tip}</span></span>`;
-    }
     return pill;
   }
 
@@ -2335,16 +2337,51 @@ th{color:#bfdbfe;font-weight:600}
 <h1>Project Manager Dashboard — Status Report</h1>
 <p style="color:#94a3b8;margin:4px 0 24px">Generated: ${dateLabel}</p>
 
-<div class="stats">
+${(() => {
+  const totalNrr = projects.reduce((s, p) => s + (Number(p.nrrUsd) || 0), 0);
+  const totalMrr = projects.reduce((s, p) => s + (Number(p.mrrUsd) || 0), 0);
+  const newNrr = newProjects.reduce((s, p) => s + (Number(p.nrrUsd) || 0), 0);
+  const newMrr = newProjects.reduce((s, p) => s + (Number(p.mrrUsd) || 0), 0);
+  const hGreen  = projects.filter(p => (p.health || 'Green') === 'Green').length;
+  const hYellow = projects.filter(p => p.health === 'Yellow').length;
+  const hRed    = projects.filter(p => p.health === 'Red').length;
+  return `<div class="stats">
   <div class="stat" style="border-top:4px solid #38bdf8">
     <p>Total Projects</p>
     <h3>${projects.length}</h3>
   </div>
+  <div class="stat" style="border-top:4px solid #a78bfa">
+    <p>MRR / NRR</p>
+    <div style="font-size:0.95rem;margin-top:4px;line-height:1.8;">
+      <div>MRR: <strong>${formatCurrency(totalMrr)}</strong></div>
+      <div>NRR: <strong>${formatCurrency(totalNrr)}</strong></div>
+    </div>
+  </div>
+  <div class="stat" style="border-top:4px solid #4ade80">
+    <p>Project Health</p>
+    <div style="font-size:0.9rem;margin-top:4px;line-height:1.8;">
+      <div>🟢 ${hGreen} Green</div>
+      <div>🟡 ${hYellow} Yellow</div>
+      <div>🔴 ${hRed} Red</div>
+    </div>
+  </div>
   <div class="stat" style="border-top:4px solid ${atRisk.length > 0 ? '#f97316' : '#4ade80'}">
-    <p>Over Budget</p>
+    <p>Over Budget Projects</p>
     <h3 style="color:${atRisk.length > 0 ? '#f97316' : '#eff6ff'}">${atRisk.length}</h3>
   </div>
-</div>
+  <div class="stat" style="border-top:4px solid #38bdf8">
+    <p>Newly Added Projects</p>
+    <h3>${newProjects.length}</h3>
+  </div>
+  <div class="stat" style="border-top:4px solid #a78bfa">
+    <p>Added MRR / NRR</p>
+    <div style="font-size:0.95rem;margin-top:4px;line-height:1.8;">
+      <div>MRR: <strong>${formatCurrency(newMrr)}</strong></div>
+      <div>NRR: <strong>${formatCurrency(newNrr)}</strong></div>
+    </div>
+  </div>
+</div>`;
+})()}
 
 <section>
   <h2>Over Budget Projects</h2>
