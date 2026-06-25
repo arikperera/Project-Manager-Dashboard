@@ -2667,15 +2667,16 @@ function getDueThisMonthProjects() {
 }
 
 function buildDueMonthHtml() {
-  const due = getDueThisMonthProjects();
+  const due = getDueThisMonthProjects().slice().sort((a, b) => (a.manager || '').localeCompare(b.manager || ''));
   const thStyle = 'padding:8px 12px;border:1px solid #ccc;background:#f0f0f0;font-weight:600;text-align:left;';
   const tdStyle = 'padding:8px 12px;border:1px solid #ccc;';
-  const headers = ['Customer', 'Jira', 'PM Comments', 'Manager Comments'];
+  const headers = ['PM', 'Customer', 'Jira', 'PM Comments', 'Manager Comments'];
   const headerRow = headers.map(h => `<th style="${thStyle}">${h}</th>`).join('');
   const dataRows = due.map(p => {
     const jiraKey = getJiraLabel(p.jira);
     const jiraCell = p.jira ? `<a href="${escapeHtml(p.jira)}">${escapeHtml(jiraKey)}</a>` : '-';
     return `<tr>
+      <td style="${tdStyle}">${escapeHtml(p.manager || '-')}</td>
       <td style="${tdStyle}">${escapeHtml(p.customer || '-')}</td>
       <td style="${tdStyle}">${jiraCell}</td>
       <td style="${tdStyle}"></td>
@@ -2689,9 +2690,9 @@ function buildDueMonthHtml() {
 }
 
 function buildDueMonthPlainText() {
-  const due = getDueThisMonthProjects();
-  const header = 'Customer\tJira\tPM Comments\tManager Comments';
-  const rows = due.map((p) => `${p.customer || ''}\t${getJiraLabel(p.jira) || ''}\t\t`);
+  const due = getDueThisMonthProjects().slice().sort((a, b) => (a.manager || '').localeCompare(b.manager || ''));
+  const header = 'PM\tCustomer\tJira\tPM Comments\tManager Comments';
+  const rows = due.map((p) => `${p.manager || ''}\t${p.customer || ''}\t${getJiraLabel(p.jira) || ''}\t\t`);
   return [header, ...rows].join('\n');
 }
 
