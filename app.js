@@ -2523,9 +2523,9 @@ function renderPager(section) {
   const pager = section.querySelector('.pager');
   if (!pager) return;
   if (pages <= 1) { pager.innerHTML = ''; return; }
-  pager.innerHTML = \`<button onclick="goPage(this,-1)" \${page===0?'disabled':''}>← Prev</button>
-    <span>Page \${page+1} of \${pages}</span>
-    <button onclick="goPage(this,1)" \${page>=pages-1?'disabled':''}>Next →</button>\`;
+  pager.innerHTML = '<button onclick="goPage(this,-1)"' + (page===0?' disabled':'') + '>← Prev</button>'
+    + '<span>Page ' + (page+1) + ' of ' + pages + '</span>'
+    + '<button onclick="goPage(this,1)"' + (page>=pages-1?' disabled':'') + '>Next →</button>';
 }
 function goPage(btn, dir) {
   const section = btn.closest('.paginated-section');
