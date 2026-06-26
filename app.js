@@ -2314,7 +2314,13 @@ function generateHTMLReport() {
 
   const newSection = newProjects.length && backups.length >= 1 ? `
     <section style="margin-bottom:32px">
-      <h2 style="font-size:1.1rem;color:#7dd3fc;margin-bottom:12px">Newly Added Projects</h2>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <h2 style="font-size:1.1rem;color:#7dd3fc;margin:0">Newly Added Projects</h2>
+        <select onchange="changePageSize(this)" style="background:#0b1220;color:#eff6ff;border:1px solid #223249;border-radius:8px;padding:5px 10px;font-size:0.85rem;cursor:pointer;">
+          <option value="5">Show 5</option><option value="10">Show 10</option>
+        </select>
+      </div>
+      <div class="paginated-section" data-page="0" data-page-size="5">
       <table style="width:100%;border-collapse:collapse;table-layout:fixed">
         <colgroup>
           <col style="width:9%"><col style="width:15%"><col style="width:8%"><col style="width:5%"><col style="width:6%"><col style="width:6%">
@@ -2334,6 +2340,8 @@ function generateHTMLReport() {
         </tr></thead>
         <tbody>${newRows}</tbody>
       </table>
+      <div class="pager"></div>
+      </div>
     </section>` : '';
 
   const html = `<!DOCTYPE html>
@@ -2367,7 +2375,11 @@ th{color:#bfdbfe;font-weight:600}
 .rpt-tooltip{display:none;position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);background:#111c30;border:1px solid #223249;border-radius:8px;padding:6px 10px;font-size:0.8rem;white-space:normal;width:220px;z-index:100;pointer-events:none;box-shadow:0 4px 12px rgba(2,6,23,.5)}
 .rpt-health-wrap:hover .rpt-tooltip,.rpt-progress-wrap:hover .rpt-tooltip,.rpt-blink-wrap:hover .rpt-tooltip{display:block}
 @keyframes progress-blink{0%,100%{opacity:1}50%{opacity:0}}
-@media print{.filter-bar,.toggle-btn{display:none!important}#allTable{display:block!important}}
+@media print{.filter-bar,.toggle-btn,.pager,select{display:none!important}#allTable{display:block!important}.paginated-section tbody tr{display:table-row!important}}
+.pager{display:flex;align-items:center;justify-content:center;gap:12px;margin-top:12px;font-size:0.88rem;color:#bfdbfe}
+.pager button{background:rgba(15,23,42,.95);border:1px solid #223249;border-radius:8px;padding:5px 12px;color:#eff6ff;cursor:pointer;font-size:0.85rem}
+.pager button:hover{background:rgba(30,41,59,.95)}
+.pager button:disabled{opacity:0.35;cursor:default}
 </style>
 </head>
 <body>
@@ -2422,23 +2434,39 @@ ${(() => {
 })()}
 
 <section>
-  <h2>Over Budget Projects</h2>
-  <table>
-    <thead><tr>
-      <th>Customer</th><th>Project</th><th>Project Budget</th><th>Risk Reason (Budget)</th>
-    </tr></thead>
-    <tbody>${atRiskRows}</tbody>
-  </table>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+    <h2 style="margin:0">Over Budget Projects</h2>
+    <select onchange="changePageSize(this)" style="background:#0b1220;color:#eff6ff;border:1px solid #223249;border-radius:8px;padding:5px 10px;font-size:0.85rem;cursor:pointer;">
+      <option value="5">Show 5</option><option value="10">Show 10</option>
+    </select>
+  </div>
+  <div class="paginated-section" data-page="0" data-page-size="5">
+    <table>
+      <thead><tr>
+        <th>Customer</th><th>Project</th><th>Project Budget</th><th>Risk Reason (Budget)</th>
+      </tr></thead>
+      <tbody>${atRiskRows}</tbody>
+    </table>
+    <div class="pager"></div>
+  </div>
 </section>
 
 <section>
-  <h2>Project Health</h2>
-  <table>
-    <thead><tr>
-      <th>Customer</th><th>Project</th><th>Project Health</th><th>Project Status by PM</th>
-    </tr></thead>
-    <tbody>${healthRows}</tbody>
-  </table>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+    <h2 style="margin:0">Project Health</h2>
+    <select onchange="changePageSize(this)" style="background:#0b1220;color:#eff6ff;border:1px solid #223249;border-radius:8px;padding:5px 10px;font-size:0.85rem;cursor:pointer;">
+      <option value="5">Show 5</option><option value="10">Show 10</option>
+    </select>
+  </div>
+  <div class="paginated-section" data-page="0" data-page-size="5">
+    <table>
+      <thead><tr>
+        <th>Customer</th><th>Project</th><th>Project Health</th><th>Project Status by PM</th>
+      </tr></thead>
+      <tbody>${healthRows}</tbody>
+    </table>
+    <div class="pager"></div>
+  </div>
 </section>
 
 ${newSection}
@@ -2485,6 +2513,37 @@ function toggleAll(btn){
   t.style.display=open?'none':'block';
   btn.textContent=open?'▶ Show all projects (${projects.length})':'▼ Hide all projects';
 }
+function renderPager(section) {
+  const rows = section.querySelectorAll('tbody tr');
+  const pageSize = parseInt(section.dataset.pageSize) || 5;
+  const page = parseInt(section.dataset.page) || 0;
+  const total = rows.length;
+  const pages = Math.ceil(total / pageSize);
+  rows.forEach((r, i) => { r.style.display = (i >= page * pageSize && i < (page + 1) * pageSize) ? '' : 'none'; });
+  const pager = section.querySelector('.pager');
+  if (!pager) return;
+  if (pages <= 1) { pager.innerHTML = ''; return; }
+  pager.innerHTML = \`<button onclick="goPage(this,-1)" \${page===0?'disabled':''}>← Prev</button>
+    <span>Page \${page+1} of \${pages}</span>
+    <button onclick="goPage(this,1)" \${page>=pages-1?'disabled':''}>Next →</button>\`;
+}
+function goPage(btn, dir) {
+  const section = btn.closest('.paginated-section');
+  const pages = Math.ceil(section.querySelectorAll('tbody tr').length / (parseInt(section.dataset.pageSize)||5));
+  section.dataset.page = Math.max(0, Math.min(pages-1, (parseInt(section.dataset.page)||0) + dir));
+  renderPager(section);
+}
+function changePageSize(sel) {
+  const section = sel.closest('section').querySelector('.paginated-section');
+  section.dataset.pageSize = sel.value;
+  section.dataset.page = 0;
+  renderPager(section);
+}
+function initPaginators() {
+  document.querySelectorAll('.paginated-section').forEach(s => renderPager(s));
+}
+window.addEventListener('DOMContentLoaded', initPaginators);
+
 function applyFilters(){
   const pm=document.getElementById('rPmFilter').value;
   const health=document.getElementById('rHealthFilter').value;
