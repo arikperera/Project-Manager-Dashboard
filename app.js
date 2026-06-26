@@ -2450,9 +2450,9 @@ ${(() => {
     </table>
     <div class="pager"></div>
   </div>
-</section>
 
-<section>
+  <div style="border-top:1px solid #223249;margin:24px 0 14px;"></div>
+
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
     <h2 style="margin:0">Project Health</h2>
     <select onchange="changePageSize(this)" style="background:#0b1220;color:#eff6ff;border:1px solid #223249;border-radius:8px;padding:5px 10px;font-size:0.85rem;cursor:pointer;">
