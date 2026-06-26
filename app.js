@@ -2441,7 +2441,8 @@ ${(() => {
     </select>
   </div>
   <div class="paginated-section" data-page="0" data-page-size="5">
-    <table>
+    <table style="table-layout:fixed;width:100%">
+      <colgroup><col style="width:18%"><col style="width:28%"><col style="width:22%"><col style="width:32%"></colgroup>
       <thead><tr>
         <th>Customer</th><th>Project</th><th>Project Budget</th><th>Risk Reason (Budget)</th>
       </tr></thead>
@@ -2459,7 +2460,8 @@ ${(() => {
     </select>
   </div>
   <div class="paginated-section" data-page="0" data-page-size="5">
-    <table>
+    <table style="table-layout:fixed;width:100%">
+      <colgroup><col style="width:18%"><col style="width:22%"><col style="width:12%"><col style="width:48%"></colgroup>
       <thead><tr>
         <th>Customer</th><th>Project</th><th>Project Health</th><th>Project Status by PM</th>
       </tr></thead>
