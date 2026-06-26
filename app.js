@@ -2341,6 +2341,7 @@ function generateHTMLReport() {
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
+<base target="_blank">
 <title>Project Manager Dashboard — Status Report</title>
 <style>
 *{box-sizing:border-box}
