@@ -657,6 +657,13 @@ function getProgressFillTone(value) {
   return 'progress-fill-red';
 }
 
+function buildHoursLabel(actualHours, estimatedHours, nrr) {
+  const actual = actualHours ?? 0;
+  const planned = estimatedHours != null ? estimatedHours : (nrr != null ? nrr : null);
+  if (planned != null) return `${actual} / ${planned}h`;
+  return `${actual}h actual`;
+}
+
 function applyFieldNames(names) {
   for (const [id, name] of Object.entries(names)) {
     if (name === 'Risk Reason') cachedRiskReasonFieldId = id;
@@ -1406,7 +1413,7 @@ function renderTable() {
                   return tip ? `<div class="progress-tooltip">${escapeHtml(tip).replace(/\n/g,'<br>')}</div>` : '';
                 })()}
                 <div class="progress-bar"><div class="progress-fill ${progressFillTone}" style="width:${Math.min(progressValue, 100)}%"></div></div>
-                <small class="progress-label ${progressTone}">${progressValue}%</small>
+                <small class="progress-label ${progressTone}">${progressValue}% &middot; ${buildHoursLabel(project.actualHours, project.estimatedHours, project.nrr)}</small>
               </div>${(() => { const ack = project.riskReason; if (ack) return ''; if (progressValue > 90) return '<span class="progress-blink-wrap"><span class="progress-blink">⚠</span><span class="progress-blink-tip">Edit the project and set over budget risk reason</span></span>'; return ''; })()}
             </td>
             <td><div class="cell-scroll">${isEmptyStatus(project.statusText) ? STATUS_PLACEHOLDER : project.statusText}</div></td>
