@@ -2491,6 +2491,7 @@ ${(() => {
   <div class="stat" style="border-top:4px solid #38bdf8">
     <p>Newly Added Projects</p>
     <h3 id="rptNewCount" data-orig="${newProjects.length}">${newProjects.length}</h3>
+    ${backups[0]?.timestamp ? `<p style="margin:4px 0 0;font-size:0.78rem;color:#64748b">since ${(() => { const d=new Date(backups[0].timestamp); return String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+String(d.getFullYear()).slice(2); })()}</p>` : ''}
   </div>
   <div class="stat" style="border-top:4px solid #a78bfa">
     <p>Added MRR/NRR</p>
@@ -2498,6 +2499,7 @@ ${(() => {
       <div>MRR: <strong id="rptNewMrr" data-orig="${formatCurrency(newMrr)}">${formatCurrency(newMrr)}</strong></div>
       <div>NRR: <strong id="rptNewNrr" data-orig="${formatCurrency(newNrr)}">${formatCurrency(newNrr)}</strong></div>
     </div>
+    ${backups[0]?.timestamp ? `<p style="margin:4px 0 0;font-size:0.78rem;color:#64748b">since ${(() => { const d=new Date(backups[0].timestamp); return String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+String(d.getFullYear()).slice(2); })()}</p>` : ''}
   </div>
 </div>`;
 })()}
