@@ -2227,7 +2227,7 @@ function generateHTMLReport() {
     return pill;
   }
 
-  function progressBar(val, estimatedHours, remainingHours, actualHours, health, riskReason) {
+  function progressBar(val, estimatedHours, remainingHours, actualHours, health, riskReason, nrr) {
     const v = Math.max(0, Math.round(Number(val)||0));
     const fill = v < 50 ? 'linear-gradient(90deg,#22c55e,#86efac)' : v <= 75 ? 'linear-gradient(90deg,#facc15,#fde68a)' : v <= 90 ? 'linear-gradient(90deg,#f97316,#fb923c)' : 'linear-gradient(90deg,#dc2626,#ef4444)';
     const color = v < 50 ? '#bbf7d0' : v <= 75 ? '#fde68a' : v <= 90 ? '#fdba74' : '#ef4444';
@@ -2244,7 +2244,8 @@ function generateHTMLReport() {
     } else if (actualHours != null) {
       tip = actualHours === 0 ? 'No hours reported yet' : `${actualHours} hours reported`;
     }
-    const bar = `<div style="width:100%;background:#142033;border-radius:999px;overflow:hidden;height:8px;margin-bottom:4px"><div style="height:100%;border-radius:999px;width:${Math.min(v,100)}%;background:${fill}"></div></div><small style="color:${color};font-weight:700">${v}%</small>`;
+    const hoursLabel = buildHoursLabel(actualHours, estimatedHours, nrr);
+    const bar = `<div style="width:100%;background:#142033;border-radius:999px;overflow:hidden;height:8px;margin-bottom:4px"><div style="height:100%;border-radius:999px;width:${Math.min(v,100)}%;background:${fill}"></div></div><small style="color:${color};font-weight:700">${v}% &middot; ${hoursLabel}</small>`;
     const barWithTip = tip ? `<span class="rpt-progress-wrap">${bar}<span class="rpt-tooltip">${tip.replace(/\n/g,'<br>')}</span></span>` : bar;
     return barWithTip + blink;
   }
@@ -2257,7 +2258,7 @@ function generateHTMLReport() {
     ? atRisk.map(p => `<tr>
         <td>${esc(p.customer||'-')}</td>
         <td>${p.jira ? `<a href="${esc(p.jira)}" style="color:#7dd3fc;">${esc(p.name)}</a>` : `<strong>${esc(p.name)}</strong>`}</td>
-        <td>${progressBar(p.progress, p.estimatedHours, p.remainingHours, p.actualHours, p.health, p.riskReason)}</td>
+        <td>${progressBar(p.progress, p.estimatedHours, p.remainingHours, p.actualHours, p.health, p.riskReason, p.nrr)}</td>
         <td style="color:#fde68a">${esc(p.riskReason||'No risk reason set')}</td>
       </tr>`).join('')
     : `<tr><td colspan="4" style="color:#94a3b8;font-style:italic;">No over-budget projects.</td></tr>`;
@@ -2280,7 +2281,7 @@ function generateHTMLReport() {
         <td>${esc(formatDate(p.startDate))}</td>
         <td>${esc(formatDate(p.dueDate))}</td>
         <td>${healthPill(p.health, p.pmStatus)}</td>
-        <td>${progressBar(p.progress, p.estimatedHours, p.remainingHours, p.actualHours, p.health, p.riskReason)}</td>
+        <td>${progressBar(p.progress, p.estimatedHours, p.remainingHours, p.actualHours, p.health, p.riskReason, p.nrr)}</td>
         <td>${isEmptyStatus(p.statusText) ? STATUS_PLACEHOLDER : cleanStatusHtml(p.statusText)}</td>
         <td>${(p.comments||'').split(/, (?=NRR:|MRR:|CSM:|Sales:)/).map(esc).join('<br>')}</td>
       </tr>`).join('')
@@ -2307,7 +2308,7 @@ function generateHTMLReport() {
       <td>${esc(formatDate(p.startDate))}</td>
       <td>${esc(formatDate(p.dueDate))}</td>
       <td>${healthPill(p.health, p.pmStatus)}</td>
-      <td>${progressBar(p.progress, p.estimatedHours, p.remainingHours, null, p.health, p.riskReason)}</td>
+      <td>${progressBar(p.progress, p.estimatedHours, p.remainingHours, null, p.health, p.riskReason, p.nrr)}</td>
       <td>${isEmptyStatus(p.statusText) ? STATUS_PLACEHOLDER : p.statusText}</td>
       <td>${(p.comments||'').split(/, (?=NRR:|MRR:|CSM:|Sales:)/).map(esc).join('<br>')}</td>
     </tr>`).join('');
