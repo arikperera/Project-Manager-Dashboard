@@ -412,6 +412,7 @@ const salesList = null;
 const healthFilter = document.getElementById('healthFilter');
 const progressFilter = document.getElementById('progressFilter');
 const duemonthFilter = document.getElementById('duemonthFilter');
+const regionFilter = document.getElementById('regionFilter');
 const importFromJiraBtn = document.getElementById('importFromJiraBtn');
 const importModal = document.getElementById('importModal');
 const closeImportModalBtn = document.getElementById('closeImportModalBtn');
@@ -1328,6 +1329,7 @@ function getFilteredProjects() {
   const selectedHealth = healthFilter.value;
   const selectedProgress = progressFilter.value;
   const selectedDueMonth = duemonthFilter.value;
+  const selectedRegion = regionFilter.value;
 
   return projects.filter((project) => {
     const matchesPm = selectedPm === 'All' || project.manager === selectedPm;
@@ -1340,7 +1342,9 @@ function getFilteredProjects() {
     if (selectedProgress === '40-69') matchesProgress = project.progress >= 40 && project.progress < 70;
     if (selectedProgress === '70-100') matchesProgress = project.progress >= 70;
 
-    return matchesPm && matchesHealth && matchesDueMonth && matchesSearch && matchesProgress;
+    const matchesRegion = !selectedRegion || project.region === selectedRegion;
+
+    return matchesPm && matchesHealth && matchesDueMonth && matchesSearch && matchesProgress && matchesRegion;
   });
 }
 
@@ -1462,6 +1466,10 @@ function renderSelect() {
   const currentPm = pmFilter.value;
   pmFilter.innerHTML = ['<option value="All">All PMs</option>', ...uniqueManagers.map((manager) => `<option value="${manager}">${manager}</option>`)].join('');
   pmFilter.value = currentPm;
+
+  const currentRegion = regionFilter.value;
+  // (no innerHTML rebuild needed — regionFilter is static HTML)
+  regionFilter.value = currentRegion;
 
   const now = new Date();
   const monthOptions = [['', 'Projects Due completion']];
@@ -2198,6 +2206,7 @@ pmFilter.addEventListener('change', renderTable);
 healthFilter.addEventListener('change', renderTable);
 progressFilter.addEventListener('change', renderTable);
 duemonthFilter.addEventListener('change', renderTable);
+regionFilter.addEventListener('change', renderTable);
 
 editHealth.addEventListener('change', () => {
   pmStatusLabel.style.display = ['Yellow', 'Red'].includes(editHealth.value) ? '' : 'none';
@@ -2276,7 +2285,7 @@ function generateHTMLReport() {
   }
 
   const atRiskRows = atRisk.length
-    ? atRisk.map(p => `<tr>
+    ? atRisk.map(p => `<tr data-region="${esc(p.region||'')}">
         <td>${esc(p.customer||'-')}</td>
         <td>${p.jira ? `<a href="${esc(p.jira)}" style="color:#7dd3fc;">${esc(p.name)}</a>` : `<strong>${esc(p.name)}</strong>`}</td>
         <td>${progressBar(p.progress, p.estimatedHours, p.remainingHours, p.actualHours, p.health, p.riskReason, p.nrr)}</td>
@@ -2285,7 +2294,7 @@ function generateHTMLReport() {
     : `<tr><td colspan="4" style="color:#94a3b8;font-style:italic;">No over-budget projects.</td></tr>`;
 
   const healthRows = healthAtRisk.length
-    ? healthAtRisk.map(p => `<tr>
+    ? healthAtRisk.map(p => `<tr data-region="${esc(p.region||'')}">
         <td>${p.oppLink ? `<a href="${esc(p.oppLink)}" style="color:#7dd3fc;">${esc(p.customer||'-')}</a>` : esc(p.customer||'-')}</td>
         <td>${p.jira ? `<a href="${esc(p.jira)}" style="color:#7dd3fc;">${esc(p.name)}</a>` : esc(p.name)}</td>
         <td>${healthPill(p.health, p.pmStatus)}</td>
@@ -2294,7 +2303,7 @@ function generateHTMLReport() {
     : `<tr><td colspan="4" style="color:#94a3b8;font-style:italic;">No projects with Yellow or Red health.</td></tr>`;
 
   const newRows = newProjects.length
-    ? newProjects.map(p => `<tr>
+    ? newProjects.map(p => `<tr data-region="${esc(p.region||'')}">
         <td>${esc(p.customer||'-')}</td>
         <td><strong>${esc(p.name)}</strong></td>
         <td>${esc(p.manager||'-')}</td>
@@ -2321,7 +2330,7 @@ function generateHTMLReport() {
       const cb = (b.customer || '').toLowerCase();
       if (ca !== cb) return ca.localeCompare(cb);
       return projects.indexOf(b) - projects.indexOf(a);
-    }).map(p => `<tr data-pm="${esc(p.manager||'')}" data-health="${esc(p.health||'Green')}" data-progress="${Math.round(Number(p.progress)||0)}">
+    }).map(p => `<tr data-pm="${esc(p.manager||'')}" data-health="${esc(p.health||'Green')}" data-progress="${Math.round(Number(p.progress)||0)}" data-region="${esc(p.region||'')}">
       <td>${esc(p.customer||'-')}</td>
       <td>${esc(p.name)}</td>
       <td>${esc(p.manager||'-')}</td>
@@ -2414,7 +2423,18 @@ th{color:#bfdbfe;font-weight:600}
 <body>
 <p class="eyebrow">Executive View</p>
 <h1>Project Manager Dashboard — Status Report</h1>
-<p style="color:#94a3b8;margin:4px 0 24px">Generated: ${dateLabel}</p>
+<div style="display:flex;align-items:center;gap:16px;margin:4px 0 24px">
+  <p style="color:#94a3b8;margin:0">Generated: ${dateLabel}</p>
+  <select id="rRegionFilter" onchange="applyRegionFilter()" style="background:#0b1220;color:#eff6ff;border:1px solid #223249;border-radius:10px;padding:7px 12px;font-family:inherit;font-size:0.9rem">
+    <option value="">All Regions</option>
+    <option value="APAC">APAC</option>
+    <option value="EMEA">EMEA</option>
+    <option value="North America">North America</option>
+    <option value="LatAm">LatAm</option>
+    <option value="Internal">Internal</option>
+    <option value="ROW">"ROW"</option>
+  </select>
+</div>
 
 ${(() => {
   const totalNrr = projects.reduce((s, p) => s + (Number(p.nrrUsd) || 0), 0);
@@ -2424,39 +2444,59 @@ ${(() => {
   const hGreen  = projects.filter(p => (p.health || 'Green') === 'Green').length;
   const hYellow = projects.filter(p => p.health === 'Yellow').length;
   const hRed    = projects.filter(p => p.health === 'Red').length;
-  return `<div class="stats">
+  const REGIONS = ['APAC','EMEA','North America','LatAm','Internal','ROW'];
+  const regionStats = {};
+  REGIONS.forEach(r => {
+    const rp = projects.filter(p => p.region === r);
+    const rAtRisk = rp.filter(p => Number(p.progress) >= 100);
+    const rNew = backups.length >= 1 ? rp.filter(p => !backupNames.has(p.name)) : [];
+    regionStats[r] = {
+      total: rp.length,
+      totalNrr: rp.reduce((s,p) => s + (Number(p.nrrUsd)||0), 0),
+      totalMrr: rp.reduce((s,p) => s + (Number(p.mrrUsd)||0), 0),
+      hGreen: rp.filter(p => (p.health||'Green')==='Green').length,
+      hYellow: rp.filter(p => p.health==='Yellow').length,
+      hRed: rp.filter(p => p.health==='Red').length,
+      atRisk: rAtRisk.length,
+      newCount: rNew.length,
+      newNrr: rNew.reduce((s,p) => s + (Number(p.nrrUsd)||0), 0),
+      newMrr: rNew.reduce((s,p) => s + (Number(p.mrrUsd)||0), 0),
+    };
+  });
+  const regionDataAttr = `data-region-stats='${JSON.stringify(regionStats)}'`;
+  return `<div class="stats" id="rptStats" ${regionDataAttr}>
   <div class="stat" style="border-top:4px solid #38bdf8">
     <p>Total Projects</p>
-    <h3>${projects.length}</h3>
+    <h3 id="rptTotal" data-orig="${projects.length}">${projects.length}</h3>
   </div>
   <div class="stat" style="border-top:4px solid #a78bfa">
     <p>Total MRR/NRR</p>
     <div style="font-size:0.95rem;margin-top:4px;line-height:1.8;">
-      <div>MRR: <strong>${formatCurrency(totalMrr)}</strong></div>
-      <div>NRR: <strong>${formatCurrency(totalNrr)}</strong></div>
+      <div>MRR: <strong id="rptMrr" data-orig="${formatCurrency(totalMrr)}">${formatCurrency(totalMrr)}</strong></div>
+      <div>NRR: <strong id="rptNrr" data-orig="${formatCurrency(totalNrr)}">${formatCurrency(totalNrr)}</strong></div>
     </div>
   </div>
   <div class="stat" style="border-top:4px solid #4ade80">
     <p>Project Health</p>
     <div style="font-size:0.9rem;margin-top:4px;line-height:1.8;">
-      <div>🟢 ${hGreen} Green</div>
-      <div>🟡 ${hYellow} Yellow</div>
-      <div>🔴 ${hRed} Red</div>
+      <div>🟢 <span id="rptHGreen" data-orig="${hGreen}">${hGreen}</span> Green</div>
+      <div>🟡 <span id="rptHYellow" data-orig="${hYellow}">${hYellow}</span> Yellow</div>
+      <div>🔴 <span id="rptHRed" data-orig="${hRed}">${hRed}</span> Red</div>
     </div>
   </div>
   <div class="stat" style="border-top:4px solid ${atRisk.length > 0 ? '#f97316' : '#4ade80'}">
     <p>Over Budget Projects</p>
-    <h3 style="color:${atRisk.length > 0 ? '#f97316' : '#eff6ff'}">${atRisk.length}</h3>
+    <h3 id="rptAtRisk" data-orig="${atRisk.length}" style="color:${atRisk.length > 0 ? '#f97316' : '#eff6ff'}">${atRisk.length}</h3>
   </div>
   <div class="stat" style="border-top:4px solid #38bdf8">
     <p>Newly Added Projects</p>
-    <h3>${newProjects.length}</h3>
+    <h3 id="rptNewCount" data-orig="${newProjects.length}">${newProjects.length}</h3>
   </div>
   <div class="stat" style="border-top:4px solid #a78bfa">
     <p>Added MRR/NRR</p>
     <div style="font-size:0.95rem;margin-top:4px;line-height:1.8;">
-      <div>MRR: <strong>${formatCurrency(newMrr)}</strong></div>
-      <div>NRR: <strong>${formatCurrency(newNrr)}</strong></div>
+      <div>MRR: <strong id="rptNewMrr" data-orig="${formatCurrency(newMrr)}">${formatCurrency(newMrr)}</strong></div>
+      <div>NRR: <strong id="rptNewNrr" data-orig="${formatCurrency(newNrr)}">${formatCurrency(newNrr)}</strong></div>
     </div>
   </div>
 </div>`;
@@ -2599,6 +2639,44 @@ function applyFilters(){
     if(prog==='70-100' && rProg<70) show=false;
     row.style.display=show?'':'none';
   });
+}
+function applyRegionFilter() {
+  const region = document.getElementById('rRegionFilter').value;
+  // Filter all table rows with data-region
+  document.querySelectorAll('tr[data-region]').forEach(row => {
+    row.style.display = (!region || row.dataset.region === region) ? '' : 'none';
+  });
+  // Update stat boxes
+  const statsDiv = document.getElementById('rptStats');
+  if (!statsDiv) return;
+  let stats;
+  try { stats = JSON.parse(statsDiv.dataset.regionStats); } catch { return; }
+  const s = region ? stats[region] : null;
+  const el = id => document.getElementById(id);
+  if (s) {
+    if (el('rptTotal')) el('rptTotal').textContent = s.total;
+    if (el('rptMrr')) el('rptMrr').textContent = formatCurrencyRpt(s.totalMrr);
+    if (el('rptNrr')) el('rptNrr').textContent = formatCurrencyRpt(s.totalNrr);
+    if (el('rptHGreen')) el('rptHGreen').textContent = s.hGreen;
+    if (el('rptHYellow')) el('rptHYellow').textContent = s.hYellow;
+    if (el('rptHRed')) el('rptHRed').textContent = s.hRed;
+    if (el('rptAtRisk')) el('rptAtRisk').textContent = s.atRisk;
+    if (el('rptNewCount')) el('rptNewCount').textContent = s.newCount;
+    if (el('rptNewMrr')) el('rptNewMrr').textContent = formatCurrencyRpt(s.newMrr);
+    if (el('rptNewNrr')) el('rptNewNrr').textContent = formatCurrencyRpt(s.newNrr);
+  } else {
+    // restore original values from data attributes
+    ['rptTotal','rptMrr','rptNrr','rptHGreen','rptHYellow','rptHRed','rptAtRisk','rptNewCount','rptNewMrr','rptNewNrr'].forEach(id => {
+      const e = el(id);
+      if (e && e.dataset.orig !== undefined) e.textContent = e.dataset.orig;
+    });
+  }
+}
+function formatCurrencyRpt(v) {
+  if (!v) return '$0';
+  if (v >= 1000000) return '$' + (v/1000000).toFixed(1) + 'M';
+  if (v >= 1000) return '$' + (v/1000).toFixed(1) + 'K';
+  return '$' + Math.round(v);
 }
 </script>
 </body>
