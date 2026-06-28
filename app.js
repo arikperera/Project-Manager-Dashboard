@@ -1445,7 +1445,9 @@ function renderSelect() {
   }
 
   const uniqueManagers = [...new Set(projects.map((project) => project.manager).filter(Boolean))];
+  const currentPm = pmFilter.value;
   pmFilter.innerHTML = ['<option value="All">All PMs</option>', ...uniqueManagers.map((manager) => `<option value="${manager}">${manager}</option>`)].join('');
+  pmFilter.value = currentPm;
 
   const now = new Date();
   const monthOptions = [['', 'Projects Due completion']];
