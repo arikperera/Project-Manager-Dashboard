@@ -658,8 +658,9 @@ function getProgressFillTone(value) {
 }
 
 function buildHoursLabel(actualHours, estimatedHours, nrr) {
-  const actual = actualHours ?? 0;
-  const planned = estimatedHours != null ? estimatedHours : (nrr != null ? nrr : null);
+  const actual = Math.round(actualHours ?? 0);
+  const est = (estimatedHours != null && estimatedHours !== '') ? Number(estimatedHours) : null;
+  const planned = est != null ? Math.round(est) : ((nrr != null && nrr !== '') ? Math.round(Number(nrr)) : null);
   if (planned != null) return `${actual} / ${planned}h`;
   return `${actual}h actual`;
 }
@@ -2308,7 +2309,7 @@ function generateHTMLReport() {
       <td>${esc(formatDate(p.startDate))}</td>
       <td>${esc(formatDate(p.dueDate))}</td>
       <td>${healthPill(p.health, p.pmStatus)}</td>
-      <td>${progressBar(p.progress, p.estimatedHours, p.remainingHours, null, p.health, p.riskReason, p.nrr)}</td>
+      <td>${progressBar(p.progress, p.estimatedHours, p.remainingHours, p.actualHours, p.health, p.riskReason, p.nrr)}</td>
       <td>${isEmptyStatus(p.statusText) ? STATUS_PLACEHOLDER : p.statusText}</td>
       <td>${(p.comments||'').split(/, (?=NRR:|MRR:|CSM:|Sales:)/).map(esc).join('<br>')}</td>
     </tr>`).join('');
