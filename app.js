@@ -126,6 +126,7 @@ let cachedRiskRateOptions = null;
 let cachedAccountNameFieldId = null;
 let cachedMrrFieldId = null;
 let cachedNrrFieldId = null;
+let cachedRegionFieldId = null;
 
 const BACKUPS_KEY = 'project-dashboard-backups-v1';
 let backups = JSON.parse(localStorage.getItem('project-dashboard-backups-v1') || '[]');
@@ -316,6 +317,7 @@ async function migrateProjects() {
     if (p.remainingHours === undefined) { p.remainingHours = null; changed = true; }
     if (p.actualHours === undefined) { p.actualHours = null; changed = true; }
     if (p.statusUpdatedAt === undefined) { p.statusUpdatedAt = ''; changed = true; }
+    if (p.region === undefined) { p.region = ''; changed = true; }
     if (p.nrrUsd === undefined || p.nrrUsd === null) {
       // Try to backfill from comments: "NRR: $14.8K, MRR: $0K, ..."
       const nrrMatch = (p.comments || '').match(/NRR:\s*\$?([\d.]+)K?/i);
@@ -356,6 +358,7 @@ const editHealth = document.getElementById('editHealth');
 const editPmStatus = document.getElementById('editPmStatus');
 const pmStatusLabel = document.getElementById('pmStatusLabel');
 const editRiskReason = document.getElementById('editRiskReason');
+const editRegion = document.getElementById('editRegion');
 const riskReasonLabel = document.getElementById('riskReasonLabel');
 const riskList = document.getElementById('riskList');
 const exportBtn = document.getElementById('exportBtn');
@@ -677,6 +680,7 @@ function applyFieldNames(names) {
     if (name === 'Account Name') cachedAccountNameFieldId = id;
     if (name === 'MRR (USD)') cachedMrrFieldId = id;
     if (name === 'NRR(USD)') cachedNrrFieldId = id;
+    if (name === 'Region') cachedRegionFieldId = id;
   }
 }
 
@@ -757,7 +761,7 @@ async function syncProjectProgressFromJira() {
   await resolveJiraFieldIds();
 
   // Build fields param from cached IDs — only request what we need
-  const fieldIds = ['progress', cachedProgressPctFieldId, cachedEstHoursFieldId, cachedRemEffortFieldId, cachedActEffortFieldId].filter(Boolean);
+  const fieldIds = ['progress', cachedProgressPctFieldId, cachedEstHoursFieldId, cachedRemEffortFieldId, cachedActEffortFieldId, cachedRegionFieldId].filter(Boolean);
   const fieldsParam = fieldIds.join(',');
 
   for (const key of [...new Set(issueKeys)]) {
@@ -795,13 +799,18 @@ async function syncProjectProgressFromJira() {
       const remainingHours = readHours(cachedRemEffortFieldId);
       const actualHours = readHours(cachedActEffortFieldId);
 
-      if (percent !== null || estimatedHours !== null || remainingHours !== null || actualHours !== null) {
+      if (percent !== null || estimatedHours !== null || remainingHours !== null || actualHours !== null || cachedRegionFieldId) {
         projects.forEach((project) => {
           if (getJiraIssueKey(project.jira) === key) {
             if (percent !== null) project.progress = percent;
             if (estimatedHours !== null) project.estimatedHours = estimatedHours;
             if (remainingHours !== null) project.remainingHours = remainingHours;
             if (actualHours !== null) project.actualHours = actualHours;
+            if (cachedRegionFieldId) {
+              const rawRegion = f[cachedRegionFieldId];
+              const regionVal = typeof rawRegion === 'object' && rawRegion !== null ? (rawRegion.value || '') : (rawRegion || '');
+              if (regionVal) project.region = regionVal;
+            }
           }
         });
       }
@@ -1071,6 +1080,7 @@ function buildProjectFromEnrichment(issue, sfData) {
     oppLink:     sfOk ? (sfData.oppUrl || '') : '',
     atLink:      '',
     riskReason:  issue.riskReason || '',
+    region:      issue.region || '',
     csm:         csmName,
     sales:       salesName,
   };
@@ -1095,7 +1105,7 @@ async function pollForNewProjects() {
   const addedKeys = [];
   for (const issue of toAdd) {
     // Enrich issue with extra Jira fields (account name, hours, MRR/NRR, due date)
-    const extraFieldIds = [cachedAccountNameFieldId, cachedMrrFieldId, cachedNrrFieldId, cachedEstHoursFieldId, cachedVMForecastFieldId].filter(Boolean);
+    const extraFieldIds = [cachedAccountNameFieldId, cachedMrrFieldId, cachedNrrFieldId, cachedEstHoursFieldId, cachedVMForecastFieldId, cachedRegionFieldId].filter(Boolean);
     if (extraFieldIds.length) {
       try {
         const useProxy = true;
@@ -1112,6 +1122,10 @@ async function pollForNewProjects() {
           if (cachedNrrFieldId) issue.nrrUsd = f[cachedNrrFieldId] ?? '';
           if (cachedEstHoursFieldId) issue.estimatedHours = f[cachedEstHoursFieldId] ?? '';
           if (cachedVMForecastFieldId) issue.dueDate = f[cachedVMForecastFieldId] || '';
+          if (cachedRegionFieldId) {
+            const rawR = f[cachedRegionFieldId];
+            issue.region = typeof rawR === 'object' && rawR !== null ? (rawR.value || '') : (rawR || '');
+          }
         }
       } catch {}
     }
@@ -1497,6 +1511,7 @@ function openEditProjectModal(projectIndex) {
   pmStatusLabel.style.display = isAtRisk ? '' : 'none';
   const matchingOption = Array.from(editRiskReason.options).find(o => o.text === project.riskReason);
   editRiskReason.value = matchingOption ? matchingOption.value : '';
+  editRegion.value = project.region || '';
   riskReasonLabel.style.display = '';
   const editDueDateText = document.getElementById('editDueDateText');
   editDueDateText.value = project.dueDate ? formatDateDMY(project.dueDate) : '';
@@ -1524,6 +1539,7 @@ function closeEditProjectModal() {
   editPmStatus.value = '';
   pmStatusLabel.style.display = 'none';
   editRiskReason.value = '';
+  editRegion.value = '';
   riskReasonLabel.style.display = '';
 }
 
@@ -1826,6 +1842,7 @@ editProjectForm.addEventListener('submit', async (event) => {
   const riskOptionId = editRiskReason.value;
   const riskOptionLabel = riskOptionId ? editRiskReason.options[editRiskReason.selectedIndex].text : '';
   selectedProject.riskReason = riskOptionLabel;
+  selectedProject.region = editRegion.value;
   selectedProject.atLink = document.getElementById('editAtLink').value.trim();
   const newDueDate = parseDateInput(document.getElementById('editDueDateText').value);
   if (newDueDate) selectedProject.dueDate = newDueDate;
@@ -1873,6 +1890,7 @@ modalProjectForm.addEventListener('submit', (event) => {
     csm: csmName || '',
     sales: salesName || '',
     comments: `NRR: ${formatCurrency(nrrValue || '0')}, MRR: ${formatCurrency(mrrValue || '0')}, CSM: ${csmName || '-'}, Sales: ${salesName || '-'}`,
+    region: document.getElementById('modalProjectRegion').value,
   });
 
   const newProjectJiraKey = getJiraIssueKey(document.getElementById('modalProjectJira').value.trim());

@@ -146,6 +146,18 @@
             Project status by PM
             <textarea id="editPmStatus" rows="3" placeholder="Explain why this project is at risk…" style="resize:vertical;"></textarea>
           </label>
+          <label>
+            Region
+            <select id="editRegion">
+              <option value="">— select —</option>
+              <option value="APAC">APAC</option>
+              <option value="EMEA">EMEA</option>
+              <option value="North America">North America</option>
+              <option value="LatAm">LatAm</option>
+              <option value="Internal">Internal</option>
+              <option value="ROW">"ROW"</option>
+            </select>
+          </label>
           <label id="riskReasonLabel">
             Risk Reason (Budget)
             <select id="editRiskReason">
@@ -286,6 +298,18 @@
           <label>
             MRR value
             <input id="modalProjectMrrValue" type="text" placeholder="e.g. $8,000" required />
+          </label>
+          <label>
+            Region
+            <select id="modalProjectRegion">
+              <option value="">— select —</option>
+              <option value="APAC">APAC</option>
+              <option value="EMEA">EMEA</option>
+              <option value="North America">North America</option>
+              <option value="LatAm">LatAm</option>
+              <option value="Internal">Internal</option>
+              <option value="ROW">"ROW"</option>
+            </select>
           </label>
           <div class="modal-actions">
             <button type="button" id="cancelModalBtn" class="ghost-btn">Cancel</button>
