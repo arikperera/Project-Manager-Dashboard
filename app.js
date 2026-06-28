@@ -719,7 +719,7 @@ async function resolveJiraFieldIds() {
   } catch {}
 
   // If critical fields are still missing, fetch from a real issue's names map
-  if (!cachedAccountNameFieldId || !cachedVMForecastFieldId || !cachedEstHoursFieldId) {
+  if (!cachedAccountNameFieldId || !cachedVMForecastFieldId || !cachedEstHoursFieldId || !cachedRiskRateFieldId) {
     const firstKey = projects.map(p => getJiraIssueKey(p.jira)).filter(Boolean)[0];
     if (firstKey) {
       try {
