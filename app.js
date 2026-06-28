@@ -775,7 +775,7 @@ async function syncProjectProgressFromJira() {
   await resolveJiraFieldIds();
 
   // Build fields param from cached IDs — only request what we need
-  const fieldIds = ['progress', cachedProgressPctFieldId, cachedEstHoursFieldId, cachedRemEffortFieldId, cachedActEffortFieldId, cachedRegionFieldId].filter(Boolean);
+  const fieldIds = ['progress', cachedProgressPctFieldId, cachedEstHoursFieldId, cachedRemEffortFieldId, cachedActEffortFieldId, cachedRegionFieldId, cachedRiskRateFieldId].filter(Boolean);
   const fieldsParam = fieldIds.join(',');
 
   for (const key of [...new Set(issueKeys)]) {
@@ -813,13 +813,16 @@ async function syncProjectProgressFromJira() {
       const remainingHours = readHours(cachedRemEffortFieldId);
       const actualHours = readHours(cachedActEffortFieldId);
 
-      if (percent !== null || estimatedHours !== null || remainingHours !== null || actualHours !== null || cachedRegionFieldId) {
+      const healthVal = cachedRiskRateFieldId ? (f[cachedRiskRateFieldId]?.value || null) : null;
+
+      if (percent !== null || estimatedHours !== null || remainingHours !== null || actualHours !== null || cachedRegionFieldId || healthVal) {
         projects.forEach((project) => {
           if (getJiraIssueKey(project.jira) === key) {
             if (percent !== null) project.progress = percent;
             if (estimatedHours !== null) project.estimatedHours = estimatedHours;
             if (remainingHours !== null) project.remainingHours = remainingHours;
             if (actualHours !== null) project.actualHours = actualHours;
+            if (healthVal) project.health = healthVal;
             if (cachedRegionFieldId) {
               const rawRegion = f[cachedRegionFieldId];
               const regionVal = typeof rawRegion === 'object' && rawRegion !== null ? (rawRegion.value || '') : (rawRegion || '');
