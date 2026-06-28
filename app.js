@@ -2619,6 +2619,7 @@ function applyFilters(){
   const pm=document.getElementById('rPmFilter').value;
   const health=document.getElementById('rHealthFilter').value;
   const prog=document.getElementById('rProgressFilter').value;
+  const region=document.getElementById('rRegionFilter').value;
   if(pm||health||prog){
     const t=document.getElementById('allTable');
     if(t.style.display!=='block'){
@@ -2637,6 +2638,7 @@ function applyFilters(){
     if(prog==='0-39' && rProg>=40) show=false;
     if(prog==='40-69' && (rProg<40||rProg>=70)) show=false;
     if(prog==='70-100' && rProg<70) show=false;
+    if(region && row.dataset.region!==region) show=false;
     row.style.display=show?'':'none';
   });
 }
