@@ -2622,7 +2622,7 @@ function applyFilters(){
   const health=document.getElementById('rHealthFilter').value;
   const prog=document.getElementById('rProgressFilter').value;
   const region=document.getElementById('rRegionFilter').value;
-  if(pm||health||prog||region){
+  if(pm||health||prog){
     const t=document.getElementById('allTable');
     if(t.style.display!=='block'){
       t.style.display='block';
@@ -2630,18 +2630,25 @@ function applyFilters(){
       if(btn) btn.textContent='▼ Hide all projects';
     }
   }
-  document.querySelectorAll('#allTable tbody.pm-group-body tr[data-pm]').forEach(row=>{
-    const rPm=row.dataset.pm;
-    const rHealth=row.dataset.health;
-    const rProg=Number(row.dataset.progress);
-    let show=true;
-    if(pm && rPm!==pm) show=false;
-    if(health && rHealth!==health) show=false;
-    if(prog==='0-39' && rProg>=40) show=false;
-    if(prog==='40-69' && (rProg<40||rProg>=70)) show=false;
-    if(prog==='70-100' && rProg<70) show=false;
-    if(region && row.dataset.region!==region) show=false;
-    row.style.display=show?'':'none';
+  document.querySelectorAll('#allTable tbody.pm-group-body').forEach(tbody=>{
+    const headerRow=tbody.querySelector('.pm-group-header-row');
+    let anyVisible=false;
+    tbody.querySelectorAll('tr[data-pm]').forEach(row=>{
+      const rPm=row.dataset.pm;
+      const rHealth=row.dataset.health;
+      const rProg=Number(row.dataset.progress);
+      let show=true;
+      if(pm && rPm!==pm) show=false;
+      if(health && rHealth!==health) show=false;
+      if(prog==='0-39' && rProg>=40) show=false;
+      if(prog==='40-69' && (rProg<40||rProg>=70)) show=false;
+      if(prog==='70-100' && rProg<70) show=false;
+      if(region && row.dataset.region!==region) show=false;
+      if(row.classList.contains('region-hidden')) show=false;
+      row.style.display=show?'':'none';
+      if(show) anyVisible=true;
+    });
+    if(headerRow) headerRow.style.display=anyVisible?'':'none';
   });
 }
 function applyRegionFilter() {
