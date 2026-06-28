@@ -1,7 +1,20 @@
 const PROXY_BASE = 'https://pm-proxy.demo.qa.kaltura.ai';
 const KV_SECRET = 'HPZTjoBph4Cz9AMGwiSsYcJf086bdgRX';
-const APP_VERSION = '1.4.0';
+const APP_VERSION = '1.5.0';
 const CHANGELOG = [
+  {
+    version: '1.5.0',
+    date: '2026-06-28',
+    features: [
+      'Region field — projects now have a Region (APAC, EMEA, North America, LatAm, Internal, ROW) synced from Jira and editable in both Add and Edit modals',
+      'Region filter — dashboard filter row now includes a Region dropdown; filters live like other filters and persists across edits',
+      'Report: region selector in report header scopes all stat boxes (Total Projects, MRR/NRR, Project Health, Over Budget, Newly Added, Added MRR/NRR) and all tables',
+      'Report: All Projects PM filter now hides PM group headers when all their projects are filtered out',
+      'Report: Newly Added and Added MRR/NRR stat boxes now show the backup date they compare against ("since dd/mm/yy")',
+      'Report: Project Budget column now shows actual vs planned hours on the same line as the percentage (e.g. 690% · 0 / 10h)',
+      'Dashboard: PM filter no longer resets when saving an edit',
+    ]
+  },
   {
     version: '1.4.0',
     date: '2026-06-25',
