@@ -810,7 +810,7 @@ async function syncProjectProgressFromJira() {
             if (cachedRegionFieldId) {
               const rawRegion = f[cachedRegionFieldId];
               const regionVal = typeof rawRegion === 'object' && rawRegion !== null ? (rawRegion.value || '') : (rawRegion || '');
-              if (regionVal) project.region = regionVal;
+              if (regionVal && !project.region) project.region = regionVal;
             }
           }
         });
@@ -2585,7 +2585,8 @@ function toggleAll(btn){
   btn.textContent=open?'▶ Show all projects (${projects.length})':'▼ Hide all projects';
 }
 function renderPager(section) {
-  const rows = section.querySelectorAll('tbody tr');
+  // Only paginate rows not hidden by the region filter (class region-hidden)
+  const rows = Array.from(section.querySelectorAll('tbody tr')).filter(r => !r.classList.contains('region-hidden'));
   const pageSize = parseInt(section.dataset.pageSize) || 5;
   const page = parseInt(section.dataset.page) || 0;
   const total = rows.length;
@@ -2600,7 +2601,8 @@ function renderPager(section) {
 }
 function goPage(btn, dir) {
   const section = btn.closest('.paginated-section');
-  const pages = Math.ceil(section.querySelectorAll('tbody tr').length / (parseInt(section.dataset.pageSize)||5));
+  const eligibleRows = Array.from(section.querySelectorAll('tbody tr')).filter(r => !r.classList.contains('region-hidden'));
+  const pages = Math.ceil(eligibleRows.length / (parseInt(section.dataset.pageSize)||5));
   section.dataset.page = Math.max(0, Math.min(pages-1, (parseInt(section.dataset.page)||0) + dir));
   renderPager(section);
 }
@@ -2620,7 +2622,7 @@ function applyFilters(){
   const health=document.getElementById('rHealthFilter').value;
   const prog=document.getElementById('rProgressFilter').value;
   const region=document.getElementById('rRegionFilter').value;
-  if(pm||health||prog){
+  if(pm||health||prog||region){
     const t=document.getElementById('allTable');
     if(t.style.display!=='block'){
       t.style.display='block';
@@ -2644,9 +2646,15 @@ function applyFilters(){
 }
 function applyRegionFilter() {
   const region = document.getElementById('rRegionFilter').value;
-  // Filter all table rows with data-region
+  // Mark non-matching rows with region-hidden class (not inline style) so
+  // renderPager can distinguish region filtering from pagination hiding.
   document.querySelectorAll('tr[data-region]').forEach(row => {
-    row.style.display = (!region || row.dataset.region === region) ? '' : 'none';
+    if (!region || row.dataset.region === region) {
+      row.classList.remove('region-hidden');
+    } else {
+      row.classList.add('region-hidden');
+      row.style.display = 'none';
+    }
   });
   // Update stat boxes
   const statsDiv = document.getElementById('rptStats');
@@ -2673,6 +2681,10 @@ function applyRegionFilter() {
       if (e && e.dataset.orig !== undefined) e.textContent = e.dataset.orig;
     });
   }
+  // Reset pagination so page windows respect the new filter, then re-apply
+  // PM/health/progress filters on top of the region selection.
+  initPaginators();
+  applyFilters();
 }
 function formatCurrencyRpt(v) {
   if (!v) return '$0';
