@@ -1253,17 +1253,29 @@ async function jiraProxyPut(issueKey, body) {
 
 async function addJiraComment(issueKey, updatedBy) {
   if (!updatedBy) return;
-  const body = {
+  const payload = {
     body: {
-      version: 1, type: 'doc',
-      content: [{ type: 'paragraph', content: [{ type: 'text', text: `Updated via PM Dashboard by: ${updatedBy}` }] }]
+      type: 'doc',
+      version: 1,
+      content: [{
+        type: 'paragraph',
+        content: [{ type: 'text', text: `Updated via PM Dashboard by: ${updatedBy}` }]
+      }]
     }
   };
-  await fetch(`${PROXY_BASE}/jira/issue/${issueKey}/comment`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-KV-Secret': KV_SECRET },
-    body: JSON.stringify(body),
-  }).catch(() => {});
+  try {
+    const res = await fetch(`${PROXY_BASE}/jira/issue/${issueKey}/comment`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-KV-Secret': KV_SECRET },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      console.error('[comment→Jira]', res.status, err);
+    }
+  } catch (e) {
+    console.error('[comment→Jira]', e);
+  }
 }
 
 async function writeRiskReasonToJira(issueKey, optionId) {
