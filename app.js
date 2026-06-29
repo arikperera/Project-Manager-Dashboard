@@ -3418,6 +3418,18 @@ async function init() {
   startAutoProjectPoll();
   syncStatusFromJira();
   syncProjectProgressFromJira();
+  checkJiraConnectivity();
+}
+
+async function checkJiraConnectivity() {
+  try {
+    const res = await fetch(`${PROXY_BASE}/jira/field`, { headers: { Accept: 'application/json', 'X-KV-Secret': KV_SECRET } });
+    if (!res.ok) {
+      showToast(`Jira connection issue (${res.status}) — syncing may not work`);
+    }
+  } catch {
+    showToast('Jira is unreachable — syncing may not work');
+  }
 }
 
 init();
