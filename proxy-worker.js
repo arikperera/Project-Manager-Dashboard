@@ -147,6 +147,18 @@ export default {
       return json({ ok: true });
     }
 
+    // GET /me — return current user's email from Cloudflare Access JWT
+    if (method === 'GET' && path === '/me') {
+      const jwt = request.headers.get('Cf-Access-Jwt-Assertion');
+      if (!jwt) return json({ email: null });
+      try {
+        const payload = JSON.parse(atob(jwt.split('.')[1]));
+        return json({ email: payload.email || null });
+      } catch {
+        return json({ email: null });
+      }
+    }
+
     // Settings endpoints — no-op (credentials are env vars)
     if (method === 'POST' && (path === '/settings' || path === '/settings/sf')) {
       return json({ ok: true });
