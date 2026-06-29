@@ -2920,7 +2920,7 @@ function showAtRiskPopup() {
 }
 
 function hideAtRiskPopup() {
-  atRiskHideTimer = setTimeout(() => atRiskPopup.classList.add('hidden'), 150);
+  atRiskHideTimer = setTimeout(() => atRiskPopup.classList.add('hidden'), 600);
 }
 
 atRiskTrigger.addEventListener('mouseenter', showAtRiskPopup);
@@ -2946,6 +2946,49 @@ atRiskPopup.addEventListener('click', (e) => {
   atRiskPopup.classList.add('hidden');
 });
 
+// Health Yellow/Red popups
+function makeHealthPopup(triggerId, popupId, healthValue) {
+  const trigger = document.getElementById(triggerId);
+  const popup = document.getElementById(popupId);
+  if (!trigger || !popup) return;
+  let hideTimer = null;
+  function showPopup() {
+    clearTimeout(hideTimer);
+    const filtered = projects.filter(p => p.health === healthValue);
+    if (!filtered.length) return;
+    popup.innerHTML = filtered.map((p, i) =>
+      `<a href="#" data-scroll-project="${escapeHtml(p.name)}">${i + 1}. ${escapeHtml(p.customer ? p.customer + ' — ' : '')}${escapeHtml(p.name)}</a>`
+    ).join('');
+    popup.classList.remove('hidden');
+  }
+  function hidePopup() {
+    hideTimer = setTimeout(() => popup.classList.add('hidden'), 600);
+  }
+  trigger.addEventListener('mouseenter', showPopup);
+  trigger.addEventListener('mouseleave', hidePopup);
+  popup.addEventListener('mouseenter', () => clearTimeout(hideTimer));
+  popup.addEventListener('mouseleave', hidePopup);
+  popup.addEventListener('click', (e) => {
+    const link = e.target.closest('[data-scroll-project]');
+    if (!link) return;
+    e.preventDefault();
+    const projectName = link.dataset.scrollProject;
+    const rows = portfolioGroups.querySelectorAll('tr');
+    for (const row of rows) {
+      const nameCell = row.querySelector('td:nth-child(2)');
+      if (nameCell && (nameCell.textContent.trim() === projectName || nameCell.querySelector('a')?.textContent.trim() === projectName)) {
+        row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        row.style.outline = '2px solid rgba(56,189,248,0.6)';
+        setTimeout(() => { row.style.outline = ''; }, 2000);
+        break;
+      }
+    }
+    popup.classList.add('hidden');
+  });
+}
+makeHealthPopup('healthYellowTrigger', 'healthYellowPopup', 'Yellow');
+makeHealthPopup('healthRedTrigger', 'healthRedPopup', 'Red');
+
 const dueThisMonthTrigger = document.getElementById('dueThisMonthTrigger');
 const dueThisMonthPopup = document.getElementById('dueThisMonthPopup');
 
@@ -2962,7 +3005,7 @@ function showDueThisMonthPopup() {
 }
 
 function hideDueThisMonthPopup() {
-  dueThisMonthHideTimer = setTimeout(() => dueThisMonthPopup.classList.add('hidden'), 150);
+  dueThisMonthHideTimer = setTimeout(() => dueThisMonthPopup.classList.add('hidden'), 600);
 }
 
 dueThisMonthTrigger.addEventListener('mouseenter', showDueThisMonthPopup);

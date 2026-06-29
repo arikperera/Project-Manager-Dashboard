@@ -45,13 +45,15 @@
             <h3 id="totalProjects">0</h3>
             <span>Active initiatives</span>
           </article>
-          <article class="stat-card accent-green">
+          <article class="stat-card accent-green" style="position:relative;">
             <p>Project health</p>
             <div id="healthBreakdown" style="margin-top:4px;display:grid;gap:3px;font-size:0.92rem;">
               <span>🟢 <span id="healthGreenCount">0</span> Green</span>
-              <span>🟡 <span id="healthYellowCount">0</span> Yellow</span>
-              <span>🔴 <span id="healthRedCount">0</span> Red</span>
+              <span id="healthYellowTrigger" style="cursor:pointer;">🟡 <span id="healthYellowCount">0</span> Yellow</span>
+              <span id="healthRedTrigger" style="cursor:pointer;">🔴 <span id="healthRedCount">0</span> Red</span>
             </div>
+            <div id="healthYellowPopup" class="atrisk-popup hidden"></div>
+            <div id="healthRedPopup" class="atrisk-popup hidden"></div>
           </article>
           <article class="stat-card accent-amber" id="atRiskCard" style="position:relative;cursor:default;">
             <p>Over Budget Projects</p>
