@@ -2225,7 +2225,7 @@ pmFilter.addEventListener('change', renderTable);
 healthFilter.addEventListener('change', renderTable);
 progressFilter.addEventListener('change', renderTable);
 duemonthFilter.addEventListener('change', renderTable);
-regionFilter.addEventListener('change', renderTable);
+regionFilter.addEventListener('change', renderAll);
 
 editHealth.addEventListener('change', () => {
   pmStatusLabel.style.display = ['Yellow', 'Red'].includes(editHealth.value) ? '' : 'none';
