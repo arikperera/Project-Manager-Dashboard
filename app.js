@@ -775,7 +775,7 @@ async function syncProjectProgressFromJira() {
   await resolveJiraFieldIds();
 
   // Build fields param from cached IDs — only request what we need
-  const fieldIds = ['progress', cachedProgressPctFieldId, cachedEstHoursFieldId, cachedRemEffortFieldId, cachedActEffortFieldId, cachedRegionFieldId, cachedRiskRateFieldId].filter(Boolean);
+  const fieldIds = ['progress', cachedProgressPctFieldId, cachedEstHoursFieldId, cachedRemEffortFieldId, cachedActEffortFieldId, cachedRegionFieldId, cachedRiskRateFieldId, cachedVMForecastFieldId].filter(Boolean);
   const fieldsParam = fieldIds.join(',');
 
   for (const key of [...new Set(issueKeys)]) {
@@ -823,6 +823,7 @@ async function syncProjectProgressFromJira() {
             if (remainingHours !== null) project.remainingHours = remainingHours;
             if (actualHours !== null) project.actualHours = actualHours;
             if (healthVal) project.health = healthVal;
+            if (cachedVMForecastFieldId && f[cachedVMForecastFieldId]) project.dueDate = f[cachedVMForecastFieldId];
             if (cachedRegionFieldId) {
               const rawRegion = f[cachedRegionFieldId];
               const regionVal = typeof rawRegion === 'object' && rawRegion !== null ? (rawRegion.value || '') : (rawRegion || '');
