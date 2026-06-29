@@ -2947,13 +2947,17 @@ atRiskPopup.addEventListener('click', (e) => {
 });
 
 // Health Yellow/Red popups
+const healthPopups = [];
 function makeHealthPopup(triggerId, popupId, healthValue) {
   const trigger = document.getElementById(triggerId);
   const popup = document.getElementById(popupId);
   if (!trigger || !popup) return;
   let hideTimer = null;
+  healthPopups.push({ popup, hideTimer: () => hideTimer, setHideTimer: (t) => { hideTimer = t; } });
   function showPopup() {
     clearTimeout(hideTimer);
+    // Hide all other health popups immediately
+    healthPopups.forEach(hp => { if (hp.popup !== popup) hp.popup.classList.add('hidden'); });
     const filtered = projects.filter(p => p.health === healthValue);
     if (!filtered.length) return;
     popup.innerHTML = filtered.map((p, i) =>
