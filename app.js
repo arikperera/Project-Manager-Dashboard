@@ -1500,15 +1500,18 @@ function renderSelect() {
 }
 
 function renderSummary() {
-  const total = projects.length;
-  const atRisk = projects.filter((project) => Number(project.progress) >= 100).length;
-  const healthGreen  = projects.filter(p => (p.health || 'Green') === 'Green').length;
-  const healthYellow = projects.filter(p => p.health === 'Yellow').length;
-  const healthRed    = projects.filter(p => p.health === 'Red').length;
+  const selectedRegion = regionFilter ? regionFilter.value : '';
+  const scoped = selectedRegion ? projects.filter(p => p.region === selectedRegion) : projects;
+
+  const total = scoped.length;
+  const atRisk = scoped.filter((project) => Number(project.progress) >= 100).length;
+  const healthGreen  = scoped.filter(p => (p.health || 'Green') === 'Green').length;
+  const healthYellow = scoped.filter(p => p.health === 'Yellow').length;
+  const healthRed    = scoped.filter(p => p.health === 'Red').length;
 
   const now = new Date();
   const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  const dueThisMonth = projects.filter((project) => (project.dueDate || '').startsWith(currentMonth));
+  const dueThisMonth = scoped.filter((project) => (project.dueDate || '').startsWith(currentMonth));
 
   document.getElementById('totalProjects').textContent = total;
   document.getElementById('healthGreenCount').textContent  = healthGreen;
@@ -2987,19 +2990,24 @@ dueThisMonthPopup.addEventListener('click', (e) => {
 function getDueThisMonthProjects() {
   const now = new Date();
   const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  return projects.filter((p) => (p.dueDate || '').startsWith(currentMonth));
+  const selectedRegion = regionFilter ? regionFilter.value : '';
+  return projects.filter((p) =>
+    (p.dueDate || '').startsWith(currentMonth) &&
+    (!selectedRegion || p.region === selectedRegion)
+  );
 }
 
 function buildDueMonthHtml() {
   const due = getDueThisMonthProjects().slice().sort((a, b) => (a.manager || '').localeCompare(b.manager || ''));
   const thStyle = 'padding:8px 12px;border:1px solid #ccc;background:#f0f0f0;font-weight:600;text-align:left;';
   const tdStyle = 'padding:8px 12px;border:1px solid #ccc;';
-  const headers = ['PM', 'Customer', 'Jira', 'PM Comments', 'Manager Comments'];
+  const headers = ['#', 'PM', 'Customer', 'Jira', 'PM Comments', 'Manager Comments'];
   const headerRow = headers.map(h => `<th style="${thStyle}">${h}</th>`).join('');
-  const dataRows = due.map(p => {
+  const dataRows = due.map((p, i) => {
     const jiraKey = getJiraLabel(p.jira);
     const jiraCell = p.jira ? `<a href="${escapeHtml(p.jira)}">${escapeHtml(jiraKey)}</a>` : '-';
     return `<tr>
+      <td style="${tdStyle};color:#888;text-align:center;width:30px;">${i + 1}</td>
       <td style="${tdStyle}">${escapeHtml(p.manager || '-')}</td>
       <td style="${tdStyle}">${escapeHtml(p.customer || '-')}</td>
       <td style="${tdStyle}">${jiraCell}</td>
@@ -3015,8 +3023,8 @@ function buildDueMonthHtml() {
 
 function buildDueMonthPlainText() {
   const due = getDueThisMonthProjects().slice().sort((a, b) => (a.manager || '').localeCompare(b.manager || ''));
-  const header = 'PM\tCustomer\tJira\tPM Comments\tManager Comments';
-  const rows = due.map((p) => `${p.manager || ''}\t${p.customer || ''}\t${getJiraLabel(p.jira) || ''}\t\t`);
+  const header = '#\tPM\tCustomer\tJira\tPM Comments\tManager Comments';
+  const rows = due.map((p, i) => `${i + 1}\t${p.manager || ''}\t${p.customer || ''}\t${getJiraLabel(p.jira) || ''}\t\t`);
   return [header, ...rows].join('\n');
 }
 
