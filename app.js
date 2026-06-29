@@ -1242,74 +1242,39 @@ document.addEventListener('click', (e) => {
 
 document.getElementById('newProjectsBannerDismiss').addEventListener('click', dismissNewProjectsBanner);
 
-let _jiraLoginPopup = null;
-
-async function ensureJiraLogin() {
-  try {
-    const res = await fetch('https://kaltura.atlassian.net/rest/api/3/myself', {
-      credentials: 'include',
-      headers: { Accept: 'application/json' },
-    });
-    if (res.ok) return true;
-  } catch {}
-
-  // Not logged in — open Jira in a popup
-  return new Promise((resolve) => {
-    // Show a top banner with a Jira login link (no popup — avoids browser blocking)
-    const existing = document.getElementById('jiraLoginBanner');
-    if (existing) existing.remove();
-    const banner = document.createElement('div');
-    banner.id = 'jiraLoginBanner';
-    banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#1e3a5f;color:#eff6ff;padding:12px 20px;display:flex;align-items:center;justify-content:space-between;font-size:0.9rem;box-shadow:0 2px 8px rgba(0,0,0,0.4);';
-    banner.innerHTML = '<span>⚠ Not logged into Jira — <a href="https://kaltura.atlassian.net" target="_blank" style="color:#7dd3fc;font-weight:600;">Log in to Jira</a>, then your changes will sync automatically</span><button onclick="document.getElementById(\'jiraLoginBanner\').remove()" style="background:none;border:none;color:#eff6ff;cursor:pointer;font-size:1.1rem;">✕</button>';
-    document.body.prepend(banner);
-
-    const poll = setInterval(async () => {
-      try {
-        const check = await fetch('https://kaltura.atlassian.net/rest/api/3/myself', {
-          credentials: 'include',
-          headers: { Accept: 'application/json' },
-        });
-        if (check.ok) {
-          clearInterval(poll);
-          const b = document.getElementById('jiraLoginBanner');
-          if (b) b.remove();
-          resolve(true);
-        }
-      } catch {}
-    }, 3000);
-
-    // Give up after 2 minutes
-    setTimeout(() => {
-      clearInterval(poll);
-      const b = document.getElementById('jiraLoginBanner');
-      if (b) b.remove();
-      resolve(false);
-    }, 120000);
-  });
-}
-
-async function jiraDirectPut(issueKey, body) {
-  const loggedIn = await ensureJiraLogin();
-  if (!loggedIn) throw new Error('not-logged-in');
-  const res = await fetch(`https://kaltura.atlassian.net/rest/api/3/issue/${issueKey}`, {
+async function jiraProxyPut(issueKey, body) {
+  const res = await fetch(`${PROXY_BASE}/jira/issue/${issueKey}`, {
     method: 'PUT',
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-KV-Secret': KV_SECRET },
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`Jira write failed: ${res.status}`);
 }
 
+async function addJiraComment(issueKey, updatedBy) {
+  if (!updatedBy) return;
+  const body = {
+    body: {
+      version: 1, type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text: `Updated via PM Dashboard by: ${updatedBy}` }] }]
+    }
+  };
+  await fetch(`${PROXY_BASE}/jira/issue/${issueKey}/comment`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-KV-Secret': KV_SECRET },
+    body: JSON.stringify(body),
+  }).catch(() => {});
+}
+
 async function writeRiskReasonToJira(issueKey, optionId) {
   if (!cachedRiskReasonFieldId) await resolveJiraFieldIds();
   if (!cachedRiskReasonFieldId) throw new Error('Risk Reason field ID not resolved');
-  await jiraDirectPut(issueKey, { fields: { [cachedRiskReasonFieldId]: optionId ? { id: optionId } : null } });
+  await jiraProxyPut(issueKey, { fields: { [cachedRiskReasonFieldId]: optionId ? { id: optionId } : null } });
 }
 
 async function writeStatusToJira(issueKey, statusText) {
   const adf = htmlToAdf(statusText || '');
-  await jiraDirectPut(issueKey, { fields: { description: adf } });
+  await jiraProxyPut(issueKey, { fields: { description: adf } });
 }
 
 async function writeRiskRateToJira(issueKey, health) {
@@ -1318,7 +1283,7 @@ async function writeRiskRateToJira(issueKey, health) {
   if (!cachedRiskRateOptions) throw new Error('Risk Rate options not resolved');
   const optionId = cachedRiskRateOptions[health];
   if (!optionId) throw new Error(`Risk Rate option not found for health: ${health}`);
-  await jiraDirectPut(issueKey, { fields: { [cachedRiskRateFieldId]: { id: optionId } } });
+  await jiraProxyPut(issueKey, { fields: { [cachedRiskRateFieldId]: { id: optionId } } });
 }
 
 let cachedVMForecastFieldId = null;
@@ -1327,13 +1292,7 @@ async function writeDueDateToJira(issueKey, dateStr) {
   if (!dateStr) return;
   if (!cachedVMForecastFieldId) await resolveJiraFieldIds();
   if (!cachedVMForecastFieldId) throw new Error('VM Forecast Commit Date field ID not resolved');
-  const res = await fetch(`https://kaltura.atlassian.net/rest/api/3/issue/${issueKey}`, {
-    method: 'PUT',
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-    body: JSON.stringify({ fields: { [cachedVMForecastFieldId]: dateStr } }),
-  });
-  if (!res.ok) throw new Error(`Jira write failed: ${res.status}`);
+  await jiraProxyPut(issueKey, { fields: { [cachedVMForecastFieldId]: dateStr } });
 }
 
 function showToast(message, type = 'error') {
@@ -1910,13 +1869,14 @@ editProjectForm.addEventListener('submit', async (event) => {
   const issueKey = getJiraIssueKey(selectedProject.jira);
   if (issueKey) {
     const jiraWriteError = (label) => (e) => {
-      if (e.message === 'not-logged-in') { showToast('Jira write skipped — not logged in'); return; }
       console.error(`[${label}→Jira]`, e); showToast(`Jira ${label} sync failed: ${e.message}`);
     };
+    const updatedBy = selectedProject.manager || '';
     writeRiskReasonToJira(issueKey, riskOptionId || null).catch(jiraWriteError('riskReason'));
     writeRiskRateToJira(issueKey, selectedProject.health).catch(jiraWriteError('riskRate'));
     if (newDueDate) writeDueDateToJira(issueKey, newDueDate).catch(jiraWriteError('dueDate'));
     writeStatusToJira(issueKey, selectedProject.statusText).catch(jiraWriteError('status'));
+    addJiraComment(issueKey, updatedBy).catch(() => {});
   }
 });
 

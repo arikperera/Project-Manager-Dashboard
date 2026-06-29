@@ -196,10 +196,10 @@ export default {
       if (method === 'GET') {
         return jiraFetch(env, `${jiraPath}${queryString}`);
       }
-      if (method === 'PUT') {
+      if (method === 'PUT' || method === 'POST') {
         const body = await request.text();
         return jiraFetch(env, jiraPath, {
-          method: 'PUT',
+          method,
           headers: { 'Content-Type': 'application/json' },
           body,
         });
