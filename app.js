@@ -1255,8 +1255,15 @@ async function ensureJiraLogin() {
 
   // Not logged in — open Jira in a popup
   return new Promise((resolve) => {
-    if (_jiraLoginPopup && !_jiraLoginPopup.closed) _jiraLoginPopup.close();
-    _jiraLoginPopup = window.open('https://kaltura.atlassian.net', 'jira-login', 'width=800,height=600');
+    // Show a top banner with a Jira login link (no popup — avoids browser blocking)
+    const existing = document.getElementById('jiraLoginBanner');
+    if (existing) existing.remove();
+    const banner = document.createElement('div');
+    banner.id = 'jiraLoginBanner';
+    banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#1e3a5f;color:#eff6ff;padding:12px 20px;display:flex;align-items:center;justify-content:space-between;font-size:0.9rem;box-shadow:0 2px 8px rgba(0,0,0,0.4);';
+    banner.innerHTML = '<span>⚠ Not logged into Jira — <a href="https://kaltura.atlassian.net" target="_blank" style="color:#7dd3fc;font-weight:600;">Log in to Jira</a>, then your changes will sync automatically</span><button onclick="document.getElementById(\'jiraLoginBanner\').remove()" style="background:none;border:none;color:#eff6ff;cursor:pointer;font-size:1.1rem;">✕</button>';
+    document.body.prepend(banner);
+
     const poll = setInterval(async () => {
       try {
         const check = await fetch('https://kaltura.atlassian.net/rest/api/3/myself', {
@@ -1265,17 +1272,20 @@ async function ensureJiraLogin() {
         });
         if (check.ok) {
           clearInterval(poll);
-          if (_jiraLoginPopup && !_jiraLoginPopup.closed) _jiraLoginPopup.close();
+          const b = document.getElementById('jiraLoginBanner');
+          if (b) b.remove();
           resolve(true);
-          return;
         }
       } catch {}
-      // If popup was closed by user without logging in
-      if (_jiraLoginPopup && _jiraLoginPopup.closed) {
-        clearInterval(poll);
-        resolve(false);
-      }
-    }, 2000);
+    }, 3000);
+
+    // Give up after 2 minutes
+    setTimeout(() => {
+      clearInterval(poll);
+      const b = document.getElementById('jiraLoginBanner');
+      if (b) b.remove();
+      resolve(false);
+    }, 120000);
   });
 }
 
