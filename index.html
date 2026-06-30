@@ -349,6 +349,12 @@
           <button id="addUserBtn" class="secondary-btn small-btn" type="button">+ Add user</button>
         </div>
         <div id="addUserForm" class="status-form" style="display:none; margin-top:12px;">
+          <label>Search Jira user
+            <div class="autocomplete-wrap">
+              <input id="newUserJiraSearch" type="text" autocomplete="off" placeholder="Start typing a name..." />
+              <div id="newUserJiraResults" class="autocomplete-list hidden"></div>
+            </div>
+          </label>
           <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
             <label>First name<input id="newUserFirstName" type="text" required placeholder="e.g. Janina" /></label>
             <label>Last name<input id="newUserLastName" type="text" required placeholder="e.g. Pomme" /></label>
@@ -360,8 +366,10 @@
               <label style="display:flex;align-items:center;gap:4px;color:#dbeafe;font-size:0.9rem;"><input type="checkbox" id="newUserRoleSales" value="Sales"> Sales</label>
             </div>
           </label>
+          <input type="hidden" id="newUserJiraAccountId" value="">
           <div class="modal-actions">
             <button type="button" id="cancelAddUserBtn" class="ghost-btn">Cancel</button>
+            <button type="button" id="syncUsersFromJiraBtn" class="ghost-btn" title="Sync Jira Account IDs for all users">↻ Sync Jira IDs</button>
             <button type="button" id="saveAddUserBtn" class="primary-btn">Save</button>
           </div>
         </div>

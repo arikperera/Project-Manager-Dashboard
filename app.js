@@ -2810,9 +2810,71 @@ document.getElementById('usersSearchInput').addEventListener('input', (e) => {
 addUserBtn.addEventListener('click', () => {
   addUserForm.style.display = 'grid';
   addUserBtn.style.display = 'none';
+  document.getElementById('newUserJiraSearch').value = '';
+  document.getElementById('newUserJiraAccountId').value = '';
+  document.getElementById('newUserJiraResults').classList.add('hidden');
+});
+
+// Jira user search autocomplete in Add User form
+let _addUserSearchTimer = null;
+document.getElementById('newUserJiraSearch').addEventListener('input', (e) => {
+  clearTimeout(_addUserSearchTimer);
+  const q = e.target.value.trim();
+  const results = document.getElementById('newUserJiraResults');
+  if (q.length < 2) { results.classList.add('hidden'); return; }
+  _addUserSearchTimer = setTimeout(async () => {
+    try {
+      const res = await fetch(`${PROXY_BASE}/jira/user/search?query=${encodeURIComponent(q)}`, {
+        headers: { Accept: 'application/json', 'X-KV-Secret': KV_SECRET },
+      });
+      if (!res.ok) return;
+      const jiraUsers = await res.json();
+      if (!jiraUsers.length) { results.innerHTML = '<li style="padding:8px 14px;color:#64748b;">No users found</li>'; results.classList.remove('hidden'); return; }
+      results.innerHTML = jiraUsers.map(u => `
+        <li data-account-id="${escapeHtml(u.accountId)}" data-display-name="${escapeHtml(u.displayName)}" data-email="${escapeHtml(u.emailAddress||'')}" style="padding:8px 14px;cursor:pointer;">
+          <span style="font-weight:600;color:#eff6ff;">${escapeHtml(u.displayName)}</span>
+          <span style="color:#64748b;font-size:0.85rem;margin-left:6px;">${escapeHtml(u.emailAddress||'')}</span>
+        </li>`).join('');
+      results.classList.remove('hidden');
+    } catch {}
+  }, 300);
+});
+
+document.getElementById('newUserJiraResults').addEventListener('mousedown', (e) => {
+  const li = e.target.closest('li[data-account-id]');
+  if (!li) return;
+  e.preventDefault();
+  const displayName = li.getAttribute('data-display-name');
+  const parts = displayName.trim().split(/\s+/);
+  document.getElementById('newUserFirstName').value = parts[0] || '';
+  document.getElementById('newUserLastName').value = parts.slice(1).join(' ') || '';
+  document.getElementById('newUserJiraAccountId').value = li.getAttribute('data-account-id');
+  document.getElementById('newUserJiraSearch').value = displayName;
+  document.getElementById('newUserJiraResults').classList.add('hidden');
+});
+
+// Sync Jira Account IDs for all existing users
+document.getElementById('syncUsersFromJiraBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('syncUsersFromJiraBtn');
+  btn.textContent = '↻ Syncing...';
+  btn.disabled = true;
+  let updated = 0;
+  for (const user of users) {
+    if (user.jiraAccountId) continue;
+    const displayName = getUserDisplayName(user);
+    const accountId = await getOrFetchJiraAccountId(displayName);
+    if (accountId) updated++;
+  }
+  await saveUsers();
+  btn.textContent = '↻ Sync Jira IDs';
+  btn.disabled = false;
+  showToast(`Synced Jira IDs for ${updated} user${updated !== 1 ? 's' : ''}`, 'success');
 });
 
 function resetAddUserForm() {
+  document.getElementById('newUserJiraSearch').value = '';
+  document.getElementById('newUserJiraAccountId').value = '';
+  document.getElementById('newUserJiraResults').classList.add('hidden');
   document.getElementById('newUserFirstName').value = '';
   document.getElementById('newUserLastName').value = '';
   document.getElementById('newUserRolePM').checked = false;
@@ -2840,7 +2902,8 @@ saveAddUserBtn.addEventListener('click', () => {
     const merged = [...new Set([...existingRoles, ...roles])];
     existingUser.roles = merged;
   } else {
-    users.push({ id: `u_${Date.now()}_${users.length}`, firstName, lastName, roles });
+    const jiraAccountId = document.getElementById('newUserJiraAccountId').value.trim() || null;
+    users.push({ id: `u_${Date.now()}_${users.length}`, firstName, lastName, roles, jiraAccountId });
   }
   saveUsers();
   addUserForm.style.display = 'none';
