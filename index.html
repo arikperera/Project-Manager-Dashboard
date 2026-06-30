@@ -345,8 +345,9 @@
         <div id="usersModalBody">
           <!-- rendered by renderUsersModal() -->
         </div>
-        <div style="margin-top:12px;">
+        <div style="margin-top:12px;display:flex;gap:8px;">
           <button id="addUserBtn" class="secondary-btn small-btn" type="button">+ Add user</button>
+          <button id="syncUsersFromJiraBtn" class="ghost-btn small-btn" type="button" title="Sync Jira Account IDs for all users">↻ Sync Jira IDs</button>
         </div>
         <div id="addUserForm" class="status-form" style="display:none; margin-top:12px;">
           <label>Search Jira user
@@ -369,7 +370,6 @@
           <input type="hidden" id="newUserJiraAccountId" value="">
           <div class="modal-actions">
             <button type="button" id="cancelAddUserBtn" class="ghost-btn">Cancel</button>
-            <button type="button" id="syncUsersFromJiraBtn" class="ghost-btn" title="Sync Jira Account IDs for all users">↻ Sync Jira IDs</button>
             <button type="button" id="saveAddUserBtn" class="primary-btn">Save</button>
           </div>
         </div>
