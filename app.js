@@ -931,6 +931,11 @@ function adfBlockToHtml(node) {
 function adfInlineToHtml(node) {
   if (!node) return '';
   if (node.type === 'hardBreak') return '<br>';
+  if (node.type === 'inlineCard') {
+    const url = node.attrs?.url || '';
+    if (/^https?:/i.test(url)) return `<a href="${escapeHtml(url)}">${escapeHtml(url)}</a>`;
+    return '';
+  }
   if (node.type !== 'text') return '';
   let text = escapeHtml(node.text || '');
   if (!text) return '';
