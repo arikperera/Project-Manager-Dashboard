@@ -844,40 +844,46 @@ async function syncProjectProgressFromJira() {
 
 async function syncStatusFromJira() {
   const useProxy = true;
+  const BATCH_SIZE = 10;
   let changed = false;
 
-  for (const project of projects) {
-    const issueKey = getJiraIssueKey(project.jira);
-    if (!issueKey) continue;
-    try {
-      const url = useProxy
-        ? `https://pm-proxy.demo.qa.kaltura.ai/jira/issue/${issueKey}?fields=description,updated`
-        : `https://kaltura.atlassian.net/rest/api/3/issue/${issueKey}?fields=description,updated`;
-      const opts = useProxy
-        ? { headers: { Accept: 'application/json' } }
-        : { credentials: 'include', headers: { Accept: 'application/json' } };
-      const res = await fetch(url, opts);
-      if (!res.ok) continue;
-      const data = await res.json();
-      const jiraUpdated = data.fields?.updated || '';
-      const localUpdated = project.statusUpdatedAt || '';
-      const jiraTime = jiraUpdated ? new Date(jiraUpdated).getTime() : 0;
-      const localTime = localUpdated ? new Date(localUpdated).getTime() : 0;
+  const projectsWithKeys = projects
+    .map(p => ({ project: p, issueKey: getJiraIssueKey(p.jira) }))
+    .filter(({ issueKey }) => !!issueKey);
 
-      if (!localTime || jiraTime > localTime) {
-        // Jira is newer (or no local timestamp) — pull from Jira
-        const adf = data.fields?.description;
-        const html = adf ? adfToHtml(adf) : '';
-        if (html !== project.statusText) {
-          project.statusText = html;
-          project.statusUpdatedAt = jiraUpdated;
-          changed = true;
+  for (let i = 0; i < projectsWithKeys.length; i += BATCH_SIZE) {
+    const batch = projectsWithKeys.slice(i, i + BATCH_SIZE);
+    await Promise.all(batch.map(async ({ project, issueKey }) => {
+      try {
+        const url = useProxy
+          ? `https://pm-proxy.demo.qa.kaltura.ai/jira/issue/${issueKey}?fields=description,updated`
+          : `https://kaltura.atlassian.net/rest/api/3/issue/${issueKey}?fields=description,updated`;
+        const opts = useProxy
+          ? { headers: { Accept: 'application/json' } }
+          : { credentials: 'include', headers: { Accept: 'application/json' } };
+        const res = await fetch(url, opts);
+        if (!res.ok) return;
+        const data = await res.json();
+        const jiraUpdated = data.fields?.updated || '';
+        const localUpdated = project.statusUpdatedAt || '';
+        const jiraTime = jiraUpdated ? new Date(jiraUpdated).getTime() : 0;
+        const localTime = localUpdated ? new Date(localUpdated).getTime() : 0;
+
+        if (!localTime || jiraTime > localTime) {
+          // Jira is newer (or no local timestamp) — pull from Jira
+          const adf = data.fields?.description;
+          const html = adf ? adfToHtml(adf) : '';
+          if (html !== project.statusText) {
+            project.statusText = html;
+            project.statusUpdatedAt = jiraUpdated;
+            changed = true;
+          }
         }
-      }
-      // Note: push-on-load disabled — Jira's issue-level `updated` tracks all field changes,
-      // not just description, so it cannot reliably determine if dashboard status is newer.
-      // Dashboard→Jira sync happens only on explicit edit-modal save.
-    } catch {}
+        // Note: push-on-load disabled — Jira's issue-level `updated` tracks all field changes,
+        // not just description, so it cannot reliably determine if dashboard status is newer.
+        // Dashboard→Jira sync happens only on explicit edit-modal save.
+      } catch {}
+    }));
   }
 
   if (changed) {
