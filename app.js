@@ -775,7 +775,7 @@ async function syncProjectProgressFromJira() {
   await resolveJiraFieldIds();
 
   // Build fields param from cached IDs — only request what we need
-  const fieldIds = ['progress', cachedProgressPctFieldId, cachedEstHoursFieldId, cachedRemEffortFieldId, cachedActEffortFieldId, cachedRegionFieldId, cachedRiskRateFieldId, cachedVMForecastFieldId].filter(Boolean);
+  const fieldIds = ['progress', 'assignee', cachedProgressPctFieldId, cachedEstHoursFieldId, cachedRemEffortFieldId, cachedActEffortFieldId, cachedRegionFieldId, cachedRiskRateFieldId, cachedVMForecastFieldId].filter(Boolean);
   const fieldsParam = fieldIds.join(',');
 
   for (const key of [...new Set(issueKeys)]) {
@@ -824,6 +824,7 @@ async function syncProjectProgressFromJira() {
             if (actualHours !== null) project.actualHours = actualHours;
             if (healthVal) project.health = healthVal;
             if (cachedVMForecastFieldId && f[cachedVMForecastFieldId]) project.dueDate = f[cachedVMForecastFieldId];
+            if (f.assignee?.displayName) project.manager = f.assignee.displayName;
             if (cachedRegionFieldId) {
               const rawRegion = f[cachedRegionFieldId];
               const regionVal = typeof rawRegion === 'object' && rawRegion !== null ? (rawRegion.value || '') : (rawRegion || '');
@@ -1241,6 +1242,33 @@ document.addEventListener('click', (e) => {
 });
 
 document.getElementById('newProjectsBannerDismiss').addEventListener('click', dismissNewProjectsBanner);
+
+async function getOrFetchJiraAccountId(displayName) {
+  if (!displayName) return null;
+  // Check if already stored on user
+  const user = users.find(u => getUserDisplayName(u) === displayName);
+  if (user && user.jiraAccountId) return user.jiraAccountId;
+  // Search Jira for accountId
+  try {
+    const res = await fetch(`${PROXY_BASE}/jira/user/search?query=${encodeURIComponent(displayName)}`, {
+      headers: { Accept: 'application/json', 'X-KV-Secret': KV_SECRET },
+    });
+    if (!res.ok) return null;
+    const results = await res.json();
+    const match = results.find(u => u.displayName === displayName);
+    if (match && user) {
+      user.jiraAccountId = match.accountId;
+      saveUsers().catch(() => {});
+    }
+    return match ? match.accountId : null;
+  } catch { return null; }
+}
+
+async function writeAssigneeToJira(issueKey, displayName) {
+  const accountId = await getOrFetchJiraAccountId(displayName);
+  if (!accountId) throw new Error(`Jira account not found for: ${displayName}`);
+  await jiraProxyPut(issueKey, { fields: { assignee: { accountId } } });
+}
 
 async function jiraProxyPut(issueKey, body) {
   const res = await fetch(`${PROXY_BASE}/jira/issue/${issueKey}`, {
@@ -1858,7 +1886,9 @@ editProjectForm.addEventListener('submit', async (event) => {
   const newName = editProjectName.value.trim();
   if (newCustomer) selectedProject.customer = newCustomer;
   if (newName) selectedProject.name = newName;
+  const previousManager = selectedProject.manager;
   if (editProjectManager.value) selectedProject.manager = editProjectManager.value;
+  const managerChanged = selectedProject.manager !== previousManager;
   selectedProject.health = editHealth.value;
   selectedProject.pmStatus = ['Yellow', 'Red'].includes(selectedProject.health)
     ? editPmStatus.value.trim()
@@ -1888,6 +1918,7 @@ editProjectForm.addEventListener('submit', async (event) => {
     writeRiskRateToJira(issueKey, selectedProject.health).catch(jiraWriteError('riskRate'));
     if (newDueDate) writeDueDateToJira(issueKey, newDueDate).catch(jiraWriteError('dueDate'));
     writeStatusToJira(issueKey, selectedProject.statusText).catch(jiraWriteError('status'));
+    if (managerChanged) writeAssigneeToJira(issueKey, selectedProject.manager).catch(jiraWriteError('assignee'));
     addJiraComment(issueKey, updatedBy).catch(() => {});
   }
 });
@@ -3271,6 +3302,7 @@ async function loadImportStep2(pm) {
       jiraUrl: `https://kaltura.atlassian.net/browse/${i.key}`,
       assigneeEmail: i.fields.assignee?.emailAddress || '',
       assigneeDisplayName: i.fields.assignee?.displayName || pm.displayName,
+      assigneeAccountId: i.fields.assignee?.accountId || '',
       created: i.fields.created || '',
       status: i.fields.status?.name || '',
       accountName: cachedAccountNameFieldId ? (i.fields[cachedAccountNameFieldId] || '') : '',
@@ -3347,15 +3379,17 @@ importConfirmBtn.addEventListener('click', async () => {
     const project = buildProjectFromEnrichment(issue, sfData);
     projects.unshift(project);
 
-    // Auto-create PM user if not already in users list
+    // Auto-create PM user if not already in users list, store jiraAccountId
     const pmDisplayName = project.manager;
     if (pmDisplayName && pmDisplayName !== 'Unassigned') {
-      const alreadyExists = users.some(u => getUserDisplayName(u) === pmDisplayName);
-      if (!alreadyExists) {
+      const existingUser = users.find(u => getUserDisplayName(u) === pmDisplayName);
+      if (!existingUser) {
         const parts = pmDisplayName.trim().split(/\s+/);
         const firstName = parts[0] || pmDisplayName;
         const lastName = parts.slice(1).join(' ') || '';
-        users.push({ id: `u_${Date.now()}_${users.length}`, firstName, lastName, roles: ['PM'] });
+        users.push({ id: `u_${Date.now()}_${users.length}`, firstName, lastName, roles: ['PM'], jiraAccountId: issue.assigneeAccountId || null });
+      } else if (!existingUser.jiraAccountId && issue.assigneeAccountId) {
+        existingUser.jiraAccountId = issue.assigneeAccountId;
       }
     }
 
