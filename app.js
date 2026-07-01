@@ -1538,8 +1538,8 @@ function renderTable() {
             <td><div class="cell-scroll">${isEmptyStatus(project.statusText) ? STATUS_PLACEHOLDER : project.statusText}</div></td>
             <td><div class="cell-scroll">${(project.comments || '-').split(', ').join('<br>')}</div></td>
             <td style="white-space:nowrap;">
-              <button type="button" class="secondary-btn small-btn" data-edit-project="${projects.indexOf(project)}">Edit</button>
-              <button type="button" class="ghost-btn small-btn" style="margin-top:4px;display:block;" data-delete-project="${projects.indexOf(project)}">Delete</button>
+              <button type="button" class="secondary-btn small-btn" data-edit-project="${project.type === 'task' ? tasks.indexOf(project) : projects.indexOf(project)}" data-item-type="${project.type || 'project'}">Edit</button>
+              <button type="button" class="ghost-btn small-btn" style="margin-top:4px;display:block;" data-delete-project="${project.type === 'task' ? tasks.indexOf(project) : projects.indexOf(project)}" data-item-type="${project.type || 'project'}">Delete</button>
             </td>
           </tr>
         `;
@@ -1608,37 +1608,44 @@ function renderSummary() {
   document.getElementById('dueThisMonthCount').textContent = dueThisMonth.length;
 }
 
-function openEditProjectModal(projectIndex) {
-  const project = projects[projectIndex];
-  if (!project) return;
+function openEditProjectModal(itemType, itemIndex) {
+  // Support legacy single-argument call: openEditProjectModal(projectIndex)
+  if (itemIndex === undefined) { itemIndex = itemType; itemType = 'project'; }
+  const item = itemType === 'task' ? tasks[itemIndex] : projects[itemIndex];
+  if (!item) return;
 
-  editCustomerName.value = project.customer || '';
-  editProjectName.value = project.name;
+  editCustomerName.value = item.customer || '';
+  editCustomerName.readOnly = itemType === 'task';
+  editProjectName.value = item.name || item.parentProjectName || '';
+  editProjectName.readOnly = itemType === 'task';
   const pmNames = getUsersByRole('PM');
-  editProjectManager.innerHTML = pmNames.map(n => `<option value="${escapeHtml(n)}"${n === project.manager ? ' selected' : ''}>${escapeHtml(n)}</option>`).join('');
-  if (!pmNames.includes(project.manager) && project.manager) {
-    editProjectManager.innerHTML = `<option value="${escapeHtml(project.manager)}" selected>${escapeHtml(project.manager)}</option>` + editProjectManager.innerHTML;
+  const currentManager = itemType === 'task' ? (item.owner || '') : (item.manager || '');
+  editProjectManager.innerHTML = pmNames.map(n => `<option value="${escapeHtml(n)}"${n === currentManager ? ' selected' : ''}>${escapeHtml(n)}</option>`).join('');
+  if (!pmNames.includes(currentManager) && currentManager) {
+    editProjectManager.innerHTML = `<option value="${escapeHtml(currentManager)}" selected>${escapeHtml(currentManager)}</option>` + editProjectManager.innerHTML;
   }
-  editHealth.value = project.health || 'Green';
-  editPmStatus.value = project.pmStatus || '';
-  const isAtRisk = ['Yellow', 'Red'].includes(project.health);
+  editHealth.value = item.health || 'Green';
+  editPmStatus.value = item.pmStatus || '';
+  const isAtRisk = ['Yellow', 'Red'].includes(item.health);
   pmStatusLabel.style.display = isAtRisk ? '' : 'none';
-  const matchingOption = Array.from(editRiskReason.options).find(o => o.text === project.riskReason);
+  const matchingOption = Array.from(editRiskReason.options).find(o => o.text === item.riskReason);
   editRiskReason.value = matchingOption ? matchingOption.value : '';
-  editRegion.value = project.region || '';
+  editRegion.value = item.region || '';
   riskReasonLabel.style.display = '';
   const editDueDateText = document.getElementById('editDueDateText');
-  editDueDateText.value = project.dueDate ? formatDateDMY(project.dueDate) : '';
-  document.getElementById('editAtLink').value = project.atLink || '';
-  document.getElementById('editDueDateHidden').value = project.dueDate || '';
-  if (project.statusText) {
-    editStatusEditor.innerHTML = project.statusText;
+  editDueDateText.value = item.dueDate ? formatDateDMY(item.dueDate) : '';
+  document.getElementById('editAtLink').value = item.atLink || '';
+  document.getElementById('editDueDateHidden').value = item.dueDate || '';
+  if (item.statusText) {
+    editStatusEditor.innerHTML = item.statusText;
     editStatusEditor.removeAttribute('data-placeholder-active');
   } else {
     editStatusEditor.innerHTML = '<span style="font-style:italic;opacity:0.5;">No Status Entered</span>';
     editStatusEditor.setAttribute('data-placeholder-active', '1');
   }
-  editProjectForm.dataset.projectIndex = String(projectIndex);
+  editProjectForm.dataset.itemType = itemType;
+  editProjectForm.dataset.itemIndex = String(itemIndex);
+  editProjectForm.dataset.projectIndex = String(itemIndex); // keep for backward compat
 
   editProjectModal.classList.remove('hidden');
   editProjectModal.setAttribute('aria-hidden', 'false');
@@ -1844,11 +1851,14 @@ function closeBackupsModal() {
 
 let deleteProjectIndex = -1;
 
-function openDeleteProjectModal(projectIndex) {
-  const project = projects[projectIndex];
-  if (!project) return;
-  deleteProjectIndex = projectIndex;
-  deleteProjectModalTitle.textContent = project.name;
+function openDeleteProjectModal(itemType, itemIndex) {
+  // Support legacy single-argument call: openDeleteProjectModal(projectIndex)
+  if (itemIndex === undefined) { itemIndex = itemType; itemType = 'project'; }
+  const item = itemType === 'task' ? tasks[itemIndex] : projects[itemIndex];
+  if (!item) return;
+  deleteProjectIndex = itemIndex;
+  deleteProjectModal.dataset.itemType = itemType;
+  deleteProjectModalTitle.textContent = item.name || item.parentProjectName || 'Task';
   deleteProjectModal.classList.remove('hidden');
   deleteProjectModal.setAttribute('aria-hidden', 'false');
 }
@@ -1965,17 +1975,24 @@ function closeModal() {
 editProjectForm.addEventListener('submit', async (event) => {
   event.preventDefault();
 
-  const selectedIndex = Number(editProjectForm.dataset.projectIndex ?? -1);
-  const selectedProject = projects[selectedIndex];
+  const itemType = editProjectForm.dataset.itemType || 'project';
+  const selectedIndex = Number(editProjectForm.dataset.itemIndex ?? editProjectForm.dataset.projectIndex ?? -1);
+  const selectedProject = itemType === 'task' ? tasks[selectedIndex] : projects[selectedIndex];
   if (!selectedProject) return;
 
   const newCustomer = editCustomerName.value.trim();
   const newName = editProjectName.value.trim();
-  if (newCustomer) selectedProject.customer = newCustomer;
-  if (newName) selectedProject.name = newName;
-  const previousManager = selectedProject.manager;
-  if (editProjectManager.value) selectedProject.manager = editProjectManager.value;
-  const managerChanged = selectedProject.manager !== previousManager;
+  if (newCustomer && itemType !== 'task') selectedProject.customer = newCustomer;
+  if (newName && itemType !== 'task') selectedProject.name = newName;
+  const previousManager = itemType === 'task' ? selectedProject.owner : selectedProject.manager;
+  if (editProjectManager.value) {
+    if (itemType === 'task') {
+      selectedProject.owner = editProjectManager.value;
+    } else {
+      selectedProject.manager = editProjectManager.value;
+    }
+  }
+  const managerChanged = (itemType === 'task' ? selectedProject.owner : selectedProject.manager) !== previousManager;
   selectedProject.health = editHealth.value;
   selectedProject.pmStatus = ['Yellow', 'Red'].includes(selectedProject.health)
     ? editPmStatus.value.trim()
@@ -1991,22 +2008,24 @@ editProjectForm.addEventListener('submit', async (event) => {
   selectedProject.statusText = isEmptyStatus(rawStatus) ? '' : rawStatus;
   selectedProject.statusUpdatedAt = new Date(Date.now() + 5000).toISOString();
 
-  await saveProjects();
+  if (itemType === 'task') { await saveTasks(); } else { await saveProjects(); }
   renderAll();
   closeEditProjectModal();
 
-  const issueKey = getJiraIssueKey(selectedProject.jira);
-  if (issueKey) {
-    const jiraWriteError = (label) => (e) => {
-      console.error(`[${label}→Jira]`, e); showToast(`Jira ${label} sync failed: ${e.message}`);
-    };
-    const updatedBy = selectedProject.manager || '';
-    writeRiskReasonToJira(issueKey, riskOptionId || null).catch(jiraWriteError('riskReason'));
-    writeRiskRateToJira(issueKey, selectedProject.health).catch(jiraWriteError('riskRate'));
-    if (newDueDate) writeDueDateToJira(issueKey, newDueDate).catch(jiraWriteError('dueDate'));
-    writeStatusToJira(issueKey, selectedProject.statusText).catch(jiraWriteError('status'));
-    if (managerChanged) writeAssigneeToJira(issueKey, selectedProject.manager).catch(jiraWriteError('assignee'));
-    addJiraComment(issueKey, updatedBy).catch(() => {});
+  if (itemType !== 'task') {
+    const issueKey = getJiraIssueKey(selectedProject.jira);
+    if (issueKey) {
+      const jiraWriteError = (label) => (e) => {
+        console.error(`[${label}→Jira]`, e); showToast(`Jira ${label} sync failed: ${e.message}`);
+      };
+      const updatedBy = selectedProject.manager || '';
+      writeRiskReasonToJira(issueKey, riskOptionId || null).catch(jiraWriteError('riskReason'));
+      writeRiskRateToJira(issueKey, selectedProject.health).catch(jiraWriteError('riskRate'));
+      if (newDueDate) writeDueDateToJira(issueKey, newDueDate).catch(jiraWriteError('dueDate'));
+      writeStatusToJira(issueKey, selectedProject.statusText).catch(jiraWriteError('status'));
+      if (managerChanged) writeAssigneeToJira(issueKey, selectedProject.manager).catch(jiraWriteError('assignee'));
+      addJiraComment(issueKey, updatedBy).catch(() => {});
+    }
   }
 });
 
@@ -2303,12 +2322,18 @@ editProjectModal.addEventListener('click', (event) => {
 portfolioGroups.addEventListener('click', (event) => {
   const editButton = event.target.closest('[data-edit-project]');
   if (editButton) {
-    openEditProjectModal(Number(editButton.dataset.editProject));
+    openEditProjectModal(
+      editButton.dataset.itemType || 'project',
+      Number(editButton.dataset.editProject)
+    );
     return;
   }
   const deleteButton = event.target.closest('[data-delete-project]');
   if (deleteButton) {
-    openDeleteProjectModal(Number(deleteButton.dataset.deleteProject));
+    openDeleteProjectModal(
+      deleteButton.dataset.itemType || 'project',
+      Number(deleteButton.dataset.deleteProject)
+    );
   }
 });
 
@@ -3290,31 +3315,43 @@ mailDueMonthBtn.addEventListener('click', () => {
 cancelDeleteProjectBtn.addEventListener('click', closeDeleteProjectModal);
 deleteProjectModal.addEventListener('click', (e) => { if (e.target === deleteProjectModal) closeDeleteProjectModal(); });
 
-deleteProjectBtn.addEventListener('click', () => {
+deleteProjectBtn.addEventListener('click', async () => {
   if (deleteProjectIndex < 0) return;
-  projects.splice(deleteProjectIndex, 1);
-  saveProjects();
+  const itemType = deleteProjectModal.dataset.itemType || 'project';
+  if (itemType === 'task') {
+    tasks.splice(deleteProjectIndex, 1);
+    await saveTasks();
+  } else {
+    projects.splice(deleteProjectIndex, 1);
+    await saveProjects();
+  }
   renderAll();
   closeDeleteProjectModal();
 });
 
-backupAndDeleteProjectBtn.addEventListener('click', () => {
+backupAndDeleteProjectBtn.addEventListener('click', async () => {
   if (deleteProjectIndex < 0) return;
   if (!backups.length) {
     alert('No backup exists yet. Please create a backup first before deleting.');
     return;
   }
-  const project = projects[deleteProjectIndex];
+  const itemType = deleteProjectModal.dataset.itemType || 'project';
+  const item = itemType === 'task' ? tasks[deleteProjectIndex] : projects[deleteProjectIndex];
   const latestBackup = backups[0];
-  const existingIndex = latestBackup.projects.findIndex(p => p.name === project.name);
+  const existingIndex = latestBackup.projects.findIndex(p => p.name === (item.name || item.parentProjectName));
   if (existingIndex >= 0) {
-    latestBackup.projects[existingIndex] = JSON.parse(JSON.stringify(project));
+    latestBackup.projects[existingIndex] = JSON.parse(JSON.stringify(item));
   } else {
-    latestBackup.projects.push(JSON.parse(JSON.stringify(project)));
+    latestBackup.projects.push(JSON.parse(JSON.stringify(item)));
   }
-  saveBackups();
-  projects.splice(deleteProjectIndex, 1);
-  saveProjects();
+  await saveBackups();
+  if (itemType === 'task') {
+    tasks.splice(deleteProjectIndex, 1);
+    await saveTasks();
+  } else {
+    projects.splice(deleteProjectIndex, 1);
+    await saveProjects();
+  }
   renderAll();
   closeDeleteProjectModal();
 });
