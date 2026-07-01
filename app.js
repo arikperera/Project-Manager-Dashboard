@@ -1,4 +1,4 @@
-const PROXY_BASE = 'https://pm-proxy.demo.qa.kaltura.ai';
+yes const PROXY_BASE = 'https://pm-proxy.demo.qa.kaltura.ai';
 const KV_SECRET = 'HPZTjoBph4Cz9AMGwiSsYcJf086bdgRX';
 const APP_VERSION = '1.5.0';
 const CHANGELOG = [
@@ -141,6 +141,15 @@ let cachedMrrFieldId = null;
 let cachedNrrFieldId = null;
 let cachedRegionFieldId = null;
 
+const TASKS_KEY = 'project-dashboard-tasks-v1';
+let tasks = JSON.parse(localStorage.getItem('project-dashboard-tasks-v1') || '[]');
+
+async function saveTasks() {
+  const ok = await kvPut(TASKS_KEY, tasks);
+  if (ok) try { localStorage.setItem(TASKS_KEY, JSON.stringify(tasks)); } catch {}
+  else showToast('Save failed — please try again.', 'error');
+}
+
 const BACKUPS_KEY = 'project-dashboard-backups-v1';
 let backups = JSON.parse(localStorage.getItem('project-dashboard-backups-v1') || '[]');
 
@@ -188,15 +197,17 @@ async function initData() {
     settings = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
     customers = JSON.parse(localStorage.getItem(CUSTOMERS_KEY) || '[]');
     backups = JSON.parse(localStorage.getItem(BACKUPS_KEY) || '[]');
+    tasks = JSON.parse(localStorage.getItem(TASKS_KEY) || '[]');
     return;
   }
 
-  const [kvProjects, kvUsers, kvSettings, kvCustomers, kvBackups] = await Promise.all([
+  const [kvProjects, kvUsers, kvSettings, kvCustomers, kvBackups, kvTasks] = await Promise.all([
     kvGet(STORAGE_KEY),
     kvGet(USERS_KEY),
     kvGet(SETTINGS_KEY),
     kvGet(CUSTOMERS_KEY),
     kvGet(BACKUPS_KEY),
+    kvGet(TASKS_KEY),
   ]);
 
   async function hydrateKey(kvValue, lsKey, fallback) {
@@ -208,12 +219,13 @@ async function initData() {
     return value;
   }
 
-  [projects, users, settings, customers, backups] = await Promise.all([
+  [projects, users, settings, customers, backups, tasks] = await Promise.all([
     hydrateKey(kvProjects, STORAGE_KEY, defaultProjects),
     hydrateKey(kvUsers, USERS_KEY, []),
     hydrateKey(kvSettings, SETTINGS_KEY, {}),
     hydrateKey(kvCustomers, CUSTOMERS_KEY, []),
     hydrateKey(kvBackups, BACKUPS_KEY, []),
+    hydrateKey(kvTasks, TASKS_KEY, []),
   ]);
 
   // Cache KV data to localStorage so next load renders instantly
@@ -222,6 +234,7 @@ async function initData() {
   try { localStorage.setItem(SETTINGS_KEY,  JSON.stringify(settings));  } catch {}
   try { localStorage.setItem(CUSTOMERS_KEY, JSON.stringify(customers)); } catch {}
   try { localStorage.setItem(BACKUPS_KEY,   JSON.stringify(backups));   } catch {}
+  try { localStorage.setItem(TASKS_KEY,    JSON.stringify(tasks));     } catch {}
 }
 
 async function saveBackups() {
@@ -2891,6 +2904,7 @@ function resetAddUserForm() {
   document.getElementById('newUserRolePM').checked = false;
   document.getElementById('newUserRoleCSM').checked = false;
   document.getElementById('newUserRoleSales').checked = false;
+  document.getElementById('newUserRoleIE').checked = false;
 }
 
 cancelAddUserBtn.addEventListener('click', () => {
