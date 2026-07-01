@@ -1429,27 +1429,29 @@ function getFilteredProjects() {
   const selectedDueMonth = duemonthFilter.value;
   const selectedRegion = regionFilter.value;
 
-  return projects.filter((project) => {
-    const matchesPm = selectedPm === 'All' || project.manager === selectedPm;
-    const matchesHealth = selectedHealth === 'All' || project.health === selectedHealth;
-    const matchesDueMonth = !selectedDueMonth || (project.dueDate || '').startsWith(selectedDueMonth);
-    const matchesSearch = !term || `${project.name} ${project.manager || ''} ${project.customer || ''} ${project.jira || ''}`.toLowerCase().includes(term);
-
+  function matchItem(item) {
+    const owner = item.manager || item.owner || '';
+    const matchesPm = selectedPm === 'All' || owner === selectedPm;
+    const matchesHealth = selectedHealth === 'All' || item.health === selectedHealth;
+    const matchesDueMonth = !selectedDueMonth || (item.dueDate || '').startsWith(selectedDueMonth);
+    const matchesSearch = !term || `${item.name || ''} ${owner} ${item.customer || ''} ${item.jira || ''}`.toLowerCase().includes(term);
     let matchesProgress = true;
-    if (selectedProgress === '0-39') matchesProgress = project.progress < 40;
-    if (selectedProgress === '40-69') matchesProgress = project.progress >= 40 && project.progress < 70;
-    if (selectedProgress === '70-100') matchesProgress = project.progress >= 70;
-
-    const matchesRegion = !selectedRegion || project.region === selectedRegion;
-
+    if (selectedProgress === '0-39') matchesProgress = item.progress < 40;
+    if (selectedProgress === '40-69') matchesProgress = item.progress >= 40 && item.progress < 70;
+    if (selectedProgress === '70-100') matchesProgress = item.progress >= 70;
+    const matchesRegion = !selectedRegion || item.region === selectedRegion;
     return matchesPm && matchesHealth && matchesDueMonth && matchesSearch && matchesProgress && matchesRegion;
-  });
+  }
+
+  const filteredProjects = projects.filter(matchItem);
+  const filteredTasks = tasks.filter(matchItem);
+  return [...filteredProjects, ...filteredTasks];
 }
 
 function renderTable() {
   const filteredProjects = getFilteredProjects();
   const grouped = filteredProjects.reduce((acc, project) => {
-    const key = project.manager || 'Unassigned';
+    const key = project.manager || project.owner || 'Unassigned';
     if (!acc[key]) acc[key] = [];
     acc[key].push(project);
     return acc;
@@ -1560,7 +1562,10 @@ function renderSelect() {
       .join('');
   }
 
-  const uniqueManagers = [...new Set(projects.map((project) => project.manager).filter(Boolean))];
+  const uniqueManagers = [...new Set([
+    ...projects.map(p => p.manager).filter(Boolean),
+    ...tasks.map(t => t.owner).filter(Boolean),
+  ])].sort();
   const currentPm = pmFilter.value;
   pmFilter.innerHTML = ['<option value="All">All PMs</option>', ...uniqueManagers.map((manager) => `<option value="${manager}">${manager}</option>`)].join('');
   pmFilter.value = currentPm;
