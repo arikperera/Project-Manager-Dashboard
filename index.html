@@ -28,7 +28,7 @@
             </div>
           </div>
           <div class="topbar-actions">
-            <button id="addProjectBtn" class="secondary-btn">Add new project</button>
+            <button id="addNewBtn" class="secondary-btn">Add new</button>
             <button id="importFromJiraBtn" class="secondary-btn">Import from Jira</button>
             <button id="manageUsersBtn" class="secondary-btn">Manage users</button>
             <button id="manageCustomersBtn" class="secondary-btn">Manage customers</button>
@@ -569,6 +569,76 @@
           <button id="closeWhatsNewBtn" class="ghost-btn" type="button" aria-label="Close">✕</button>
         </div>
         <div id="whatsNewBody" style="max-height:420px;overflow-y:auto;padding:4px 0;"></div>
+      </div>
+    </div>
+
+    <div id="addNewChoiceModal" class="modal hidden" aria-hidden="true">
+      <div class="modal-card" style="max-width:400px;">
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Add new</p>
+            <h3>What would you like to add?</h3>
+          </div>
+        </div>
+        <p class="muted" style="margin-bottom:16px;">Choose whether to add a full project or a task linked to an existing project.</p>
+        <div class="modal-actions">
+          <button type="button" id="addNewChoiceProjectBtn" class="secondary-btn">New Project</button>
+          <button type="button" id="addNewChoiceTaskBtn" class="primary-btn">New Task</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="taskModal" class="modal hidden" aria-hidden="true">
+      <div class="modal-card">
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">New task</p>
+            <h3>Add a task</h3>
+          </div>
+          <button id="closeTaskModalBtn" class="ghost-btn" type="button" aria-label="Close">×</button>
+        </div>
+        <form id="taskModalForm" class="status-form modal-form">
+          <label>
+            Customer name
+            <div class="autocomplete-wrap">
+              <input id="taskCustomer" type="text" placeholder="Select customer" autocomplete="off" required />
+              <ul class="autocomplete-list hidden"></ul>
+            </div>
+          </label>
+          <label>
+            Project name
+            <select id="taskProject" required>
+              <option value="">— select customer first —</option>
+            </select>
+          </label>
+          <label>
+            Jira URL
+            <input id="taskJira" type="text" readonly placeholder="Auto-filled from project" style="opacity:0.6;" />
+          </label>
+          <label>
+            Task owner
+            <div class="autocomplete-wrap">
+              <input id="taskOwner" type="text" placeholder="Select or type owner" autocomplete="off" required />
+              <ul class="autocomplete-list hidden"></ul>
+            </div>
+          </label>
+          <label>
+            Region
+            <select id="taskRegion">
+              <option value="">— select —</option>
+              <option value="APAC">APAC</option>
+              <option value="EMEA">EMEA</option>
+              <option value="North America">North America</option>
+              <option value="LatAm">LatAm</option>
+              <option value="Internal">Internal</option>
+              <option value="ROW">ROW</option>
+            </select>
+          </label>
+          <div class="modal-actions">
+            <button type="button" id="cancelTaskModalBtn" class="ghost-btn">Cancel</button>
+            <button type="submit" class="primary-btn">Save task</button>
+          </div>
+        </form>
       </div>
     </div>
 
