@@ -1,4 +1,4 @@
-yes const PROXY_BASE = 'https://pm-proxy.demo.qa.kaltura.ai';
+const PROXY_BASE = 'https://pm-proxy.demo.qa.kaltura.ai';
 const KV_SECRET = 'HPZTjoBph4Cz9AMGwiSsYcJf086bdgRX';
 const APP_VERSION = '1.5.0';
 const CHANGELOG = [
