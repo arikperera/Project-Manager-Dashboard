@@ -424,7 +424,15 @@ const backupsModal = document.getElementById('backupsModal');
 const closeBackupsModalBtn = document.getElementById('closeBackupsModalBtn');
 const backupMain = document.getElementById('backupMain');
 const backupSidebar = document.getElementById('backupSidebar');
-const addProjectBtn = document.getElementById('addProjectBtn');
+const addProjectBtn = document.getElementById('addProjectBtn') || document.getElementById('addNewBtn');
+const addNewBtn = document.getElementById('addNewBtn');
+const addNewChoiceModal = document.getElementById('addNewChoiceModal');
+const addNewChoiceProjectBtn = document.getElementById('addNewChoiceProjectBtn');
+const addNewChoiceTaskBtn = document.getElementById('addNewChoiceTaskBtn');
+const taskModal = document.getElementById('taskModal');
+const closeTaskModalBtn = document.getElementById('closeTaskModalBtn');
+const cancelTaskModalBtn = document.getElementById('cancelTaskModalBtn');
+const taskModalForm = document.getElementById('taskModalForm');
 const projectModal = document.getElementById('projectModal');
 const closeModalBtn = document.getElementById('closeModalBtn');
 const cancelModalBtn = document.getElementById('cancelModalBtn');
@@ -598,6 +606,31 @@ function initAutocompletes() {
   setupAutocomplete(document.getElementById('modalProjectCustomer'), () => getCustomerNames(), null, triggerAddCustomerFromAutocomplete);
   setupAutocomplete(document.getElementById('editCustomerName'), () => getCustomerNames(), null,
     (name, input) => triggerAddCustomerFromAutocomplete(name, input, editProjectModal));
+}
+
+function initTaskFormAutocompletes() {
+  const custInput = document.getElementById('taskCustomer');
+  const projSelect = document.getElementById('taskProject');
+  const jiraInput = document.getElementById('taskJira');
+
+  setupAutocomplete(custInput, () => getCustomerNames(), null, null);
+
+  custInput.addEventListener('input', () => {
+    const custName = custInput.value.trim();
+    const matchingProjects = projects.filter(p => p.customer === custName);
+    projSelect.innerHTML = matchingProjects.length
+      ? '<option value="">— select project —</option>' + matchingProjects.map(p => `<option value="${escapeHtml(p.name)}">${escapeHtml(p.name)}</option>`).join('')
+      : '<option value="">— no projects for this customer —</option>';
+    jiraInput.value = '';
+  });
+
+  projSelect.addEventListener('change', () => {
+    const projName = projSelect.value;
+    const proj = projects.find(p => p.name === projName && p.customer === custInput.value.trim());
+    jiraInput.value = proj ? (proj.jira || '') : '';
+  });
+
+  setupAutocomplete(document.getElementById('taskOwner'), () => users.map(u => getUserDisplayName(u)).sort(), null, null);
 }
 
 function getJiraLabel(jira) {
@@ -1886,6 +1919,31 @@ function renderAll() {
   renderRiskList();
 }
 
+function openAddNewChoice() {
+  addNewChoiceModal.classList.remove('hidden');
+  addNewChoiceModal.setAttribute('aria-hidden', 'false');
+}
+
+function closeAddNewChoice() {
+  addNewChoiceModal.classList.add('hidden');
+  addNewChoiceModal.setAttribute('aria-hidden', 'true');
+}
+
+function openTaskModal() {
+  document.getElementById('taskCustomer').value = '';
+  document.getElementById('taskProject').innerHTML = '<option value="">— select customer first —</option>';
+  document.getElementById('taskJira').value = '';
+  document.getElementById('taskOwner').value = '';
+  document.getElementById('taskRegion').value = '';
+  taskModal.classList.remove('hidden');
+  taskModal.setAttribute('aria-hidden', 'false');
+}
+
+function closeTaskModal() {
+  taskModal.classList.add('hidden');
+  taskModal.setAttribute('aria-hidden', 'true');
+}
+
 function openModal() {
   projectModal.classList.remove('hidden');
   projectModal.setAttribute('aria-hidden', 'false');
@@ -2217,7 +2275,17 @@ customersModalBody.addEventListener('click', (e) => {
   }
 });
 
-addProjectBtn.addEventListener('click', openModal);
+if (addNewBtn) {
+  addNewBtn.addEventListener('click', openAddNewChoice);
+} else if (addProjectBtn) {
+  addProjectBtn.addEventListener('click', openModal);
+}
+addNewChoiceModal.addEventListener('click', (e) => { if (e.target === addNewChoiceModal) closeAddNewChoice(); });
+addNewChoiceProjectBtn.addEventListener('click', () => { closeAddNewChoice(); openModal(); });
+addNewChoiceTaskBtn.addEventListener('click', () => { closeAddNewChoice(); openTaskModal(); });
+closeTaskModalBtn.addEventListener('click', closeTaskModal);
+cancelTaskModalBtn.addEventListener('click', closeTaskModal);
+taskModal.addEventListener('click', (e) => { if (e.target === taskModal) closeTaskModal(); });
 closeModalBtn.addEventListener('click', closeModal);
 cancelModalBtn.addEventListener('click', closeModal);
 closeEditModalBtn.addEventListener('click', closeEditProjectModal);
@@ -3532,11 +3600,50 @@ function wireDateField(textId, hiddenId, btnId) {
 wireDateField('modalProjectStartDate', 'modalProjectStartDateHidden', 'modalStartPickerBtn');
 wireDateField('modalProjectDueDate', 'modalProjectDueDateHidden', 'modalEndPickerBtn');
 
+taskModalForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const custName = document.getElementById('taskCustomer').value.trim();
+  const projName = document.getElementById('taskProject').value.trim();
+  const jira = document.getElementById('taskJira').value.trim();
+  const owner = document.getElementById('taskOwner').value.trim();
+  const region = document.getElementById('taskRegion').value;
+  if (!custName || !projName || !owner) return;
+  tasks.push({
+    id: `task_${Date.now()}`,
+    type: 'task',
+    customer: custName,
+    parentProjectName: projName,
+    jira,
+    owner,
+    region,
+    health: 'Green',
+    riskReason: '',
+    pmStatus: '',
+    statusText: '',
+    comments: '',
+    progress: 0,
+    nrr: null,
+    nrrUsd: null,
+    mrrUsd: null,
+    startDate: '',
+    dueDate: '',
+    status: 'On Track',
+    atLink: '',
+    estimatedHours: null,
+    remainingHours: null,
+    actualHours: null,
+  });
+  await saveTasks();
+  renderAll();
+  closeTaskModal();
+});
+
 // Render immediately from localStorage cache so the page is never blank
 // NOTE: do NOT call migrateProjects() here — it calls saveProjects() which would
 // overwrite KV with defaultProjects if localStorage is empty after migration
 renderAll();
 initAutocompletes();
+initTaskFormAutocompletes();
 
 async function init() {
   await initData();
