@@ -622,6 +622,7 @@ function initTaskFormAutocompletes() {
       ? '<option value="">— select project —</option>' + matchingProjects.map(p => `<option value="${escapeHtml(p.name)}">${escapeHtml(p.name)}</option>`).join('')
       : '<option value="">— no projects for this customer —</option>';
     jiraInput.value = '';
+    document.getElementById('taskRegion').value = '';
   }
 
   setupAutocomplete(custInput, () => getCustomerNames(), null, null);
@@ -633,6 +634,7 @@ function initTaskFormAutocompletes() {
     const projName = projSelect.value;
     const proj = projects.find(p => p.name === projName && p.customer === custInput.value.trim());
     jiraInput.value = proj ? (proj.jira || '') : '';
+    document.getElementById('taskRegion').value = proj ? (proj.region || '') : '';
   });
 
   setupAutocomplete(document.getElementById('taskOwner'), () => users.map(u => getUserDisplayName(u)).sort(), null, null);

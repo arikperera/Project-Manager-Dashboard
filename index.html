@@ -616,23 +616,15 @@
             <input id="taskJira" type="text" readonly placeholder="Auto-filled from project" style="opacity:0.6;" />
           </label>
           <label>
+            Region
+            <input id="taskRegion" type="text" readonly placeholder="Auto-filled from project" style="opacity:0.6;" />
+          </label>
+          <label>
             Task owner
             <div class="autocomplete-wrap">
               <input id="taskOwner" type="text" placeholder="Select or type owner" autocomplete="off" required />
               <ul class="autocomplete-list hidden"></ul>
             </div>
-          </label>
-          <label>
-            Region
-            <select id="taskRegion">
-              <option value="">— select —</option>
-              <option value="APAC">APAC</option>
-              <option value="EMEA">EMEA</option>
-              <option value="North America">North America</option>
-              <option value="LatAm">LatAm</option>
-              <option value="Internal">Internal</option>
-              <option value="ROW">ROW</option>
-            </select>
           </label>
           <div class="modal-actions">
             <button type="button" id="cancelTaskModalBtn" class="ghost-btn">Cancel</button>
