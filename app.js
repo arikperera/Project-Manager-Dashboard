@@ -471,7 +471,7 @@ async function saveProjects() {
 
 let addUserReturnContext = null;
 
-function setupAutocomplete(input, getOptions, role, addCallback) {
+function setupAutocomplete(input, getOptions, role, addCallback, addLabel) {
   const list = input.closest('.autocomplete-wrap').querySelector('.autocomplete-list');
   let activeIndex = -1;
 
@@ -482,7 +482,7 @@ function setupAutocomplete(input, getOptions, role, addCallback) {
       if (role) {
         items.push(`<li class="autocomplete-add" data-add-name="${escapeHtml(typedTerm)}" data-add-role="${escapeHtml(role)}">➕ Add "${escapeHtml(typedTerm)}" as new ${escapeHtml(role)}</li>`);
       } else if (addCallback) {
-        items.push(`<li class="autocomplete-add" data-add-name="${escapeHtml(typedTerm)}">➕ Add "${escapeHtml(typedTerm)}" as new customer</li>`);
+        items.push(`<li class="autocomplete-add" data-add-name="${escapeHtml(typedTerm)}">➕ Add "${escapeHtml(typedTerm)}" as new ${escapeHtml(addLabel || 'customer')}</li>`);
       }
     }
     list.innerHTML = items.join('');
@@ -654,7 +654,8 @@ function initTaskFormAutocompletes() {
       taskModal.setAttribute('aria-hidden', 'true');
       usersModal.classList.remove('hidden');
       usersModal.setAttribute('aria-hidden', 'false');
-    }
+    },
+    'user'
   );
 }
 
@@ -2042,29 +2043,7 @@ editProjectForm.addEventListener('submit', async (event) => {
   renderAll();
   closeEditProjectModal();
 
-  if (itemType === 'task') {
-    const issueKey = getJiraIssueKey(selectedProject.jira);
-    if (issueKey && selectedProject.statusText && !isEmptyStatus(selectedProject.statusText)) {
-      const plainText = selectedProject.statusText.replace(/<[^>]+>/g, '').trim();
-      if (plainText) {
-        const owner = selectedProject.owner || 'IE';
-        const payload = {
-          body: {
-            type: 'doc', version: 1,
-            content: [{
-              type: 'paragraph',
-              content: [{ type: 'text', text: `[Task update by ${owner}]: ${plainText}` }]
-            }]
-          }
-        };
-        fetch(`${PROXY_BASE}/jira/issue/${issueKey}/comment`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-KV-Secret': KV_SECRET },
-          body: JSON.stringify(payload),
-        }).catch(() => {});
-      }
-    }
-  } else {
+  if (itemType !== 'task') {
     const issueKey = getJiraIssueKey(selectedProject.jira);
     if (issueKey) {
       const jiraWriteError = (label) => (e) => {
@@ -2471,7 +2450,7 @@ function generateHTMLReport() {
   const backupNames = new Set((backups[0]?.projects || []).map(p => p.name));
   const newProjects = backups.length >= 1 ? projects.filter(p => !backupNames.has(p.name)) : [];
 
-  const uniquePMs = [...new Set(projects.map(p => p.manager).filter(Boolean))].sort();
+  const uniquePMs = [...new Set([...projects.map(p => p.manager), ...tasks.map(t => t.owner)].filter(Boolean))].sort();
 
   function healthPill(health, pmStatus) {
     const colors = {
@@ -2544,7 +2523,11 @@ function generateHTMLReport() {
       </tr>`).join('')
     : '';
 
-  const grouped = projects.reduce((acc, p) => {
+  const allItems = [
+    ...projects,
+    ...tasks.map(t => ({ ...t, manager: t.owner, name: t.name || t.parentProjectName })),
+  ];
+  const grouped = allItems.reduce((acc, p) => {
     const key = p.manager || 'Unassigned';
     if (!acc[key]) acc[key] = [];
     acc[key].push(p);
@@ -2570,7 +2553,7 @@ function generateHTMLReport() {
       <td>${(p.comments||'').split(/, (?=NRR:|MRR:|CSM:|Sales:)/).map(esc).join('<br>')}</td>
     </tr>`).join('');
     return `<tbody class="pm-group-body">
-      <tr class="pm-group-header-row"><td colspan="9" style="padding:10px 8px 6px;color:#7dd3fc;font-weight:700;font-size:0.95rem;border-bottom:1px solid #223249">${esc(manager)} <span style="font-weight:400;font-size:0.85rem;color:#bfdbfe">(Number Of Projects: ${grouped[manager].length})</span></td></tr>
+      <tr class="pm-group-header-row"><td colspan="9" style="padding:10px 8px 6px;color:#7dd3fc;font-weight:700;font-size:0.95rem;border-bottom:1px solid #223249">${esc(manager)} <span style="font-weight:400;font-size:0.85rem;color:#bfdbfe">(Number Of Projects: ${grouped[manager].filter(p => p.type !== 'task').length}${grouped[manager].some(p => p.type === 'task') ? ` · ${grouped[manager].filter(p => p.type === 'task').length} task${grouped[manager].filter(p => p.type === 'task').length > 1 ? 's' : ''}` : ''})</span></td></tr>
       ${rows}
     </tbody>`;
   }).join('');
@@ -3126,6 +3109,7 @@ usersModalBody.addEventListener('click', (e) => {
             <label style="display:flex;align-items:center;gap:4px;color:#dbeafe;font-size:0.9rem;"><input type="checkbox" class="edit-role-cb" value="PM" ${getUserRoles(user).includes('PM') ? 'checked' : ''}> PM</label>
             <label style="display:flex;align-items:center;gap:4px;color:#dbeafe;font-size:0.9rem;"><input type="checkbox" class="edit-role-cb" value="CSM" ${getUserRoles(user).includes('CSM') ? 'checked' : ''}> CSM</label>
             <label style="display:flex;align-items:center;gap:4px;color:#dbeafe;font-size:0.9rem;"><input type="checkbox" class="edit-role-cb" value="Sales" ${getUserRoles(user).includes('Sales') ? 'checked' : ''}> Sales</label>
+            <label style="display:flex;align-items:center;gap:4px;color:#dbeafe;font-size:0.9rem;"><input type="checkbox" class="edit-role-cb" value="IE" ${getUserRoles(user).includes('IE') ? 'checked' : ''}> IE</label>
           </div>
         </label>
         <div class="modal-actions" style="grid-column:2; align-self:end;">
