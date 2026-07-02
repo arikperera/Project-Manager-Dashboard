@@ -1653,7 +1653,9 @@ function openEditProjectModal(itemType, itemIndex) {
   editCustomerName.readOnly = itemType === 'task';
   editProjectName.value = item.name || item.parentProjectName || '';
   editProjectName.readOnly = itemType === 'task';
-  const pmNames = getUsersByRole('PM');
+  const pmNames = itemType === 'task'
+    ? users.map(u => getUserDisplayName(u)).filter(Boolean).sort()
+    : getUsersByRole('PM');
   const currentManager = itemType === 'task' ? (item.owner || '') : (item.manager || '');
   editProjectManager.innerHTML = pmNames.map(n => `<option value="${escapeHtml(n)}"${n === currentManager ? ' selected' : ''}>${escapeHtml(n)}</option>`).join('');
   if (!pmNames.includes(currentManager) && currentManager) {
