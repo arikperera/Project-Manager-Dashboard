@@ -3797,6 +3797,16 @@ async function init() {
   await initData();
   await migrateProjects();
   renderAll();
+  // If we loaded offline but KV is now reachable, sync immediately
+  if (_wasOffline) {
+    try {
+      const h = await fetch(`${PROXY_BASE}/health`, { headers: { 'X-KV-Secret': KV_SECRET } });
+      if (h.ok) {
+        _wasOffline = false;
+        await trySyncLocalToKV();
+      }
+    } catch {}
+  }
   startKvPoll();
   startAutoProjectPoll();
   syncStatusFromJira();
