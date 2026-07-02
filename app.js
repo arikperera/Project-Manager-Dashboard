@@ -102,27 +102,26 @@ const USERS_KEY = 'project-dashboard-users-v1';
 let users = JSON.parse(localStorage.getItem('project-dashboard-users-v1') || '[]');
 
 async function saveUsers() {
+  try { localStorage.setItem(USERS_KEY, JSON.stringify(users)); } catch {}
   const ok = await kvPut(USERS_KEY, users);
-  if (ok) try { localStorage.setItem(USERS_KEY, JSON.stringify(users)); } catch {}
-  else showToast('Save failed — please try again.', 'error');
+  if (!ok) showToast('Cloud save failed — data saved locally only.', 'error');
 }
 
 const SETTINGS_KEY = 'project-dashboard-settings-v1';
 let settings = JSON.parse(localStorage.getItem('project-dashboard-settings-v1') || '{}');
 
 async function saveSettings() {
-  const ok = await kvPut(SETTINGS_KEY, settings);
-  if (ok) try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch {}
-  else showToast('Save failed — please try again.', 'error');
+  try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch {}
+  await kvPut(SETTINGS_KEY, settings);
 }
 
 const CUSTOMERS_KEY = 'project-dashboard-customers-v1';
 let customers = JSON.parse(localStorage.getItem('project-dashboard-customers-v1') || '[]');
 
 async function saveCustomers() {
+  try { localStorage.setItem(CUSTOMERS_KEY, JSON.stringify(customers)); } catch {}
   const ok = await kvPut(CUSTOMERS_KEY, customers);
-  if (ok) try { localStorage.setItem(CUSTOMERS_KEY, JSON.stringify(customers)); } catch {}
-  else showToast('Save failed — please try again.', 'error');
+  if (!ok) showToast('Cloud save failed — data saved locally only.', 'error');
 }
 
 function getCustomerNames() {
@@ -145,9 +144,9 @@ const TASKS_KEY = 'project-dashboard-tasks-v1';
 let tasks = JSON.parse(localStorage.getItem('project-dashboard-tasks-v1') || '[]');
 
 async function saveTasks() {
+  try { localStorage.setItem(TASKS_KEY, JSON.stringify(tasks)); } catch {}
   const ok = await kvPut(TASKS_KEY, tasks);
-  if (ok) try { localStorage.setItem(TASKS_KEY, JSON.stringify(tasks)); } catch {}
-  else showToast('Save failed — please try again.', 'error');
+  if (!ok) showToast('Cloud save failed — data saved locally only.', 'error');
 }
 
 const BACKUPS_KEY = 'project-dashboard-backups-v1';
@@ -214,8 +213,7 @@ async function initData() {
     if (kvValue !== null) return kvValue;
     const lsValue = JSON.parse(localStorage.getItem(lsKey) || 'null');
     const value = lsValue !== null ? lsValue : fallback;
-    const ok = await kvPut(lsKey, value);
-    if (ok) localStorage.removeItem(lsKey);
+    kvPut(lsKey, value).catch(() => {});
     return value;
   }
 
@@ -238,9 +236,9 @@ async function initData() {
 }
 
 async function saveBackups() {
+  try { localStorage.setItem(BACKUPS_KEY, JSON.stringify(backups)); } catch {}
   const ok = await kvPut(BACKUPS_KEY, backups);
-  if (ok) try { localStorage.setItem(BACKUPS_KEY, JSON.stringify(backups)); } catch {}
-  else showToast('Save failed — please try again.', 'error');
+  if (!ok) showToast('Cloud save failed — data saved locally only.', 'error');
 }
 
 function formatBackupLabel(ts) {
@@ -464,9 +462,9 @@ const importConfirmBtn = document.getElementById('importConfirmBtn');
 const importProgress = document.getElementById('importProgress');
 
 async function saveProjects() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(projects)); } catch {}
   const ok = await kvPut(STORAGE_KEY, projects);
-  if (ok) try { localStorage.setItem(STORAGE_KEY, JSON.stringify(projects)); } catch {}
-  else showToast('Save failed — please try again.', 'error');
+  if (!ok) showToast('Cloud save failed — data saved locally only.', 'error');
 }
 
 let addUserReturnContext = null;
