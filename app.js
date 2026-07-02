@@ -617,15 +617,18 @@ function initTaskFormAutocompletes() {
 
   function updateProjectList() {
     const custName = custInput.value.trim();
-    const matchingProjects = projects.filter(p => p.customer === custName);
+    const activeStatuses = ['On Track', 'At Risk', 'Delayed', 'Open', 'In Progress'];
+    const matchingProjects = projects
+      .filter(p => p.customer === custName && activeStatuses.includes(p.status))
+      .sort((a, b) => (a.startDate || '').localeCompare(b.startDate || ''));
     projSelect.innerHTML = matchingProjects.length
       ? '<option value="">— select project —</option>' + matchingProjects.map(p => `<option value="${escapeHtml(p.name)}">${escapeHtml(p.name)}</option>`).join('')
-      : '<option value="">— no projects for this customer —</option>';
+      : '<option value="">— no active projects for this customer —</option>';
     jiraInput.value = '';
     document.getElementById('taskRegion').value = '';
   }
 
-  setupAutocomplete(custInput, () => getCustomerNames(), null, null);
+  setupAutocomplete(custInput, () => [...getCustomerNames()].sort((a, b) => a.localeCompare(b)), null, null);
 
   custInput.addEventListener('input', updateProjectList);
   custInput.addEventListener('change', updateProjectList);
@@ -1506,12 +1509,12 @@ function renderTable() {
           return `
           <tr data-jirakey="${getJiraIssueKey(project.jira) || ''}">
             <td>${(() => { const cust = customers.find(c => c.name === project.customer); return cust && cust.sfLink ? `<a href="${escapeHtml(cust.sfLink)}" target="_blank" rel="noreferrer">${escapeHtml(project.customer || '-')}</a>` : escapeHtml(project.customer || '-'); })()}</td>
-            <td>${project.oppLink ? `<a href="${escapeHtml(project.oppLink)}" target="_blank" rel="noreferrer">${escapeHtml(project.name)}</a>` : escapeHtml(project.name)}</td>
+            <td>${project.oppLink ? `<a href="${escapeHtml(project.oppLink)}" target="_blank" rel="noreferrer">${escapeHtml(project.name || project.parentProjectName || '-')}</a>` : escapeHtml(project.name || project.parentProjectName || '-')}</td>
             <td class="jira-at-cell">
               ${project.jira ? `<a class="jira-at-btn" href="${escapeHtml(project.jira)}" target="_blank" rel="noreferrer">${escapeHtml(getJiraLabel(project.jira))}</a>` : '<span style="color:#64748b">—</span>'}
               ${project.atLink ? `<a class="jira-at-btn" href="${escapeHtml(project.atLink)}" target="_blank" rel="noreferrer">AT</a>` : ''}
             </td>
-            <td>${project.nrr} hrs</td>
+            <td>${project.type === 'task' || project.nrr == null ? '-' : `${project.nrr} hrs`}</td>
             <td>${formatDate(project.startDate)}</td>
             <td>${formatDate(project.dueDate)}</td>
             <td>
@@ -1521,26 +1524,23 @@ function renderTable() {
               </div>
             </td>
             <td>
-              <div class="progress-wrap">
-                ${(() => {
-                  let tip = '';
-                  if (project.riskReason) {
-                    tip = `Risk reason was set\n${project.riskReason}`;
-                  } else if (progressValue >= 100) {
-                    tip = 'No more hours for the project';
-                  } else if (project.estimatedHours != null && project.remainingHours != null) {
-                    const used = project.actualHours != null ? project.actualHours : (project.estimatedHours - project.remainingHours);
-                    tip = `${used} hours have been completed out of ${project.estimatedHours}, with ${project.remainingHours} hours remaining`;
-                  } else if (project.actualHours != null && project.estimatedHours != null) {
-                    tip = `${project.actualHours} hours have been completed out of ${project.estimatedHours}`;
-                  } else if (project.actualHours != null) {
-                    tip = project.actualHours === 0 ? 'No hours reported yet' : `${project.actualHours} hours reported`;
-                  }
-                  return tip ? `<div class="progress-tooltip">${escapeHtml(tip).replace(/\n/g,'<br>')}</div>` : '';
-                })()}
-                <div class="progress-bar"><div class="progress-fill ${progressFillTone}" style="width:${Math.min(progressValue, 100)}%"></div></div>
-                <small class="progress-label ${progressTone}">${progressValue}% &middot; ${buildHoursLabel(project.actualHours, project.estimatedHours, project.nrr)}</small>
-              </div>${(() => { const ack = project.riskReason; if (ack) return ''; if (progressValue > 90) return '<span class="progress-blink-wrap"><span class="progress-blink">⚠</span><span class="progress-blink-tip">Edit the project and set over budget risk reason</span></span>'; return ''; })()}
+              ${project.type === 'task' ? '-' : (() => {
+                let tip = '';
+                if (project.riskReason) {
+                  tip = `Risk reason was set\n${project.riskReason}`;
+                } else if (progressValue >= 100) {
+                  tip = 'No more hours for the project';
+                } else if (project.estimatedHours != null && project.remainingHours != null) {
+                  const used = project.actualHours != null ? project.actualHours : (project.estimatedHours - project.remainingHours);
+                  tip = `${used} hours have been completed out of ${project.estimatedHours}, with ${project.remainingHours} hours remaining`;
+                } else if (project.actualHours != null && project.estimatedHours != null) {
+                  tip = `${project.actualHours} hours have been completed out of ${project.estimatedHours}`;
+                } else if (project.actualHours != null) {
+                  tip = project.actualHours === 0 ? 'No hours reported yet' : `${project.actualHours} hours reported`;
+                }
+                const blink = (() => { const ack = project.riskReason; if (ack) return ''; if (progressValue > 90) return '<span class="progress-blink-wrap"><span class="progress-blink">⚠</span><span class="progress-blink-tip">Edit the project and set over budget risk reason</span></span>'; return ''; })();
+                return `<div class="progress-wrap">${tip ? `<div class="progress-tooltip">${escapeHtml(tip).replace(/\n/g,'<br>')}</div>` : ''}<div class="progress-bar"><div class="progress-fill ${progressFillTone}" style="width:${Math.min(progressValue, 100)}%"></div></div><small class="progress-label ${progressTone}">${progressValue}% &middot; ${buildHoursLabel(project.actualHours, project.estimatedHours, project.nrr)}</small></div>${blink}`;
+              })()}
             </td>
             <td><div class="cell-scroll">${isEmptyStatus(project.statusText) ? STATUS_PLACEHOLDER : project.statusText}</div></td>
             <td><div class="cell-scroll">${(project.comments || '-').split(', ').join('<br>')}</div></td>
