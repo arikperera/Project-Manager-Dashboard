@@ -2042,7 +2042,29 @@ editProjectForm.addEventListener('submit', async (event) => {
   renderAll();
   closeEditProjectModal();
 
-  if (itemType !== 'task') {
+  if (itemType === 'task') {
+    const issueKey = getJiraIssueKey(selectedProject.jira);
+    if (issueKey && selectedProject.statusText && !isEmptyStatus(selectedProject.statusText)) {
+      const plainText = selectedProject.statusText.replace(/<[^>]+>/g, '').trim();
+      if (plainText) {
+        const owner = selectedProject.owner || 'IE';
+        const payload = {
+          body: {
+            type: 'doc', version: 1,
+            content: [{
+              type: 'paragraph',
+              content: [{ type: 'text', text: `[Task update by ${owner}]: ${plainText}` }]
+            }]
+          }
+        };
+        fetch(`${PROXY_BASE}/jira/issue/${issueKey}/comment`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-KV-Secret': KV_SECRET },
+          body: JSON.stringify(payload),
+        }).catch(() => {});
+      }
+    }
+  } else {
     const issueKey = getJiraIssueKey(selectedProject.jira);
     if (issueKey) {
       const jiraWriteError = (label) => (e) => {
