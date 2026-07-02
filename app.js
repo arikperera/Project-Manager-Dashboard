@@ -534,6 +534,7 @@ function setupAutocomplete(input, getOptions, role, addCallback) {
         }
       } else {
         input.value = active.textContent;
+        input.dispatchEvent(new Event('change'));
       }
       hideList();
     }
@@ -551,6 +552,7 @@ function setupAutocomplete(input, getOptions, role, addCallback) {
       }
     } else {
       input.value = li.textContent;
+      input.dispatchEvent(new Event('change'));
     }
     hideList();
   });
@@ -613,16 +615,19 @@ function initTaskFormAutocompletes() {
   const projSelect = document.getElementById('taskProject');
   const jiraInput = document.getElementById('taskJira');
 
-  setupAutocomplete(custInput, () => getCustomerNames(), null, null);
-
-  custInput.addEventListener('input', () => {
+  function updateProjectList() {
     const custName = custInput.value.trim();
     const matchingProjects = projects.filter(p => p.customer === custName);
     projSelect.innerHTML = matchingProjects.length
       ? '<option value="">— select project —</option>' + matchingProjects.map(p => `<option value="${escapeHtml(p.name)}">${escapeHtml(p.name)}</option>`).join('')
       : '<option value="">— no projects for this customer —</option>';
     jiraInput.value = '';
-  });
+  }
+
+  setupAutocomplete(custInput, () => getCustomerNames(), null, null);
+
+  custInput.addEventListener('input', updateProjectList);
+  custInput.addEventListener('change', updateProjectList);
 
   projSelect.addEventListener('change', () => {
     const projName = projSelect.value;
