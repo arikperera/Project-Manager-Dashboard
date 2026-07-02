@@ -3037,7 +3037,7 @@ cancelAddUserBtn.addEventListener('click', () => {
 saveAddUserBtn.addEventListener('click', () => {
   const firstName = document.getElementById('newUserFirstName').value.trim();
   const lastName = document.getElementById('newUserLastName').value.trim();
-  const roles = ['PM', 'CSM', 'Sales'].filter(r => document.getElementById(`newUserRole${r}`).checked);
+  const roles = ['PM', 'CSM', 'Sales', 'IE'].filter(r => document.getElementById(`newUserRole${r}`).checked);
   if (!firstName || !lastName) return;
   if (!roles.length) { alert('Please select at least one role.'); return; }
 
