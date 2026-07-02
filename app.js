@@ -1,7 +1,24 @@
 const PROXY_BASE = 'https://pm-proxy.demo.qa.kaltura.ai';
 const KV_SECRET = 'HPZTjoBph4Cz9AMGwiSsYcJf086bdgRX';
-const APP_VERSION = '1.5.0';
+const APP_VERSION = '1.6.0';
 const CHANGELOG = [
+  {
+    version: '1.6.0',
+    date: '2026-07-02',
+    features: [
+      'Tasks — new "Add new" button lets users choose between a full project or a task linked to an existing project',
+      'Tasks — task form: customer autocomplete, project filtered by customer, Jira auto-filled, region auto-filled read-only, task owner with add-new-user suggestion',
+      'Tasks — appear in the dashboard grouped by task owner, with NRR and Project Budget showing "-"',
+      'Tasks — edit modal: customer/project read-only, all other fields editable; task owner list shows all users regardless of role',
+      'Tasks — Complete/Delete works the same as projects including Backup & Delete',
+      'Tasks — no Jira writes; data stored in KV only',
+      'Tasks — included in HTML report under owner\'s group; not counted in Total Projects',
+      'IE role — new user role for Integration Engineers, available in add/edit user forms',
+      'Risk Reason — new option: "Project actual work does not match estimation"',
+      'Region sync — changing Region in dashboard now writes back to Jira',
+      'Data safety — localStorage written before KV on every save; KV empty array no longer overwrites local data',
+    ]
+  },
   {
     version: '1.5.0',
     date: '2026-06-28',
