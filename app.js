@@ -104,7 +104,7 @@ let users = JSON.parse(localStorage.getItem('project-dashboard-users-v1') || '[]
 async function saveUsers() {
   try { localStorage.setItem(USERS_KEY, JSON.stringify(users)); } catch {}
   const ok = await kvPut(USERS_KEY, users);
-  if (!ok) showToast('Cloud save failed — data saved locally only.', 'error');
+  if (!ok) showOfflineBanner();
 }
 
 const SETTINGS_KEY = 'project-dashboard-settings-v1';
@@ -121,7 +121,7 @@ let customers = JSON.parse(localStorage.getItem('project-dashboard-customers-v1'
 async function saveCustomers() {
   try { localStorage.setItem(CUSTOMERS_KEY, JSON.stringify(customers)); } catch {}
   const ok = await kvPut(CUSTOMERS_KEY, customers);
-  if (!ok) showToast('Cloud save failed — data saved locally only.', 'error');
+  if (!ok) showOfflineBanner();
 }
 
 function getCustomerNames() {
@@ -146,7 +146,7 @@ let tasks = JSON.parse(localStorage.getItem('project-dashboard-tasks-v1') || '[]
 async function saveTasks() {
   try { localStorage.setItem(TASKS_KEY, JSON.stringify(tasks)); } catch {}
   const ok = await kvPut(TASKS_KEY, tasks);
-  if (!ok) showToast('Cloud save failed — data saved locally only.', 'error');
+  if (!ok) showOfflineBanner();
 }
 
 const BACKUPS_KEY = 'project-dashboard-backups-v1';
@@ -245,7 +245,7 @@ async function initData() {
 async function saveBackups() {
   try { localStorage.setItem(BACKUPS_KEY, JSON.stringify(backups)); } catch {}
   const ok = await kvPut(BACKUPS_KEY, backups);
-  if (!ok) showToast('Cloud save failed — data saved locally only.', 'error');
+  if (!ok) showOfflineBanner();
 }
 
 function formatBackupLabel(ts) {
@@ -471,7 +471,7 @@ const importProgress = document.getElementById('importProgress');
 async function saveProjects() {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(projects)); } catch {}
   const ok = await kvPut(STORAGE_KEY, projects);
-  if (!ok) showToast('Cloud save failed — data saved locally only.', 'error');
+  if (!ok) showOfflineBanner();
 }
 
 let addUserReturnContext = null;
