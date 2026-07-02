@@ -1410,6 +1410,13 @@ async function writeRiskRateToJira(issueKey, health) {
 
 let cachedVMForecastFieldId = null;
 
+async function writeRegionToJira(issueKey, region) {
+  if (!region) return;
+  if (!cachedRegionFieldId) await resolveJiraFieldIds();
+  if (!cachedRegionFieldId) throw new Error('Region field ID not resolved');
+  await jiraProxyPut(issueKey, { fields: { [cachedRegionFieldId]: { value: region } } });
+}
+
 async function writeDueDateToJira(issueKey, dateStr) {
   if (!dateStr) return;
   if (!cachedVMForecastFieldId) await resolveJiraFieldIds();
@@ -2045,6 +2052,7 @@ editProjectForm.addEventListener('submit', async (event) => {
       writeRiskReasonToJira(issueKey, riskOptionId || null).catch(jiraWriteError('riskReason'));
       writeRiskRateToJira(issueKey, selectedProject.health).catch(jiraWriteError('riskRate'));
       if (newDueDate) writeDueDateToJira(issueKey, newDueDate).catch(jiraWriteError('dueDate'));
+      if (selectedProject.region) writeRegionToJira(issueKey, selectedProject.region).catch(jiraWriteError('region'));
       writeStatusToJira(issueKey, selectedProject.statusText).catch(jiraWriteError('status'));
       if (managerChanged) writeAssigneeToJira(issueKey, selectedProject.manager).catch(jiraWriteError('assignee'));
       addJiraComment(issueKey, updatedBy).catch(() => {});
