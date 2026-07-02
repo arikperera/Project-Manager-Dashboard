@@ -640,7 +640,22 @@ function initTaskFormAutocompletes() {
     document.getElementById('taskRegion').value = proj ? (proj.region || '') : '';
   });
 
-  setupAutocomplete(document.getElementById('taskOwner'), () => users.map(u => getUserDisplayName(u)).sort(), null, null);
+  setupAutocomplete(document.getElementById('taskOwner'), () => users.map(u => getUserDisplayName(u)).sort(), null,
+    (name, input) => {
+      const parts = name.trim().split(/\s+/);
+      const firstName = parts[0] || '';
+      const lastName = parts.slice(1).join(' ') || '';
+      document.getElementById('newUserFirstName').value = firstName;
+      document.getElementById('newUserLastName').value = lastName;
+      addUserForm.style.display = 'grid';
+      addUserBtn.style.display = 'none';
+      addUserReturnContext = { inputEl: input, fullName: name, sourceModal: taskModal };
+      taskModal.classList.add('hidden');
+      taskModal.setAttribute('aria-hidden', 'true');
+      usersModal.classList.remove('hidden');
+      usersModal.setAttribute('aria-hidden', 'false');
+    }
+  );
 }
 
 function getJiraLabel(jira) {
@@ -1891,9 +1906,10 @@ function closeUsersModal() {
   addUserBtn.style.display = '';
   resetAddUserForm();
   if (addUserReturnContext) {
+    const src = addUserReturnContext.sourceModal || projectModal;
     addUserReturnContext = null;
-    projectModal.classList.remove('hidden');
-    projectModal.setAttribute('aria-hidden', 'false');
+    src.classList.remove('hidden');
+    src.setAttribute('aria-hidden', 'false');
   }
 }
 
@@ -3042,12 +3058,14 @@ saveAddUserBtn.addEventListener('click', () => {
   renderUsersModal();
 
   if (addUserReturnContext) {
-    const { inputEl } = addUserReturnContext;
+    const { inputEl, sourceModal } = addUserReturnContext;
     inputEl.value = `${firstName} ${lastName}`.trim();
     addUserReturnContext = null;
-    closeUsersModal();
-    projectModal.classList.remove('hidden');
-    projectModal.setAttribute('aria-hidden', 'false');
+    usersModal.classList.add('hidden');
+    usersModal.setAttribute('aria-hidden', 'true');
+    const src = sourceModal || projectModal;
+    src.classList.remove('hidden');
+    src.setAttribute('aria-hidden', 'false');
   }
 });
 
