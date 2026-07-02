@@ -207,6 +207,7 @@ async function initData() {
   }
 
   if (!workerHealthy) {
+    _wasOffline = true;
     showOfflineBanner();
     projects = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null') || defaultProjects;
     users = JSON.parse(localStorage.getItem(USERS_KEY) || '[]');
@@ -1272,6 +1273,28 @@ async function pollForNewProjects() {
   showNewProjectsBanner(addedKeys);
 }
 
+let _wasOffline = false;
+
+async function trySyncLocalToKV() {
+  // Push all locally-stored data to KV — called when coming back online
+  const keys = [
+    [STORAGE_KEY, () => projects],
+    [USERS_KEY, () => users],
+    [CUSTOMERS_KEY, () => customers],
+    [BACKUPS_KEY, () => backups],
+    [TASKS_KEY, () => tasks],
+  ];
+  for (const [key, getData] of keys) {
+    const lsValue = JSON.parse(localStorage.getItem(key) || 'null');
+    if (lsValue !== null) {
+      await kvPut(key, lsValue).catch(() => {});
+    }
+  }
+  const banner = document.getElementById('offline-banner');
+  if (banner) banner.style.display = 'none';
+  showToast('Back online — changes synced to cloud.', 'success');
+}
+
 let _kvPollTimer = null;
 function startKvPoll() {
   const intervalMs = (settings.pollIntervalMinutes ?? 15) * 60 * 1000;
@@ -1279,6 +1302,26 @@ function startKvPoll() {
   _kvPollTimer = setInterval(async () => {
     // Skip refresh while any modal is open to avoid clobbering unsaved edits
     if (document.querySelector('.modal:not(.hidden)')) return;
+
+    // Health check — detect reconnection
+    let isOnline = false;
+    try {
+      const h = await fetch(`${PROXY_BASE}/health`, { headers: { 'X-KV-Secret': KV_SECRET } });
+      isOnline = h.ok;
+    } catch {}
+
+    if (!isOnline) {
+      _wasOffline = true;
+      showOfflineBanner();
+      return;
+    }
+
+    // Just came back online — push local data to KV before pulling
+    if (_wasOffline) {
+      _wasOffline = false;
+      await trySyncLocalToKV();
+    }
+
     const fresh = await kvGet(STORAGE_KEY);
     if (!fresh) return;
     const currentSig = JSON.stringify(projects);
