@@ -210,8 +210,15 @@ async function initData() {
   ]);
 
   async function hydrateKey(kvValue, lsKey, fallback) {
-    if (kvValue !== null) return kvValue;
     const lsValue = JSON.parse(localStorage.getItem(lsKey) || 'null');
+    // If KV has data and it's non-empty (or non-trivially empty), trust it
+    if (kvValue !== null) {
+      const kvEmpty = Array.isArray(kvValue) ? kvValue.length === 0 : false;
+      const lsNonEmpty = lsValue !== null && (Array.isArray(lsValue) ? lsValue.length > 0 : true);
+      // Prefer localStorage if KV returned empty array but localStorage has data
+      if (kvEmpty && lsNonEmpty) return lsValue;
+      return kvValue;
+    }
     const value = lsValue !== null ? lsValue : fallback;
     kvPut(lsKey, value).catch(() => {});
     return value;
