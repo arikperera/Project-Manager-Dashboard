@@ -1329,14 +1329,16 @@ function startKvPoll() {
     let changed = false;
 
     const freshProjects = await kvGet(STORAGE_KEY);
-    if (freshProjects && JSON.stringify(freshProjects) !== JSON.stringify(projects)) {
+    if (freshProjects && freshProjects.length >= projects.length &&
+        JSON.stringify(freshProjects) !== JSON.stringify(projects)) {
       projects = freshProjects;
       try { localStorage.setItem(STORAGE_KEY, JSON.stringify(projects)); } catch {}
       changed = true;
     }
 
     const freshTasks = await kvGet(TASKS_KEY);
-    if (freshTasks && JSON.stringify(freshTasks) !== JSON.stringify(tasks)) {
+    if (freshTasks && freshTasks.length >= tasks.length &&
+        JSON.stringify(freshTasks) !== JSON.stringify(tasks)) {
       tasks = freshTasks;
       try { localStorage.setItem(TASKS_KEY, JSON.stringify(tasks)); } catch {}
       changed = true;
