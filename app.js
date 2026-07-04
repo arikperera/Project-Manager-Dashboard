@@ -207,7 +207,6 @@ async function initData() {
   }
 
   if (!workerHealthy) {
-    _wasOffline = true;
     showOfflineBanner();
     projects = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null') || defaultProjects;
     users = JSON.parse(localStorage.getItem(USERS_KEY) || '[]');
@@ -241,9 +240,8 @@ async function initData() {
       try { localStorage.setItem(lsKey, JSON.stringify(kvValue)); } catch {}
       return kvValue;
     }
-    // KV unreachable — use localStorage, queue push for when back online
+    // KV unreachable — use localStorage
     const value = lsValue !== null ? lsValue : fallback;
-    _wasOffline = true;
     kvPut(lsKey, value).catch(() => {});
     return value;
   }
@@ -1328,14 +1326,23 @@ function startKvPoll() {
       await trySyncLocalToKV();
     }
 
-    const fresh = await kvGet(STORAGE_KEY);
-    if (!fresh) return;
-    const currentSig = JSON.stringify(projects);
-    const freshSig = JSON.stringify(fresh);
-    if (currentSig !== freshSig) {
-      projects = fresh;
-      renderAll();
+    let changed = false;
+
+    const freshProjects = await kvGet(STORAGE_KEY);
+    if (freshProjects && JSON.stringify(freshProjects) !== JSON.stringify(projects)) {
+      projects = freshProjects;
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(projects)); } catch {}
+      changed = true;
     }
+
+    const freshTasks = await kvGet(TASKS_KEY);
+    if (freshTasks && JSON.stringify(freshTasks) !== JSON.stringify(tasks)) {
+      tasks = freshTasks;
+      try { localStorage.setItem(TASKS_KEY, JSON.stringify(tasks)); } catch {}
+      changed = true;
+    }
+
+    if (changed) renderAll();
   }, intervalMs);
 }
 
@@ -3803,16 +3810,6 @@ async function init() {
   await initData();
   await migrateProjects();
   renderAll();
-  // If we loaded offline but KV is now reachable, sync immediately
-  if (_wasOffline) {
-    try {
-      const h = await fetch(`${PROXY_BASE}/health`, { headers: { 'X-KV-Secret': KV_SECRET } });
-      if (h.ok) {
-        _wasOffline = false;
-        await trySyncLocalToKV();
-      }
-    } catch {}
-  }
   startKvPoll();
   startAutoProjectPoll();
   syncStatusFromJira();
