@@ -1687,7 +1687,7 @@ function renderTable() {
       <thead>
         <tr>
           <th>Customer name</th>
-          <th>Project</th>
+          <th>Opportunity</th>
           <th>Jira / AT</th>
           <th>NRR(h)</th>
           <th>Start</th>
@@ -1944,7 +1944,7 @@ function renderBackupMain(backup) {
       <div style="overflow-x:auto;">
         <table class="pm-table">
           <thead><tr>
-            <th>Customer</th><th>Project</th><th>Jira / AT</th><th>NRR(h)</th>
+            <th>Customer</th><th>Opportunity</th><th>Jira / AT</th><th>NRR(h)</th>
             <th>Start</th><th>End</th><th>Project Health</th><th>Project Budget</th>
             <th>Project Status</th><th>Manager Notes</th>
           </tr></thead>
@@ -2672,28 +2672,52 @@ function generateHTMLReport() {
     return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
+  function custCell(p) {
+    const link = p.accountUrl || (customers.find(c => c.name === p.customer)?.sfLink) || '';
+    return link ? `<a href="${esc(link)}" target="_blank" style="color:#7dd3fc;">${esc(p.customer||'-')}</a>` : esc(p.customer||'-');
+  }
+
+  function oppCell(p) {
+    const name = esc(p.name || p.parentProjectName || '-');
+    return p.oppLink ? `<a href="${esc(p.oppLink)}" target="_blank" style="color:#7dd3fc;">${name}</a>` : `<strong>${name}</strong>`;
+  }
+
+  function jiraCell(p) {
+    const jiraLabel = p.jira ? getJiraLabel(p.jira) : '';
+    const atLabel = p.atLink ? 'AT' : '';
+    const parts = [];
+    if (jiraLabel) parts.push(`<a href="${esc(p.jira)}" target="_blank" style="color:#7dd3fc;">${esc(jiraLabel)}</a>`);
+    if (atLabel) parts.push(`<a href="${esc(p.atLink)}" target="_blank" style="color:#a78bfa;">AT</a>`);
+    return parts.join(' ') || '<span style="color:#64748b">—</span>';
+  }
+
   const atRiskRows = atRisk.length
     ? atRisk.map(p => `<tr data-region="${esc(p.region||'')}">
-        <td>${esc(p.customer||'-')}</td>
-        <td>${p.jira ? `<a href="${esc(p.jira)}" style="color:#7dd3fc;">${esc(p.name)}</a>` : `<strong>${esc(p.name)}</strong>`}</td>
+        <td>${custCell(p)}</td>
+        <td>${oppCell(p)}</td>
+        <td>${jiraCell(p)}</td>
+        <td>${esc(p.manager||'-')}</td>
         <td>${progressBar(p.progress, p.estimatedHours, p.remainingHours, p.actualHours, p.health, p.riskReason, p.nrr)}</td>
         <td style="color:#fde68a">${esc(p.riskReason||'No risk reason set')}</td>
       </tr>`).join('')
-    : `<tr><td colspan="4" style="color:#94a3b8;font-style:italic;">No over-budget projects.</td></tr>`;
+    : `<tr><td colspan="6" style="color:#94a3b8;font-style:italic;">No over-budget projects.</td></tr>`;
 
   const healthRows = healthAtRisk.length
     ? healthAtRisk.map(p => `<tr data-region="${esc(p.region||'')}">
-        <td>${p.oppLink ? `<a href="${esc(p.oppLink)}" style="color:#7dd3fc;">${esc(p.customer||'-')}</a>` : esc(p.customer||'-')}</td>
-        <td>${p.jira ? `<a href="${esc(p.jira)}" style="color:#7dd3fc;">${esc(p.name)}</a>` : esc(p.name)}</td>
+        <td>${custCell(p)}</td>
+        <td>${oppCell(p)}</td>
+        <td>${jiraCell(p)}</td>
+        <td>${esc(p.manager||'-')}</td>
         <td>${healthPill(p.health, p.pmStatus)}</td>
         <td style="color:#cbd5e1;font-size:0.9rem;">${isEmptyStatus(p.pmStatus) ? '<em style="color:#64748b;">No status set by PM</em>' : cleanStatusHtml(p.pmStatus)}</td>
       </tr>`).join('')
-    : `<tr><td colspan="4" style="color:#94a3b8;font-style:italic;">No projects with Yellow or Red health.</td></tr>`;
+    : `<tr><td colspan="6" style="color:#94a3b8;font-style:italic;">No projects with Yellow or Red health.</td></tr>`;
 
   const newRows = newProjects.length
     ? newProjects.map(p => `<tr data-region="${esc(p.region||'')}">
-        <td>${esc(p.customer||'-')}</td>
-        <td><strong>${esc(p.name)}</strong></td>
+        <td>${custCell(p)}</td>
+        <td>${oppCell(p)}</td>
+        <td>${jiraCell(p)}</td>
         <td>${esc(p.manager||'-')}</td>
         <td>${esc(String(p.nrr||0))} hrs</td>
         <td>${esc(formatDate(p.startDate))}</td>
@@ -2723,8 +2747,9 @@ function generateHTMLReport() {
       if (ca !== cb) return ca.localeCompare(cb);
       return projects.indexOf(b) - projects.indexOf(a);
     }).map(p => `<tr data-pm="${esc(p.manager||'')}" data-health="${esc(p.health||'Green')}" data-progress="${Math.round(Number(p.progress)||0)}" data-region="${esc(p.region||'')}">
-      <td>${esc(p.customer||'-')}</td>
-      <td>${esc(p.name)}</td>
+      <td>${custCell(p)}</td>
+      <td>${oppCell(p)}</td>
+      <td>${jiraCell(p)}</td>
       <td>${esc(p.manager||'-')}</td>
       <td>${esc(String(p.nrr||0))} hrs</td>
       <td>${esc(formatDate(p.startDate))}</td>
@@ -2753,12 +2778,13 @@ function generateHTMLReport() {
       <div class="paginated-section" data-page="0" data-page-size="5">
       <table style="width:100%;border-collapse:collapse;table-layout:fixed">
         <colgroup>
-          <col style="width:9%"><col style="width:15%"><col style="width:8%"><col style="width:5%"><col style="width:6%"><col style="width:6%">
-          <col style="width:8%"><col style="width:8%"><col style="width:21%"><col style="width:14%">
+          <col style="width:8%"><col style="width:12%"><col style="width:7%"><col style="width:7%"><col style="width:5%"><col style="width:6%"><col style="width:6%">
+          <col style="width:7%"><col style="width:7%"><col style="width:18%"><col style="width:13%">
         </colgroup>
         <thead><tr>
           <th style="text-align:left;padding:8px;color:#bfdbfe;border-bottom:1px solid #223249">Customer</th>
-          <th style="text-align:left;padding:8px;color:#bfdbfe;border-bottom:1px solid #223249">Project</th>
+          <th style="text-align:left;padding:8px;color:#bfdbfe;border-bottom:1px solid #223249">Opportunity</th>
+          <th style="text-align:left;padding:8px;color:#bfdbfe;border-bottom:1px solid #223249">Jira/AT</th>
           <th style="text-align:left;padding:8px;color:#bfdbfe;border-bottom:1px solid #223249">PM</th>
           <th style="text-align:left;padding:8px;color:#bfdbfe;border-bottom:1px solid #223249">NRR(h)</th>
           <th style="text-align:left;padding:8px;color:#bfdbfe;border-bottom:1px solid #223249">Start</th>
@@ -2905,9 +2931,9 @@ ${(() => {
   </div>
   <div class="paginated-section" data-page="0" data-page-size="5">
     <table style="table-layout:fixed;width:100%">
-      <colgroup><col style="width:18%"><col style="width:28%"><col style="width:22%"><col style="width:32%"></colgroup>
+      <colgroup><col style="width:14%"><col style="width:18%"><col style="width:10%"><col style="width:10%"><col style="width:18%"><col style="width:30%"></colgroup>
       <thead><tr>
-        <th>Customer</th><th>Project</th><th>Project Budget</th><th>Risk Reason (Budget)</th>
+        <th>Customer</th><th>Opportunity</th><th>Jira/AT</th><th>PM</th><th>Project Budget</th><th>Risk Reason (Budget)</th>
       </tr></thead>
       <tbody>${atRiskRows}</tbody>
     </table>
@@ -2924,9 +2950,9 @@ ${(() => {
   </div>
   <div class="paginated-section" data-page="0" data-page-size="5">
     <table style="table-layout:fixed;width:100%">
-      <colgroup><col style="width:18%"><col style="width:28%"><col style="width:22%"><col style="width:32%"></colgroup>
+      <colgroup><col style="width:14%"><col style="width:18%"><col style="width:10%"><col style="width:10%"><col style="width:10%"><col style="width:38%"></colgroup>
       <thead><tr>
-        <th>Customer</th><th>Project</th><th>Project Health</th><th>Project Status by PM</th>
+        <th>Customer</th><th>Opportunity</th><th>Jira/AT</th><th>PM</th><th>Project Health</th><th>Project Status by PM</th>
       </tr></thead>
       <tbody>${healthRows}</tbody>
     </table>
@@ -2959,11 +2985,11 @@ ${newSection}
   <div id="allTable">
     <table style="table-layout:fixed;width:100%">
       <colgroup>
-        <col style="width:9%"><col style="width:15%"><col style="width:8%"><col style="width:5%"><col style="width:6%"><col style="width:6%">
-        <col style="width:8%"><col style="width:8%"><col style="width:21%"><col style="width:14%">
+        <col style="width:8%"><col style="width:12%"><col style="width:7%"><col style="width:7%"><col style="width:5%"><col style="width:6%"><col style="width:6%">
+        <col style="width:7%"><col style="width:7%"><col style="width:18%"><col style="width:13%">
       </colgroup>
       <thead><tr>
-        <th>Customer</th><th>Project</th><th>PM</th><th>NRR(h)</th><th>Start</th><th>End</th>
+        <th>Customer</th><th>Opportunity</th><th>Jira/AT</th><th>PM</th><th>NRR(h)</th><th>Start</th><th>End</th>
         <th>Project Health</th><th>Project Budget</th><th>Project Status</th><th>Manager Notes</th>
       </tr></thead>
       ${allProjectsRows}
