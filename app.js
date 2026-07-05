@@ -164,10 +164,41 @@ let cachedRegionFieldId = null;
 const TASKS_KEY = 'project-dashboard-tasks-v1';
 let tasks = JSON.parse(localStorage.getItem('project-dashboard-tasks-v1') || '[]');
 
+const PENDING_DELETES_KEY = 'project-dashboard-pending-deletes-v1';
+
+function getPendingDeletes() {
+  return JSON.parse(localStorage.getItem(PENDING_DELETES_KEY) || '[]');
+}
+
+function addPendingDelete(id, storeKey) {
+  const pending = getPendingDeletes();
+  if (!pending.find(d => d.id === id && d.storeKey === storeKey)) {
+    pending.push({ id, storeKey });
+    try { localStorage.setItem(PENDING_DELETES_KEY, JSON.stringify(pending)); } catch {}
+  }
+}
+
+function removePendingDelete(id, storeKey) {
+  const pending = getPendingDeletes().filter(d => !(d.id === id && d.storeKey === storeKey));
+  try { localStorage.setItem(PENDING_DELETES_KEY, JSON.stringify(pending)); } catch {}
+}
+
+function applyPendingDeletes(arr, storeKey) {
+  const pending = getPendingDeletes().filter(d => d.storeKey === storeKey);
+  if (!pending.length) return arr;
+  return arr.filter(item => !pending.find(d => d.id === item.id));
+}
+
 async function saveTasks() {
   try { localStorage.setItem(TASKS_KEY, JSON.stringify(tasks)); } catch {}
   const ok = await kvPut(TASKS_KEY, tasks);
-  if (!ok) showOfflineBanner();
+  if (ok) {
+    // Clear any pending deletes for tasks since KV is now up to date
+    getPendingDeletes().filter(d => d.storeKey === TASKS_KEY)
+      .forEach(d => removePendingDelete(d.id, TASKS_KEY));
+  } else {
+    showOfflineBanner();
+  }
 }
 
 const BACKUPS_KEY = 'project-dashboard-backups-v1';
@@ -232,11 +263,20 @@ async function initData() {
 
   async function hydrateKey(kvValue, lsKey, fallback) {
     if (kvValue !== null) {
-      // KV is reachable — it is the source of truth, always use it and cache locally
-      try { localStorage.setItem(lsKey, JSON.stringify(kvValue)); } catch {}
-      return kvValue;
+      // KV reachable — apply any offline deletes on top of KV data
+      let value = Array.isArray(kvValue) ? applyPendingDeletes(kvValue, lsKey) : kvValue;
+      const hadDeletes = Array.isArray(kvValue) && value.length < kvValue.length;
+      if (hadDeletes) {
+        // Push the corrected array back to KV and clear pending deletes
+        kvPut(lsKey, value).then(() => {
+          const pending = getPendingDeletes().filter(d => d.storeKey === lsKey);
+          pending.forEach(d => removePendingDelete(d.id, lsKey));
+        }).catch(() => {});
+      }
+      try { localStorage.setItem(lsKey, JSON.stringify(value)); } catch {}
+      return value;
     }
-    // KV unreachable — fall back to localStorage
+    // KV unreachable — fall back to localStorage (pending deletes already applied during delete)
     const lsValue = JSON.parse(localStorage.getItem(lsKey) || 'null');
     return lsValue !== null ? lsValue : fallback;
   }
@@ -3466,10 +3506,14 @@ deleteProjectBtn.addEventListener('click', async () => {
   if (deleteProjectIndex < 0) return;
   const itemType = deleteProjectModal.dataset.itemType || 'project';
   if (itemType === 'task') {
+    const deletedId = tasks[deleteProjectIndex]?.id;
     tasks.splice(deleteProjectIndex, 1);
+    if (deletedId) addPendingDelete(deletedId, TASKS_KEY);
     await saveTasks();
   } else {
+    const deletedId = projects[deleteProjectIndex]?.id;
     projects.splice(deleteProjectIndex, 1);
+    if (deletedId) addPendingDelete(deletedId, STORAGE_KEY);
     await saveProjects();
   }
   renderAll();
@@ -3493,10 +3537,14 @@ backupAndDeleteProjectBtn.addEventListener('click', async () => {
   }
   await saveBackups();
   if (itemType === 'task') {
+    const deletedId = tasks[deleteProjectIndex]?.id;
     tasks.splice(deleteProjectIndex, 1);
+    if (deletedId) addPendingDelete(deletedId, TASKS_KEY);
     await saveTasks();
   } else {
+    const deletedId = projects[deleteProjectIndex]?.id;
     projects.splice(deleteProjectIndex, 1);
+    if (deletedId) addPendingDelete(deletedId, STORAGE_KEY);
     await saveProjects();
   }
   renderAll();
