@@ -263,20 +263,42 @@ async function initData() {
 
   async function hydrateKey(kvValue, lsKey, fallback) {
     if (kvValue !== null) {
-      // KV reachable — apply any offline deletes on top of KV data
-      let value = Array.isArray(kvValue) ? applyPendingDeletes(kvValue, lsKey) : kvValue;
-      const hadDeletes = Array.isArray(kvValue) && value.length < kvValue.length;
-      if (hadDeletes) {
-        // Push the corrected array back to KV and clear pending deletes
-        kvPut(lsKey, value).then(() => {
-          const pending = getPendingDeletes().filter(d => d.storeKey === lsKey);
-          pending.forEach(d => removePendingDelete(d.id, lsKey));
-        }).catch(() => {});
+      let value = Array.isArray(kvValue) ? kvValue : kvValue;
+
+      if (Array.isArray(kvValue)) {
+        // Step 1: apply offline deletes on top of KV
+        const beforeDeletes = value.length;
+        value = applyPendingDeletes(value, lsKey);
+        const hadDeletes = value.length < beforeDeletes;
+
+        // Step 2: merge offline adds — items in localStorage not present in KV (by id)
+        const lsValue = JSON.parse(localStorage.getItem(lsKey) || 'null');
+        if (Array.isArray(lsValue) && lsValue.length > 0) {
+          const kvIds = new Set(value.map(item => item.id).filter(Boolean));
+          const pendingDeleteIds = new Set(getPendingDeletes().filter(d => d.storeKey === lsKey).map(d => d.id));
+          const offlineAdds = lsValue.filter(item => item.id && !kvIds.has(item.id) && !pendingDeleteIds.has(item.id));
+          if (offlineAdds.length > 0) {
+            value = [...value, ...offlineAdds];
+          }
+        }
+
+        const needsSync = hadDeletes || value.length > kvValue.length;
+        if (needsSync) {
+          kvPut(lsKey, value).then(() => {
+            getPendingDeletes().filter(d => d.storeKey === lsKey)
+              .forEach(d => removePendingDelete(d.id, lsKey));
+          }).catch(() => {});
+        } else {
+          // No offline changes — clear any stale pending deletes for this key
+          getPendingDeletes().filter(d => d.storeKey === lsKey)
+            .forEach(d => removePendingDelete(d.id, lsKey));
+        }
       }
+
       try { localStorage.setItem(lsKey, JSON.stringify(value)); } catch {}
       return value;
     }
-    // KV unreachable — fall back to localStorage (pending deletes already applied during delete)
+    // KV unreachable — fall back to localStorage
     const lsValue = JSON.parse(localStorage.getItem(lsKey) || 'null');
     return lsValue !== null ? lsValue : fallback;
   }
