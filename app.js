@@ -2759,10 +2759,35 @@ function generateHTMLReport() {
       <td>${isEmptyStatus(p.statusText) ? STATUS_PLACEHOLDER : p.statusText}</td>
       <td>${(p.comments||'').split(/, (?=NRR:|MRR:|CSM:|Sales:)/).map(esc).join('<br>')}</td>
     </tr>`).join('');
-    return `<tbody class="pm-group-body">
-      <tr class="pm-group-header-row"><td colspan="9" style="padding:10px 8px 6px;color:#7dd3fc;font-weight:700;font-size:0.95rem;border-bottom:1px solid #223249">${esc(manager)} <span style="font-weight:400;font-size:0.85rem;color:#bfdbfe">(Number Of Projects: ${grouped[manager].filter(p => p.type !== 'task').length}${grouped[manager].some(p => p.type === 'task') ? ` · ${grouped[manager].filter(p => p.type === 'task').length} task${grouped[manager].filter(p => p.type === 'task').length > 1 ? 's' : ''}` : ''})</span></td></tr>
-      ${rows}
-    </tbody>`;
+    const projCount = grouped[manager].filter(p => p.type !== 'task').length;
+    const taskCount = grouped[manager].filter(p => p.type === 'task').length;
+    const countLabel = `(Number Of Projects: ${projCount}${taskCount ? ` · ${taskCount} task${taskCount > 1 ? 's' : ''}` : ''})`;
+    return `
+    <div style="margin-bottom:18px;">
+      <div style="color:#7dd3fc;font-weight:700;font-size:0.95rem;padding:8px 0 6px;">
+        ${esc(manager)} <span style="font-weight:400;font-size:0.85rem;color:#bfdbfe;">${countLabel}</span>
+      </div>
+      <table style="table-layout:fixed;width:100%;border-collapse:collapse;">
+        <colgroup>
+          <col style="width:8%"><col style="width:12%"><col style="width:7%"><col style="width:7%"><col style="width:5%"><col style="width:6%"><col style="width:6%">
+          <col style="width:7%"><col style="width:7%"><col style="width:18%"><col style="width:13%">
+        </colgroup>
+        <thead><tr style="border-bottom:1px solid #223249;">
+          <th style="text-align:left;padding:6px 8px;color:#bfdbfe;font-size:0.85rem;">Customer</th>
+          <th style="text-align:left;padding:6px 8px;color:#bfdbfe;font-size:0.85rem;">Opportunity</th>
+          <th style="text-align:left;padding:6px 8px;color:#bfdbfe;font-size:0.85rem;">Jira/AT</th>
+          <th style="text-align:left;padding:6px 8px;color:#bfdbfe;font-size:0.85rem;">PM</th>
+          <th style="text-align:left;padding:6px 8px;color:#bfdbfe;font-size:0.85rem;">NRR(h)</th>
+          <th style="text-align:left;padding:6px 8px;color:#bfdbfe;font-size:0.85rem;">Start</th>
+          <th style="text-align:left;padding:6px 8px;color:#bfdbfe;font-size:0.85rem;">End</th>
+          <th style="text-align:left;padding:6px 8px;color:#bfdbfe;font-size:0.85rem;">Project Health</th>
+          <th style="text-align:left;padding:6px 8px;color:#bfdbfe;font-size:0.85rem;">Project Budget</th>
+          <th style="text-align:left;padding:6px 8px;color:#bfdbfe;font-size:0.85rem;">Project Status</th>
+          <th style="text-align:left;padding:6px 8px;color:#bfdbfe;font-size:0.85rem;">Manager Notes</th>
+        </tr></thead>
+        <tbody class="pm-group-body">${rows}</tbody>
+      </table>
+    </div>`;
   }).join('');
 
   const pmOptions = uniquePMs.map(pm => `<option value="${esc(pm)}">${esc(pm)}</option>`).join('');
@@ -2983,17 +3008,7 @@ ${newSection}
   </div>
   <button class="toggle-btn" onclick="toggleAll(this)">▶ Show all projects (${projects.length})</button>
   <div id="allTable">
-    <table style="table-layout:fixed;width:100%">
-      <colgroup>
-        <col style="width:8%"><col style="width:12%"><col style="width:7%"><col style="width:7%"><col style="width:5%"><col style="width:6%"><col style="width:6%">
-        <col style="width:7%"><col style="width:7%"><col style="width:18%"><col style="width:13%">
-      </colgroup>
-      <thead><tr>
-        <th>Customer</th><th>Opportunity</th><th>Jira/AT</th><th>PM</th><th>NRR(h)</th><th>Start</th><th>End</th>
-        <th>Project Health</th><th>Project Budget</th><th>Project Status</th><th>Manager Notes</th>
-      </tr></thead>
-      ${allProjectsRows}
-    </table>
+    ${allProjectsRows}
   </div>
 </section>
 
