@@ -3066,7 +3066,6 @@ function applyFilters(){
     }
   }
   document.querySelectorAll('#allTable tbody.pm-group-body').forEach(tbody=>{
-    const headerRow=tbody.querySelector('.pm-group-header-row');
     let anyVisible=false;
     tbody.querySelectorAll('tr[data-pm]').forEach(row=>{
       const rPm=row.dataset.pm;
@@ -3083,7 +3082,9 @@ function applyFilters(){
       row.style.display=show?'':'none';
       if(show) anyVisible=true;
     });
-    if(headerRow) headerRow.style.display=anyVisible?'':'none';
+    // Hide the entire group div (parent of the table) when no rows are visible
+    const groupDiv = tbody.closest('div[style*="margin-bottom"]');
+    if(groupDiv) groupDiv.style.display=anyVisible?'':'none';
   });
 }
 function applyRegionFilter() {
