@@ -121,7 +121,7 @@ let users = JSON.parse(localStorage.getItem('project-dashboard-users-v1') || '[]
 async function saveUsers() {
   try { localStorage.setItem(USERS_KEY, JSON.stringify(users)); } catch {}
   const ok = await kvPut(USERS_KEY, users);
-  if (!ok) showOfflineBanner();
+  if (!ok) _wasOffline = true;
 }
 
 const SETTINGS_KEY = 'project-dashboard-settings-v1';
@@ -138,7 +138,7 @@ let customers = JSON.parse(localStorage.getItem('project-dashboard-customers-v1'
 async function saveCustomers() {
   try { localStorage.setItem(CUSTOMERS_KEY, JSON.stringify(customers)); } catch {}
   const ok = await kvPut(CUSTOMERS_KEY, customers);
-  if (!ok) showOfflineBanner();
+  if (!ok) _wasOffline = true;
 }
 
 function getCustomerNames() {
@@ -197,7 +197,7 @@ async function saveTasks() {
     getPendingDeletes().filter(d => d.storeKey === TASKS_KEY)
       .forEach(d => removePendingDelete(d.id, TASKS_KEY));
   } else {
-    showOfflineBanner();
+    _wasOffline = true;
   }
 }
 
@@ -324,7 +324,7 @@ async function initData() {
 async function saveBackups() {
   try { localStorage.setItem(BACKUPS_KEY, JSON.stringify(backups)); } catch {}
   const ok = await kvPut(BACKUPS_KEY, backups);
-  if (!ok) showOfflineBanner();
+  if (!ok) _wasOffline = true;
 }
 
 function formatBackupLabel(ts) {
@@ -550,7 +550,7 @@ const importProgress = document.getElementById('importProgress');
 async function saveProjects() {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(projects)); } catch {}
   const ok = await kvPut(STORAGE_KEY, projects);
-  if (!ok) showOfflineBanner();
+  if (!ok) _wasOffline = true;
 }
 
 let addUserReturnContext = null;
@@ -1370,20 +1370,19 @@ async function pollForNewProjects() {
 let _wasOffline = false;
 
 async function trySyncLocalToKV() {
-  // Push all locally-stored data to KV — called when coming back online
-  const keys = [
-    [STORAGE_KEY, () => projects],
-    [USERS_KEY, () => users],
-    [CUSTOMERS_KEY, () => customers],
-    [BACKUPS_KEY, () => backups],
-    [TASKS_KEY, () => tasks],
+  // Push in-memory data (which has offline deletes/adds applied) to KV
+  const stores = [
+    [STORAGE_KEY, projects],
+    [USERS_KEY, users],
+    [CUSTOMERS_KEY, customers],
+    [BACKUPS_KEY, backups],
+    [TASKS_KEY, tasks],
   ];
-  for (const [key, getData] of keys) {
-    const lsValue = JSON.parse(localStorage.getItem(key) || 'null');
-    if (lsValue !== null) {
-      await kvPut(key, lsValue).catch(() => {});
-    }
+  for (const [key, data] of stores) {
+    await kvPut(key, data).catch(() => {});
   }
+  // Clear all pending deletes since KV is now in sync
+  try { localStorage.setItem(PENDING_DELETES_KEY, '[]'); } catch {}
   const banner = document.getElementById('offline-banner');
   if (banner) banner.style.display = 'none';
   showToast('Back online — changes synced to cloud.', 'success');
@@ -3927,13 +3926,14 @@ async function init() {
 }
 
 async function checkJiraConnectivity() {
+  // Silent check — only show banner if offline, no toast for Jira issues
   try {
     const res = await fetch(`${PROXY_BASE}/jira/field`, { headers: { Accept: 'application/json', 'X-KV-Secret': KV_SECRET } });
-    if (!res.ok) {
-      showToast(`Jira connection issue (${res.status}) — syncing may not work`);
+    if (!res.ok && res.status !== 401) {
+      showOfflineBanner();
     }
   } catch {
-    showToast('Jira is unreachable — syncing may not work');
+    showOfflineBanner();
   }
 }
 
