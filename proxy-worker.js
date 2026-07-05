@@ -35,6 +35,7 @@ const KV_ALLOWED_KEYS = new Set([
   'project-dashboard-settings-v1',
   'project-dashboard-customers-v1',
   'project-dashboard-backups-v1',
+  'project-dashboard-tasks-v1',
 ]);
 
 const CORS_HEADERS = {
