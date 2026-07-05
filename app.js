@@ -1339,7 +1339,7 @@ async function pollForNewProjects() {
           }
           if (cachedAccountOwnerFieldId) {
             const rawOwner = f[cachedAccountOwnerFieldId];
-            issue.accountOwnerName = rawOwner?.displayName || rawOwner?.name || '';
+            issue.accountOwnerName = typeof rawOwner === 'string' ? rawOwner : (rawOwner?.displayName || rawOwner?.name || '');
             issue.accountOwnerAccountId = rawOwner?.accountId || '';
           }
         }
@@ -3726,7 +3726,7 @@ async function loadImportStep2(pm) {
       dueDate: cachedVMForecastFieldId ? (i.fields[cachedVMForecastFieldId] || '') : '',
       riskReason: cachedRiskReasonFieldId ? (i.fields[cachedRiskReasonFieldId]?.value || '') : '',
       healthFromJira: cachedRiskRateFieldId ? (i.fields[cachedRiskRateFieldId]?.value || 'Green') : 'Green',
-      accountOwnerName: cachedAccountOwnerFieldId ? (i.fields[cachedAccountOwnerFieldId]?.displayName || i.fields[cachedAccountOwnerFieldId]?.name || '') : '',
+      accountOwnerName: cachedAccountOwnerFieldId ? (typeof i.fields[cachedAccountOwnerFieldId] === 'string' ? i.fields[cachedAccountOwnerFieldId] : (i.fields[cachedAccountOwnerFieldId]?.displayName || i.fields[cachedAccountOwnerFieldId]?.name || '')) : '',
       accountOwnerAccountId: cachedAccountOwnerFieldId ? (i.fields[cachedAccountOwnerFieldId]?.accountId || '') : '',
       // Future fields (infra ready)
       oppUrl: '',
