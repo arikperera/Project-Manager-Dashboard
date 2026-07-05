@@ -231,23 +231,14 @@ async function initData() {
   ]);
 
   async function hydrateKey(kvValue, lsKey, fallback) {
-    const lsValue = JSON.parse(localStorage.getItem(lsKey) || 'null');
     if (kvValue !== null) {
-      const kvEmpty = Array.isArray(kvValue) ? kvValue.length === 0 : false;
-      const lsNonEmpty = lsValue !== null && (Array.isArray(lsValue) ? lsValue.length > 0 : true);
-      // KV is empty but localStorage has data — push localStorage back to KV
-      if (kvEmpty && lsNonEmpty) {
-        kvPut(lsKey, lsValue).catch(() => {});
-        return lsValue;
-      }
-      // KV has real data — cache it locally and use it
+      // KV is reachable — it is the source of truth, always use it and cache locally
       try { localStorage.setItem(lsKey, JSON.stringify(kvValue)); } catch {}
       return kvValue;
     }
-    // KV unreachable — use localStorage
-    const value = lsValue !== null ? lsValue : fallback;
-    kvPut(lsKey, value).catch(() => {});
-    return value;
+    // KV unreachable — fall back to localStorage
+    const lsValue = JSON.parse(localStorage.getItem(lsKey) || 'null');
+    return lsValue !== null ? lsValue : fallback;
   }
 
   [projects, users, settings, customers, backups, tasks] = await Promise.all([
@@ -1366,16 +1357,14 @@ function startKvPoll() {
     let changed = false;
 
     const freshProjects = await kvGet(STORAGE_KEY);
-    if (freshProjects && freshProjects.length >= projects.length &&
-        JSON.stringify(freshProjects) !== JSON.stringify(projects)) {
+    if (freshProjects && JSON.stringify(freshProjects) !== JSON.stringify(projects)) {
       projects = freshProjects;
       try { localStorage.setItem(STORAGE_KEY, JSON.stringify(projects)); } catch {}
       changed = true;
     }
 
     const freshTasks = await kvGet(TASKS_KEY);
-    if (freshTasks && freshTasks.length >= tasks.length &&
-        JSON.stringify(freshTasks) !== JSON.stringify(tasks)) {
+    if (freshTasks && JSON.stringify(freshTasks) !== JSON.stringify(tasks)) {
       tasks = freshTasks;
       try { localStorage.setItem(TASKS_KEY, JSON.stringify(tasks)); } catch {}
       changed = true;
