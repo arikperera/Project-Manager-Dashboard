@@ -428,6 +428,7 @@ async function migrateProjects() {
     if (p.actualHours === undefined) { p.actualHours = null; changed = true; }
     if (p.statusUpdatedAt === undefined) { p.statusUpdatedAt = ''; changed = true; }
     if (p.region === undefined) { p.region = ''; changed = true; }
+    if (p.accountUrl === undefined) { p.accountUrl = ''; changed = true; }
     if (p.nrrUsd === undefined || p.nrrUsd === null) {
       // Try to backfill from comments: "NRR: $14.8K, MRR: $0K, ..."
       const nrrMatch = (p.comments || '').match(/NRR:\s*\$?([\d.]+)K?/i);
@@ -1268,7 +1269,9 @@ function buildProjectFromEnrichment(issue, sfData) {
   const startDate = issue.created ? issue.created.slice(0, 10) : '';
   const nrr = sfData && !sfData.sfSkipped && !sfData.sfError ? (sfData.nrr ?? '') : (issue.nrrUsd ?? '');
   const mrr = sfData && !sfData.sfSkipped && !sfData.sfError ? (sfData.mrr ?? '') : (issue.mrrUsd ?? '');
-  const csmName = sfData && !sfData.sfSkipped && !sfData.sfError ? (sfData.csmName ?? '') : '';
+  const csmName = sfData && !sfData.sfSkipped && !sfData.sfError
+    ? (sfData.csmName ?? '')
+    : (issue.accountCsmName || '');
   const salesName = sfData && !sfData.sfSkipped && !sfData.sfError
     ? (sfData.salesName ?? '')
     : (issue.accountOwnerName || '');
@@ -1288,7 +1291,8 @@ function buildProjectFromEnrichment(issue, sfData) {
     status:      'On Track',
     progress:    0,
     statusText:  '',
-    oppLink:     sfOk ? (sfData.oppUrl || '') : '',
+    oppLink:     sfOk ? (sfData.oppUrl || '') : (issue.oppUrl || ''),
+    accountUrl:  sfOk ? (sfData.accountUrl || '') : (issue.accountUrl || ''),
     atLink:      '',
     riskReason:  issue.riskReason || '',
     region:      issue.region || '',
@@ -1316,7 +1320,7 @@ async function pollForNewProjects() {
   const addedKeys = [];
   for (const issue of toAdd) {
     // Enrich issue with extra Jira fields (account name, hours, MRR/NRR, due date)
-    const extraFieldIds = [cachedAccountNameFieldId, cachedMrrFieldId, cachedNrrFieldId, cachedEstHoursFieldId, cachedVMForecastFieldId, cachedRegionFieldId, cachedAccountOwnerFieldId].filter(Boolean);
+    const extraFieldIds = [cachedAccountNameFieldId, cachedMrrFieldId, cachedNrrFieldId, cachedEstHoursFieldId, cachedVMForecastFieldId, cachedRegionFieldId, cachedAccountOwnerFieldId, cachedOppUrlFieldId, cachedAccountUrlFieldId, cachedAccountCsmFieldId].filter(Boolean);
     if (extraFieldIds.length) {
       try {
         const useProxy = true;
@@ -1342,6 +1346,12 @@ async function pollForNewProjects() {
             issue.accountOwnerName = typeof rawOwner === 'string' ? rawOwner : (rawOwner?.displayName || rawOwner?.name || '');
             issue.accountOwnerAccountId = rawOwner?.accountId || '';
           }
+          if (cachedOppUrlFieldId) issue.oppUrl = f[cachedOppUrlFieldId] || '';
+          if (cachedAccountUrlFieldId) issue.accountUrl = f[cachedAccountUrlFieldId] || '';
+          if (cachedAccountCsmFieldId) {
+            const rawCsm = f[cachedAccountCsmFieldId];
+            issue.accountCsmName = typeof rawCsm === 'string' ? rawCsm : (rawCsm?.displayName || rawCsm?.name || '');
+          }
         }
       } catch {}
     }
@@ -1359,6 +1369,9 @@ async function pollForNewProjects() {
     projects.push(project);
     if (issue.accountOwnerName) {
       await ensureUserExists(issue.accountOwnerName, issue.accountOwnerAccountId, 'Sales');
+    }
+    if (issue.accountCsmName) {
+      await ensureUserExists(issue.accountCsmName, '', 'CSM');
     }
     addedKeys.push({ key: issue.key, sfUnavailable: !!(sfData.sfSkipped || sfData.sfError) });
   }
@@ -1698,7 +1711,7 @@ function renderTable() {
           const progressFillTone = getProgressFillTone(progressValue);
           return `
           <tr data-jirakey="${getJiraIssueKey(project.jira) || ''}">
-            <td>${(() => { const cust = customers.find(c => c.name === project.customer); return cust && cust.sfLink ? `<a href="${escapeHtml(cust.sfLink)}" target="_blank" rel="noreferrer">${escapeHtml(project.customer || '-')}</a>` : escapeHtml(project.customer || '-'); })()}</td>
+            <td>${(() => { const custLink = project.accountUrl || (customers.find(c => c.name === project.customer)?.sfLink) || ''; return custLink ? `<a href="${escapeHtml(custLink)}" target="_blank" rel="noreferrer">${escapeHtml(project.customer || '-')}</a>` : escapeHtml(project.customer || '-'); })()}</td>
             <td>${project.oppLink ? `<a href="${escapeHtml(project.oppLink)}" target="_blank" rel="noreferrer">${escapeHtml(project.name || project.parentProjectName || '-')}</a>` : escapeHtml(project.name || project.parentProjectName || '-')}</td>
             <td class="jira-at-cell">
               ${project.jira ? `<a class="jira-at-btn" href="${escapeHtml(project.jira)}" target="_blank" rel="noreferrer">${escapeHtml(getJiraLabel(project.jira))}</a>` : '<span style="color:#64748b">—</span>'}
@@ -3692,7 +3705,7 @@ async function loadImportStep2(pm) {
   if (!cachedAccountNameFieldId || !cachedVMForecastFieldId || !cachedNrrFieldId || !cachedMrrFieldId || !cachedEstHoursFieldId || !cachedRiskReasonFieldId || !cachedRiskRateFieldId) await resolveJiraFieldIds();
 
   const jql = `issuetype = Initiative AND assignee = "${pm.accountId}" AND (status = Open OR status = "in progress") ORDER BY created ASC`;
-  const extraFields = [cachedAccountNameFieldId, cachedMrrFieldId, cachedNrrFieldId, cachedEstHoursFieldId, cachedVMForecastFieldId, cachedRiskReasonFieldId, cachedRiskRateFieldId, cachedAccountOwnerFieldId].filter(Boolean).join(',');
+  const extraFields = [cachedAccountNameFieldId, cachedMrrFieldId, cachedNrrFieldId, cachedEstHoursFieldId, cachedVMForecastFieldId, cachedRiskReasonFieldId, cachedRiskRateFieldId, cachedAccountOwnerFieldId, cachedOppUrlFieldId, cachedAccountUrlFieldId, cachedAccountCsmFieldId].filter(Boolean).join(',');
   const useProxy = true;
   const url = useProxy
     ? `https://pm-proxy.demo.qa.kaltura.ai/jira/search/jql?jql=${encodeURIComponent(jql)}&fields=summary,status,assignee,created${extraFields ? ',' + extraFields : ''}&maxResults=200`
@@ -3728,10 +3741,9 @@ async function loadImportStep2(pm) {
       healthFromJira: cachedRiskRateFieldId ? (i.fields[cachedRiskRateFieldId]?.value || 'Green') : 'Green',
       accountOwnerName: cachedAccountOwnerFieldId ? (typeof i.fields[cachedAccountOwnerFieldId] === 'string' ? i.fields[cachedAccountOwnerFieldId] : (i.fields[cachedAccountOwnerFieldId]?.displayName || i.fields[cachedAccountOwnerFieldId]?.name || '')) : '',
       accountOwnerAccountId: cachedAccountOwnerFieldId ? (i.fields[cachedAccountOwnerFieldId]?.accountId || '') : '',
-      // Future fields (infra ready)
-      oppUrl: '',
-      accountUrl: '',
-      accountCsmName: '',
+      oppUrl: cachedOppUrlFieldId ? (i.fields[cachedOppUrlFieldId] || '') : '',
+      accountUrl: cachedAccountUrlFieldId ? (i.fields[cachedAccountUrlFieldId] || '') : '',
+      accountCsmName: cachedAccountCsmFieldId ? (typeof i.fields[cachedAccountCsmFieldId] === 'string' ? i.fields[cachedAccountCsmFieldId] : (i.fields[cachedAccountCsmFieldId]?.displayName || i.fields[cachedAccountCsmFieldId]?.name || '')) : '',
     }));
 
     const existing = getExistingJiraKeys();
@@ -3816,6 +3828,10 @@ importConfirmBtn.addEventListener('click', async () => {
     // Auto-create Account Owner as Sales user if not already in users list
     if (issue.accountOwnerName) {
       await ensureUserExists(issue.accountOwnerName, issue.accountOwnerAccountId, 'Sales');
+    }
+    // Auto-create Account CSM as CSM user if not already in users list
+    if (issue.accountCsmName) {
+      await ensureUserExists(issue.accountCsmName, '', 'CSM');
     }
 
     // Auto-create customer if not already in customers list
