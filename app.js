@@ -1808,7 +1808,10 @@ function renderSummary() {
 
   const now = new Date();
   const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  const dueThisMonth = scoped.filter((project) => (project.dueDate || '').startsWith(currentMonth));
+  const endOfMonth = `${currentMonth}-31`; // safe upper bound — string compare works since format is YYYY-MM-DD
+  const dueThisMonth = scoped.filter((project) =>
+    project.dueDate && project.dueDate <= endOfMonth && project.status !== 'Completed'
+  );
 
   document.getElementById('totalProjects').textContent = total;
   document.getElementById('healthGreenCount').textContent  = healthGreen;
@@ -3519,9 +3522,10 @@ dueThisMonthPopup.addEventListener('click', (e) => {
 function getDueThisMonthProjects() {
   const now = new Date();
   const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const endOfMonth = `${currentMonth}-31`;
   const selectedRegion = regionFilter ? regionFilter.value : '';
   return projects.filter((p) =>
-    (p.dueDate || '').startsWith(currentMonth) &&
+    p.dueDate && p.dueDate <= endOfMonth && p.status !== 'Completed' &&
     (!selectedRegion || p.region === selectedRegion)
   );
 }
