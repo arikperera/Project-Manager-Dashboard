@@ -153,6 +153,10 @@ let cachedActEffortFieldId = null;
 let cachedRiskRateFieldId = null;
 let cachedRiskRateOptions = null;
 let cachedAccountNameFieldId = null;
+let cachedAccountOwnerFieldId = null;
+let cachedOppUrlFieldId = null;
+let cachedAccountUrlFieldId = null;
+let cachedAccountCsmFieldId = null;
 let cachedMrrFieldId = null;
 let cachedNrrFieldId = null;
 let cachedRegionFieldId = null;
@@ -791,6 +795,10 @@ function applyFieldNames(names) {
     if (name === 'Actual Effort(H)') cachedActEffortFieldId = id;
     if (name === 'Risk Rate') cachedRiskRateFieldId = id;
     if (name === 'Account Name') cachedAccountNameFieldId = id;
+    if (name === 'Account Owner') cachedAccountOwnerFieldId = id;
+    if (name === 'Opportunity URL') cachedOppUrlFieldId = id;
+    if (name === 'Account URL') cachedAccountUrlFieldId = id;
+    if (name === 'Account Customer Success Manager') cachedAccountCsmFieldId = id;
     if (name === 'MRR (USD)') cachedMrrFieldId = id;
     if (name === 'NRR(USD)') cachedNrrFieldId = id;
     if (name === 'Region') cachedRegionFieldId = id;
@@ -1182,6 +1190,25 @@ function getExistingJiraKeys() {
   return new Set(projects.map(p => getJiraIssueKey(p.jira)).filter(Boolean));
 }
 
+async function ensureUserExists(displayName, jiraAccountId, role) {
+  if (!displayName) return;
+  const existing = users.find(u => getUserDisplayName(u) === displayName);
+  if (existing) {
+    // Add role if missing
+    const roles = getUserRoles(existing);
+    if (!roles.includes(role)) {
+      existing.roles = [...roles, role];
+      await saveUsers();
+    }
+    return;
+  }
+  const parts = displayName.trim().split(/\s+/);
+  const firstName = parts[0] || displayName;
+  const lastName = parts.slice(1).join(' ') || '';
+  users.push({ id: `u_${Date.now()}_${users.length}`, firstName, lastName, roles: [role], jiraAccountId: jiraAccountId || null });
+  await saveUsers();
+}
+
 function buildProjectFromEnrichment(issue, sfData) {
   const pmMapping = settings.pmMapping || {};
   const manager = pmMapping[issue.assigneeEmail] || issue.assigneeDisplayName || 'Unassigned';
@@ -1189,7 +1216,9 @@ function buildProjectFromEnrichment(issue, sfData) {
   const nrr = sfData && !sfData.sfSkipped && !sfData.sfError ? (sfData.nrr ?? '') : (issue.nrrUsd ?? '');
   const mrr = sfData && !sfData.sfSkipped && !sfData.sfError ? (sfData.mrr ?? '') : (issue.mrrUsd ?? '');
   const csmName = sfData && !sfData.sfSkipped && !sfData.sfError ? (sfData.csmName ?? '') : '';
-  const salesName = sfData && !sfData.sfSkipped && !sfData.sfError ? (sfData.salesName ?? '') : '';
+  const salesName = sfData && !sfData.sfSkipped && !sfData.sfError
+    ? (sfData.salesName ?? '')
+    : (issue.accountOwnerName || '');
   const sfOk = sfData && !sfData.sfSkipped && !sfData.sfError;
   return {
     customer:    sfOk ? (sfData.customer || '') : (issue.accountName || ''),
@@ -1234,7 +1263,7 @@ async function pollForNewProjects() {
   const addedKeys = [];
   for (const issue of toAdd) {
     // Enrich issue with extra Jira fields (account name, hours, MRR/NRR, due date)
-    const extraFieldIds = [cachedAccountNameFieldId, cachedMrrFieldId, cachedNrrFieldId, cachedEstHoursFieldId, cachedVMForecastFieldId, cachedRegionFieldId].filter(Boolean);
+    const extraFieldIds = [cachedAccountNameFieldId, cachedMrrFieldId, cachedNrrFieldId, cachedEstHoursFieldId, cachedVMForecastFieldId, cachedRegionFieldId, cachedAccountOwnerFieldId].filter(Boolean);
     if (extraFieldIds.length) {
       try {
         const useProxy = true;
@@ -1255,6 +1284,11 @@ async function pollForNewProjects() {
             const rawR = f[cachedRegionFieldId];
             issue.region = typeof rawR === 'object' && rawR !== null ? (rawR.value || '') : (rawR || '');
           }
+          if (cachedAccountOwnerFieldId) {
+            const rawOwner = f[cachedAccountOwnerFieldId];
+            issue.accountOwnerName = rawOwner?.displayName || rawOwner?.name || '';
+            issue.accountOwnerAccountId = rawOwner?.accountId || '';
+          }
         }
       } catch {}
     }
@@ -1270,6 +1304,9 @@ async function pollForNewProjects() {
     }
     const project = buildProjectFromEnrichment(issue, sfData);
     projects.push(project);
+    if (issue.accountOwnerName) {
+      await ensureUserExists(issue.accountOwnerName, issue.accountOwnerAccountId, 'Sales');
+    }
     addedKeys.push({ key: issue.key, sfUnavailable: !!(sfData.sfSkipped || sfData.sfError) });
   }
   saveProjects();
@@ -3597,7 +3634,7 @@ async function loadImportStep2(pm) {
   if (!cachedAccountNameFieldId || !cachedVMForecastFieldId || !cachedNrrFieldId || !cachedMrrFieldId || !cachedEstHoursFieldId || !cachedRiskReasonFieldId || !cachedRiskRateFieldId) await resolveJiraFieldIds();
 
   const jql = `issuetype = Initiative AND assignee = "${pm.accountId}" AND (status = Open OR status = "in progress") ORDER BY created ASC`;
-  const extraFields = [cachedAccountNameFieldId, cachedMrrFieldId, cachedNrrFieldId, cachedEstHoursFieldId, cachedVMForecastFieldId, cachedRiskReasonFieldId, cachedRiskRateFieldId].filter(Boolean).join(',');
+  const extraFields = [cachedAccountNameFieldId, cachedMrrFieldId, cachedNrrFieldId, cachedEstHoursFieldId, cachedVMForecastFieldId, cachedRiskReasonFieldId, cachedRiskRateFieldId, cachedAccountOwnerFieldId].filter(Boolean).join(',');
   const useProxy = true;
   const url = useProxy
     ? `https://pm-proxy.demo.qa.kaltura.ai/jira/search/jql?jql=${encodeURIComponent(jql)}&fields=summary,status,assignee,created${extraFields ? ',' + extraFields : ''}&maxResults=200`
@@ -3631,6 +3668,12 @@ async function loadImportStep2(pm) {
       dueDate: cachedVMForecastFieldId ? (i.fields[cachedVMForecastFieldId] || '') : '',
       riskReason: cachedRiskReasonFieldId ? (i.fields[cachedRiskReasonFieldId]?.value || '') : '',
       healthFromJira: cachedRiskRateFieldId ? (i.fields[cachedRiskRateFieldId]?.value || 'Green') : 'Green',
+      accountOwnerName: cachedAccountOwnerFieldId ? (i.fields[cachedAccountOwnerFieldId]?.displayName || i.fields[cachedAccountOwnerFieldId]?.name || '') : '',
+      accountOwnerAccountId: cachedAccountOwnerFieldId ? (i.fields[cachedAccountOwnerFieldId]?.accountId || '') : '',
+      // Future fields (infra ready)
+      oppUrl: '',
+      accountUrl: '',
+      accountCsmName: '',
     }));
 
     const existing = getExistingJiraKeys();
@@ -3710,6 +3753,11 @@ importConfirmBtn.addEventListener('click', async () => {
       } else if (!existingUser.jiraAccountId && issue.assigneeAccountId) {
         existingUser.jiraAccountId = issue.assigneeAccountId;
       }
+    }
+
+    // Auto-create Account Owner as Sales user if not already in users list
+    if (issue.accountOwnerName) {
+      await ensureUserExists(issue.accountOwnerName, issue.accountOwnerAccountId, 'Sales');
     }
 
     // Auto-create customer if not already in customers list
