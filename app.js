@@ -1001,8 +1001,16 @@ async function syncProjectProgressFromJira() {
             const regionVal = typeof rawRegion === 'object' && rawRegion !== null ? (rawRegion.value || '') : (rawRegion || '');
             if (regionVal && !project.region) { project.region = regionVal; changed = true; }
           }
-          if (accountOwnerName) { project.sales = accountOwnerName; changed = true; }
-          if (accountCsmName) { project.csm = accountCsmName; changed = true; }
+          if (accountOwnerName) {
+            project.sales = accountOwnerName;
+            project.comments = (project.comments || '').replace(/Sales:\s*[^,\n]*/i, `Sales: ${accountOwnerName}`);
+            changed = true;
+          }
+          if (accountCsmName) {
+            project.csm = accountCsmName;
+            project.comments = (project.comments || '').replace(/CSM:\s*[^,\n]*/i, `CSM: ${accountCsmName}`);
+            changed = true;
+          }
           if (oppUrl) { project.oppLink = oppUrl; changed = true; }
           if (accountUrl) { project.accountUrl = accountUrl; changed = true; }
         });
