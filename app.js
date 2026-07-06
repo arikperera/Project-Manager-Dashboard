@@ -936,71 +936,82 @@ async function syncProjectProgressFromJira() {
   await resolveJiraFieldIds();
 
   // Build fields param from cached IDs — only request what we need
-  const fieldIds = ['progress', 'assignee', cachedProgressPctFieldId, cachedEstHoursFieldId, cachedRemEffortFieldId, cachedActEffortFieldId, cachedRegionFieldId, cachedRiskRateFieldId, cachedVMForecastFieldId].filter(Boolean);
+  const fieldIds = ['progress', 'assignee', cachedProgressPctFieldId, cachedEstHoursFieldId, cachedRemEffortFieldId, cachedActEffortFieldId, cachedRegionFieldId, cachedRiskRateFieldId, cachedVMForecastFieldId, cachedAccountOwnerFieldId, cachedAccountCsmFieldId, cachedOppUrlFieldId, cachedAccountUrlFieldId].filter(Boolean);
   const fieldsParam = fieldIds.join(',');
 
-  for (const key of [...new Set(issueKeys)]) {
-    try {
-      const url = useProxy
-        ? `https://pm-proxy.demo.qa.kaltura.ai/jira/issue/${key}?fields=${fieldsParam}`
-        : `https://kaltura.atlassian.net/rest/api/3/issue/${key}?fields=${fieldsParam}`;
-      const fetchOpts = useProxy
-        ? { headers: { Accept: 'application/json' } }
-        : { credentials: 'include', headers: { Accept: 'application/json' } };
-      const response = await fetch(url, fetchOpts);
+  const uniqueKeys = [...new Set(issueKeys)];
+  const BATCH_SIZE = 10;
+  let changed = false;
 
-      if (!response.ok) continue;
+  for (let i = 0; i < uniqueKeys.length; i += BATCH_SIZE) {
+    const batch = uniqueKeys.slice(i, i + BATCH_SIZE);
+    await Promise.all(batch.map(async (key) => {
+      try {
+        const url = useProxy
+          ? `https://pm-proxy.demo.qa.kaltura.ai/jira/issue/${key}?fields=${fieldsParam}`
+          : `https://kaltura.atlassian.net/rest/api/3/issue/${key}?fields=${fieldsParam}`;
+        const fetchOpts = useProxy
+          ? { headers: { Accept: 'application/json' } }
+          : { credentials: 'include', headers: { Accept: 'application/json' } };
+        const response = await fetch(url, fetchOpts);
+        if (!response.ok) return;
 
-      const data = await response.json();
-      const f = data.fields || {};
+        const data = await response.json();
+        const f = data.fields || {};
 
-      let percent = null;
-      if (cachedProgressPctFieldId) {
-        const raw = f[cachedProgressPctFieldId];
-        const extracted = (raw !== null && typeof raw === 'object') ? (raw.value ?? raw.percent ?? null) : raw;
-        percent = normalizeProgress(extracted);
-      }
-      if (percent === null) {
-        percent = normalizeProgress(f.progress?.percent ?? f.progress);
-      }
+        let percent = null;
+        if (cachedProgressPctFieldId) {
+          const raw = f[cachedProgressPctFieldId];
+          const extracted = (raw !== null && typeof raw === 'object') ? (raw.value ?? raw.percent ?? null) : raw;
+          percent = normalizeProgress(extracted);
+        }
+        if (percent === null) percent = normalizeProgress(f.progress?.percent ?? f.progress);
 
-      const readHours = (fieldId) => {
-        if (!fieldId) return null;
-        const raw = f[fieldId];
-        const v = (raw !== null && typeof raw === 'object') ? (raw.value ?? null) : raw;
-        return (v !== null && Number.isFinite(Number(v))) ? Math.round(Number(v)) : null;
-      };
-      const estimatedHours = readHours(cachedEstHoursFieldId);
-      const remainingHours = readHours(cachedRemEffortFieldId);
-      const actualHours = readHours(cachedActEffortFieldId);
+        const readHours = (fieldId) => {
+          if (!fieldId) return null;
+          const raw = f[fieldId];
+          const v = (raw !== null && typeof raw === 'object') ? (raw.value ?? null) : raw;
+          return (v !== null && Number.isFinite(Number(v))) ? Math.round(Number(v)) : null;
+        };
+        const estimatedHours = readHours(cachedEstHoursFieldId);
+        const remainingHours = readHours(cachedRemEffortFieldId);
+        const actualHours = readHours(cachedActEffortFieldId);
+        const healthVal = cachedRiskRateFieldId ? (f[cachedRiskRateFieldId]?.value || null) : null;
 
-      const healthVal = cachedRiskRateFieldId ? (f[cachedRiskRateFieldId]?.value || null) : null;
+        const rawOwner = cachedAccountOwnerFieldId ? f[cachedAccountOwnerFieldId] : null;
+        const accountOwnerName = rawOwner ? (typeof rawOwner === 'string' ? rawOwner : (rawOwner.displayName || rawOwner.name || '')) : null;
 
-      if (percent !== null || estimatedHours !== null || remainingHours !== null || actualHours !== null || cachedRegionFieldId || healthVal) {
+        const rawCsm = cachedAccountCsmFieldId ? f[cachedAccountCsmFieldId] : null;
+        const accountCsmName = rawCsm ? (typeof rawCsm === 'string' ? rawCsm : (rawCsm.displayName || rawCsm.name || '')) : null;
+
+        const oppUrl = cachedOppUrlFieldId ? (f[cachedOppUrlFieldId] || null) : null;
+        const accountUrl = cachedAccountUrlFieldId ? (f[cachedAccountUrlFieldId] || null) : null;
+
         projects.forEach((project) => {
-          if (getJiraIssueKey(project.jira) === key) {
-            if (percent !== null) project.progress = percent;
-            if (estimatedHours !== null) project.estimatedHours = estimatedHours;
-            if (remainingHours !== null) project.remainingHours = remainingHours;
-            if (actualHours !== null) project.actualHours = actualHours;
-            if (healthVal) project.health = healthVal;
-            if (cachedVMForecastFieldId && f[cachedVMForecastFieldId]) project.dueDate = f[cachedVMForecastFieldId];
-            if (f.assignee?.displayName) project.manager = f.assignee.displayName;
-            if (cachedRegionFieldId) {
-              const rawRegion = f[cachedRegionFieldId];
-              const regionVal = typeof rawRegion === 'object' && rawRegion !== null ? (rawRegion.value || '') : (rawRegion || '');
-              if (regionVal && !project.region) project.region = regionVal;
-            }
+          if (getJiraIssueKey(project.jira) !== key) return;
+          if (percent !== null) { project.progress = percent; changed = true; }
+          if (estimatedHours !== null) { project.estimatedHours = estimatedHours; changed = true; }
+          if (remainingHours !== null) { project.remainingHours = remainingHours; changed = true; }
+          if (actualHours !== null) { project.actualHours = actualHours; changed = true; }
+          if (healthVal) { project.health = healthVal; changed = true; }
+          if (cachedVMForecastFieldId && f[cachedVMForecastFieldId]) { project.dueDate = f[cachedVMForecastFieldId]; changed = true; }
+          if (f.assignee?.displayName) { project.manager = f.assignee.displayName; changed = true; }
+          if (cachedRegionFieldId) {
+            const rawRegion = f[cachedRegionFieldId];
+            const regionVal = typeof rawRegion === 'object' && rawRegion !== null ? (rawRegion.value || '') : (rawRegion || '');
+            if (regionVal && !project.region) { project.region = regionVal; changed = true; }
           }
+          if (accountOwnerName) { project.sales = accountOwnerName; changed = true; }
+          if (accountCsmName) { project.csm = accountCsmName; changed = true; }
+          if (oppUrl) { project.oppLink = oppUrl; changed = true; }
+          if (accountUrl) { project.accountUrl = accountUrl; changed = true; }
         });
+      } catch (error) {
+        console.warn(`Jira sync failed for ${key}`, error);
       }
-    } catch (error) {
-      console.warn(`Jira sync failed for ${key}`, error);
-    }
+    }));
+    if (changed) { saveProjects(); renderAll(); changed = false; }
   }
-
-  saveProjects();
-  renderAll();
 }
 
 async function syncStatusFromJira() {
