@@ -224,14 +224,7 @@
               </label>
             </span>
             <span class="toolbar-sep"></span>
-            <select id="editorFontSize" class="ghost-btn small-btn" title="Font size" style="padding:4px 6px;cursor:pointer;">
-              <option value="">Size</option>
-              <option value="1">XS</option>
-              <option value="2">S</option>
-              <option value="3">M</option>
-              <option value="4">L</option>
-              <option value="5">XL</option>
-            </select>
+            <input type="number" id="editorFontSize" title="Font size" min="6" max="72" step="1" placeholder="pt" style="width:52px;padding:4px 6px;border:1px solid var(--line);border-radius:10px;background:rgba(15,23,42,0.95);color:var(--text);font-family:inherit;font-size:0.88rem;text-align:center;cursor:text;" />
             <button type="button" id="editorInsertLink" class="ghost-btn small-btn" title="Insert link">🔗</button>
           </div>
           <div id="editorLinkPopup" style="display:none;margin-top:6px;background:#0f172a;border:1px solid #223249;border-radius:10px;padding:10px 12px;display:none;gap:8px;flex-direction:column;">

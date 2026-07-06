@@ -2600,13 +2600,30 @@ document.getElementById('editorColorPicker').addEventListener('change', (event) 
   editStatusEditor.focus();
 });
 
-document.getElementById('editorFontSize').addEventListener('change', (e) => {
-  const size = e.target.value;
-  if (size) {
-    document.execCommand('fontSize', false, size);
+function applyEditorFontSize() {
+  const el = document.getElementById('editorFontSize');
+  const size = parseInt(el.value);
+  if (size >= 6 && size <= 72) {
     editStatusEditor.focus();
+    document.execCommand('styleWithCSS', false, true);
+    document.execCommand('insertHTML', false,
+      `<span style="font-size:${size}pt;">​</span>`
+    );
+    // If text was selected, wrap it
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount && !sel.isCollapsed) {
+      const range = sel.getRangeAt(0);
+      const span = document.createElement('span');
+      span.style.fontSize = size + 'pt';
+      range.surroundContents(span);
+    }
   }
-  e.target.value = '';
+  // Keep value visible so user sees the selected size
+}
+
+document.getElementById('editorFontSize').addEventListener('change', applyEditorFontSize);
+document.getElementById('editorFontSize').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); applyEditorFontSize(); }
 });
 
 let _savedLinkSelection = null;
