@@ -2600,30 +2600,42 @@ document.getElementById('editorColorPicker').addEventListener('change', (event) 
   editStatusEditor.focus();
 });
 
-function applyEditorFontSize() {
-  const el = document.getElementById('editorFontSize');
-  const size = parseInt(el.value);
-  if (size >= 6 && size <= 72) {
-    editStatusEditor.focus();
-    document.execCommand('styleWithCSS', false, true);
-    document.execCommand('insertHTML', false,
-      `<span style="font-size:${size}pt;">​</span>`
-    );
-    // If text was selected, wrap it
-    const sel = window.getSelection();
-    if (sel && sel.rangeCount && !sel.isCollapsed) {
-      const range = sel.getRangeAt(0);
+document.getElementById('editorFontSize').addEventListener('change', (e) => {
+  const size = e.target.value;
+  if (!size) return;
+  editStatusEditor.focus();
+  const sel = window.getSelection();
+  if (sel && sel.rangeCount && !sel.isCollapsed) {
+    // Wrap selected text in a span with the chosen font size
+    const range = sel.getRangeAt(0);
+    try {
       const span = document.createElement('span');
       span.style.fontSize = size + 'pt';
       range.surroundContents(span);
+      // Re-select the wrapped content
+      const newRange = document.createRange();
+      newRange.selectNodeContents(span);
+      sel.removeAllRanges();
+      sel.addRange(newRange);
+    } catch {
+      // fallback if surroundContents fails (cross-node selection)
+      document.execCommand('styleWithCSS', false, true);
+      document.execCommand('fontSize', false, '7');
+      editStatusEditor.querySelectorAll('font[size="7"]').forEach(f => {
+        f.removeAttribute('size');
+        f.style.fontSize = size + 'pt';
+      });
     }
+  } else {
+    // No selection — set font size for next typed characters
+    document.execCommand('styleWithCSS', false, true);
+    document.execCommand('fontSize', false, '7');
+    editStatusEditor.querySelectorAll('font[size="7"]').forEach(f => {
+      f.removeAttribute('size');
+      f.style.fontSize = size + 'pt';
+    });
   }
   // Keep value visible so user sees the selected size
-}
-
-document.getElementById('editorFontSize').addEventListener('change', applyEditorFontSize);
-document.getElementById('editorFontSize').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') { e.preventDefault(); applyEditorFontSize(); }
 });
 
 let _savedLinkSelection = null;
