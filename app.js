@@ -1896,6 +1896,7 @@ function closeEditProjectModal() {
   editProjectForm.reset();
   editStatusEditor.innerHTML = '';
   editStatusEditor.removeAttribute('data-placeholder-active');
+  document.getElementById('editorLinkPopup').style.display = 'none';
   editPmStatus.value = '';
   pmStatusLabel.style.display = 'none';
   editRiskReason.value = '';
@@ -2597,6 +2598,46 @@ document.getElementById('editorColorPicker').addEventListener('change', (event) 
   document.getElementById('editorColorSwatch').style.background = color;
   document.execCommand('foreColor', false, color);
   editStatusEditor.focus();
+});
+
+document.getElementById('editorFontSize').addEventListener('change', (e) => {
+  const size = e.target.value;
+  if (size) {
+    document.execCommand('fontSize', false, size);
+    editStatusEditor.focus();
+  }
+  e.target.value = '';
+});
+
+let _savedLinkSelection = null;
+document.getElementById('editorInsertLink').addEventListener('click', () => {
+  _savedLinkSelection = window.getSelection()?.getRangeAt(0)?.cloneRange() || null;
+  const selectedText = window.getSelection()?.toString() || '';
+  document.getElementById('editorLinkText').value = selectedText;
+  document.getElementById('editorLinkUrl').value = '';
+  const popup = document.getElementById('editorLinkPopup');
+  popup.style.display = popup.style.display === 'flex' ? 'none' : 'flex';
+  if (popup.style.display === 'flex') document.getElementById('editorLinkUrl').focus();
+});
+
+document.getElementById('editorLinkCancel').addEventListener('click', () => {
+  document.getElementById('editorLinkPopup').style.display = 'none';
+  editStatusEditor.focus();
+});
+
+document.getElementById('editorLinkInsert').addEventListener('click', () => {
+  const url = document.getElementById('editorLinkUrl').value.trim();
+  const text = document.getElementById('editorLinkText').value.trim() || url;
+  if (!url) return;
+  editStatusEditor.focus();
+  if (_savedLinkSelection) {
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(_savedLinkSelection);
+  }
+  document.execCommand('insertHTML', false, `<a href="${escapeHtml(url)}" target="_blank" rel="noreferrer">${escapeHtml(text)}</a>`);
+  document.getElementById('editorLinkPopup').style.display = 'none';
+  _savedLinkSelection = null;
 });
 
 editStatusEditor.addEventListener('focus', () => {
