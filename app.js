@@ -2605,37 +2605,37 @@ document.getElementById('editorFontSize').addEventListener('change', (e) => {
   if (!size) return;
   editStatusEditor.focus();
   const sel = window.getSelection();
-  if (sel && sel.rangeCount && !sel.isCollapsed) {
-    // Wrap selected text in a span with the chosen font size
+  if (!sel || !sel.rangeCount) return;
+
+  if (!sel.isCollapsed) {
+    // Text selected — wrap it in a span with the chosen size
     const range = sel.getRangeAt(0);
     try {
+      const frag = range.extractContents();
       const span = document.createElement('span');
       span.style.fontSize = size + 'pt';
-      range.surroundContents(span);
-      // Re-select the wrapped content
+      span.appendChild(frag);
+      range.insertNode(span);
+      sel.removeAllRanges();
       const newRange = document.createRange();
       newRange.selectNodeContents(span);
-      sel.removeAllRanges();
       sel.addRange(newRange);
-    } catch {
-      // fallback if surroundContents fails (cross-node selection)
-      document.execCommand('styleWithCSS', false, true);
-      document.execCommand('fontSize', false, '7');
-      editStatusEditor.querySelectorAll('font[size="7"]').forEach(f => {
-        f.removeAttribute('size');
-        f.style.fontSize = size + 'pt';
-      });
-    }
+    } catch {}
   } else {
-    // No selection — set font size for next typed characters
-    document.execCommand('styleWithCSS', false, true);
-    document.execCommand('fontSize', false, '7');
-    editStatusEditor.querySelectorAll('font[size="7"]').forEach(f => {
-      f.removeAttribute('size');
-      f.style.fontSize = size + 'pt';
-    });
+    // No selection — insert a zero-width space span so future typing uses this size
+    const range = sel.getRangeAt(0);
+    const span = document.createElement('span');
+    span.style.fontSize = size + 'pt';
+    span.innerHTML = '​'; // zero-width space as anchor
+    range.insertNode(span);
+    // Place cursor inside the span after the zero-width space
+    const newRange = document.createRange();
+    newRange.setStart(span.firstChild, 1);
+    newRange.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(newRange);
   }
-  // Keep value visible so user sees the selected size
+  // Keep value visible
 });
 
 let _savedLinkSelection = null;
