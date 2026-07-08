@@ -183,10 +183,15 @@ function removePendingDelete(id, storeKey) {
   try { localStorage.setItem(PENDING_DELETES_KEY, JSON.stringify(pending)); } catch {}
 }
 
+function getItemDeleteKey(item) {
+  // Use jira URL for projects (no id field), id for tasks/customers
+  return item.jira || item.id || '';
+}
+
 function applyPendingDeletes(arr, storeKey) {
   const pending = getPendingDeletes().filter(d => d.storeKey === storeKey);
   if (!pending.length) return arr;
-  return arr.filter(item => !pending.find(d => d.id === item.id));
+  return arr.filter(item => !pending.find(d => d.id === getItemDeleteKey(item)));
 }
 
 async function saveTasks() {
@@ -551,7 +556,12 @@ const importProgress = document.getElementById('importProgress');
 async function saveProjects() {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(projects)); } catch {}
   const ok = await kvPut(STORAGE_KEY, projects);
-  if (!ok) _wasOffline = true;
+  if (ok) {
+    getPendingDeletes().filter(d => d.storeKey === STORAGE_KEY)
+      .forEach(d => removePendingDelete(d.id, STORAGE_KEY));
+  } else {
+    _wasOffline = true;
+  }
 }
 
 let addUserReturnContext = null;
@@ -3685,9 +3695,9 @@ deleteProjectBtn.addEventListener('click', async () => {
     if (deletedId) addPendingDelete(deletedId, TASKS_KEY);
     await saveTasks();
   } else {
-    const deletedId = projects[deleteProjectIndex]?.id;
+    const deletedKey = getItemDeleteKey(projects[deleteProjectIndex] || {});
     projects.splice(deleteProjectIndex, 1);
-    if (deletedId) addPendingDelete(deletedId, STORAGE_KEY);
+    if (deletedKey) addPendingDelete(deletedKey, STORAGE_KEY);
     await saveProjects();
   }
   renderAll();
@@ -3716,9 +3726,9 @@ backupAndDeleteProjectBtn.addEventListener('click', async () => {
     if (deletedId) addPendingDelete(deletedId, TASKS_KEY);
     await saveTasks();
   } else {
-    const deletedId = projects[deleteProjectIndex]?.id;
+    const deletedKey = getItemDeleteKey(projects[deleteProjectIndex] || {});
     projects.splice(deleteProjectIndex, 1);
-    if (deletedId) addPendingDelete(deletedId, STORAGE_KEY);
+    if (deletedKey) addPendingDelete(deletedKey, STORAGE_KEY);
     await saveProjects();
   }
   renderAll();
