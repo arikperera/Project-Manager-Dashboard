@@ -375,6 +375,16 @@ function createBackup(btn) {
   }
 }
 
+function getUserAvatarHtml(displayName, size = 22) {
+  const user = users.find(u => getUserDisplayName(u) === displayName);
+  if (user?.avatarUrl) {
+    return `<img src="${escapeHtml(user.avatarUrl)}" alt="${escapeHtml(displayName)}" style="width:${size}px;height:${size}px;border-radius:50%;object-fit:cover;margin-right:6px;vertical-align:middle;border:1px solid rgba(255,255,255,0.15);" onerror="this.style.display='none'">`;
+  }
+  // Initials fallback
+  const initials = displayName.split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
+  return `<span style="display:inline-flex;align-items:center;justify-content:center;width:${size}px;height:${size}px;border-radius:50%;background:#334155;color:#94a3b8;font-size:${Math.round(size*0.45)}px;font-weight:600;margin-right:6px;vertical-align:middle;flex-shrink:0;">${escapeHtml(initials)}</span>`;
+}
+
 function getUserDisplayName(user) {
   return `${user.firstName} ${user.lastName}`.trim();
 }
@@ -1535,6 +1545,27 @@ document.addEventListener('click', (e) => {
 
 document.getElementById('newProjectsBannerDismiss').addEventListener('click', dismissNewProjectsBanner);
 
+async function fetchAndStoreAvatars() {
+  const usersNeedingAvatar = users.filter(u => u.jiraAccountId && !u.avatarUrl);
+  if (!usersNeedingAvatar.length) return;
+  let changed = false;
+  for (const user of usersNeedingAvatar) {
+    try {
+      const res = await fetch(`${PROXY_BASE}/jira/user/search?query=${encodeURIComponent(getUserDisplayName(user))}`, {
+        headers: { Accept: 'application/json', 'X-KV-Secret': KV_SECRET },
+      });
+      if (!res.ok) continue;
+      const results = await res.json();
+      const match = results.find(u => u.accountId === user.jiraAccountId) || results.find(u => u.displayName === getUserDisplayName(user));
+      if (match?.avatarUrls) {
+        user.avatarUrl = match.avatarUrls['24x24'] || match.avatarUrls['16x16'] || Object.values(match.avatarUrls)[0] || '';
+        changed = true;
+      }
+    } catch {}
+  }
+  if (changed) await saveUsers();
+}
+
 async function getOrFetchJiraAccountId(displayName) {
   if (!displayName) return null;
   // Check if already stored on user
@@ -1707,7 +1738,7 @@ function renderTable() {
 
     const header = document.createElement('div');
     header.className = 'pm-group-header';
-    header.innerHTML = `<h4>${manager} <span style="font-size:0.88rem;font-weight:400;">(Number Of Projects: ${grouped[manager].length})</span></h4>`;
+    header.innerHTML = `<h4 style="display:flex;align-items:center;">${getUserAvatarHtml(manager)}${escapeHtml(manager)} <span style="font-size:0.88rem;font-weight:400;margin-left:6px;">(Number Of Projects: ${grouped[manager].filter(p => p.type !== 'task').length}${grouped[manager].some(p => p.type === 'task') ? ` · ${grouped[manager].filter(p => p.type === 'task').length} task${grouped[manager].filter(p => p.type === 'task').length > 1 ? 's' : ''}` : ''})</span></h4>`;
     section.appendChild(header);
 
     const table = document.createElement('table');
@@ -1978,7 +2009,7 @@ function renderBackupMain(backup) {
 
   const tableRows = Object.keys(grouped).sort((a, b) => a.localeCompare(b)).map(manager => `
     <div class="pm-group" style="margin-bottom:10px;">
-      <div class="pm-group-header"><h4>${escapeHtml(manager)}</h4><span>${grouped[manager].length} project${grouped[manager].length === 1 ? '' : 's'}</span></div>
+      <div class="pm-group-header"><h4 style="display:flex;align-items:center;">${getUserAvatarHtml(manager)}${escapeHtml(manager)}</h4><span>${grouped[manager].length} project${grouped[manager].length === 1 ? '' : 's'}</span></div>
       <div style="overflow-x:auto;">
         <table class="pm-table">
           <thead><tr>
@@ -2869,10 +2900,16 @@ function generateHTMLReport() {
     const projCount = grouped[manager].filter(p => p.type !== 'task').length;
     const taskCount = grouped[manager].filter(p => p.type === 'task').length;
     const countLabel = `(Number Of Projects: ${projCount}${taskCount ? ` · ${taskCount} task${taskCount > 1 ? 's' : ''}` : ''})`;
+    const avatarHtml = (() => {
+      const u = users.find(u => getUserDisplayName(u) === manager);
+      if (u?.avatarUrl) return `<img src="${esc(u.avatarUrl)}" alt="${esc(manager)}" style="width:22px;height:22px;border-radius:50%;object-fit:cover;margin-right:6px;vertical-align:middle;border:1px solid rgba(255,255,255,0.15);" onerror="this.style.display='none'">`;
+      const initials = manager.split(/\s+/).map(w=>w[0]).join('').slice(0,2).toUpperCase();
+      return `<span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:#334155;color:#94a3b8;font-size:10px;font-weight:600;margin-right:6px;vertical-align:middle;flex-shrink:0;">${esc(initials)}</span>`;
+    })();
     return `
     <div style="margin-bottom:18px;">
-      <div style="color:#7dd3fc;font-weight:700;font-size:0.95rem;padding:8px 0 6px;">
-        ${esc(manager)} <span style="font-weight:400;font-size:0.85rem;color:#bfdbfe;">${countLabel}</span>
+      <div style="color:#7dd3fc;font-weight:700;font-size:0.95rem;padding:8px 0 6px;display:flex;align-items:center;">
+        ${avatarHtml}${esc(manager)} <span style="font-weight:400;font-size:0.85rem;color:#bfdbfe;margin-left:6px;">${countLabel}</span>
       </div>
       <table style="table-layout:fixed;width:100%;border-collapse:collapse;">
         <colgroup>
@@ -3354,9 +3391,11 @@ document.getElementById('syncUsersFromJiraBtn').addEventListener('click', async 
     const accountId = await getOrFetchJiraAccountId(displayName);
     if (accountId) updated++;
   }
+  await fetchAndStoreAvatars();
   await saveUsers();
   btn.textContent = '↻ Sync Jira IDs';
   btn.disabled = false;
+  renderUsersModal();
   showToast(`Synced Jira IDs for ${updated} user${updated !== 1 ? 's' : ''}`, 'success');
 });
 
@@ -4089,6 +4128,7 @@ async function init() {
   syncStatusFromJira();
   syncProjectProgressFromJira();
   checkJiraConnectivity();
+  fetchAndStoreAvatars();
 }
 
 async function checkJiraConnectivity() {
