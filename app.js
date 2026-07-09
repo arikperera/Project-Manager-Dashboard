@@ -1069,8 +1069,9 @@ async function syncStatusFromJira() {
         const jiraTime = jiraUpdated ? new Date(jiraUpdated).getTime() : 0;
         const localTime = localUpdated ? new Date(localUpdated).getTime() : 0;
 
-        if (!localTime || jiraTime > localTime) {
-          // Jira is newer (or no local timestamp) — pull from Jira
+        const recentlySaved = localTime && (Date.now() - localTime) < 10 * 60 * 1000;
+        if (!recentlySaved && (!localTime || jiraTime > localTime)) {
+          // Jira is newer and local wasn't recently edited — pull from Jira
           const adf = data.fields?.description;
           const html = adf ? adfToHtml(adf) : '';
           if (html !== project.statusText) {
@@ -2288,7 +2289,7 @@ editProjectForm.addEventListener('submit', async (event) => {
   if (newDueDate) selectedProject.dueDate = newDueDate;
   const rawStatus = editStatusEditor.getAttribute('data-placeholder-active') ? '' : editStatusEditor.innerHTML.trim();
   selectedProject.statusText = isEmptyStatus(rawStatus) ? '' : rawStatus;
-  selectedProject.statusUpdatedAt = new Date(Date.now() + 5000).toISOString();
+  selectedProject.statusUpdatedAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
 
   if (itemType === 'task') { await saveTasks(); } else { await saveProjects(); }
   renderAll();
