@@ -4092,15 +4092,10 @@ async function init() {
 }
 
 async function checkJiraConnectivity() {
-  // Silent check — only show banner if offline, no toast for Jira issues
+  // Just a quiet connectivity check — Jira issues don't mean dashboard is offline
   try {
-    const res = await fetch(`${PROXY_BASE}/jira/field`, { headers: { Accept: 'application/json', 'X-KV-Secret': KV_SECRET } });
-    if (!res.ok && res.status !== 401) {
-      showOfflineBanner();
-    }
-  } catch {
-    showOfflineBanner();
-  }
+    await fetch(`${PROXY_BASE}/jira/field`, { headers: { Accept: 'application/json', 'X-KV-Secret': KV_SECRET } });
+  } catch {}
 }
 
 init();
