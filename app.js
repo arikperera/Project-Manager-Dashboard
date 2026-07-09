@@ -786,6 +786,15 @@ function getJiraIssueKey(jira) {
   return pathMatch ? pathMatch[1] : '';
 }
 
+function validSfUrl(url) {
+  if (!url || typeof url !== 'string') return '';
+  // Reject URLs with N/A, null, undefined, or non-SF-looking IDs
+  if (/\/N\/A\//i.test(url) || /\/null\//i.test(url) || /\/undefined\//i.test(url)) return '';
+  // Must look like a real Salesforce URL
+  if (!url.startsWith('http')) return '';
+  return url;
+}
+
 function formatCurrency(val) {
   if (val === null || val === undefined || val === '') return '$0K';
   const num = parseFloat(String(val).replace(/[^0-9.]/g, ''));
@@ -1004,8 +1013,8 @@ async function syncProjectProgressFromJira() {
         const rawCsm = cachedAccountCsmFieldId ? f[cachedAccountCsmFieldId] : null;
         const accountCsmName = rawCsm ? (typeof rawCsm === 'string' ? rawCsm : (rawCsm.displayName || rawCsm.name || '')) : null;
 
-        const oppUrl = cachedOppUrlFieldId ? (f[cachedOppUrlFieldId] || null) : null;
-        const accountUrl = cachedAccountUrlFieldId ? (f[cachedAccountUrlFieldId] || null) : null;
+        const oppUrl = cachedOppUrlFieldId ? (validSfUrl(f[cachedOppUrlFieldId]) || null) : null;
+        const accountUrl = cachedAccountUrlFieldId ? (validSfUrl(f[cachedAccountUrlFieldId]) || null) : null;
 
         projects.forEach((project) => {
           if (getJiraIssueKey(project.jira) !== key) return;
@@ -1386,8 +1395,8 @@ async function pollForNewProjects() {
             issue.accountOwnerName = typeof rawOwner === 'string' ? rawOwner : (rawOwner?.displayName || rawOwner?.name || '');
             issue.accountOwnerAccountId = rawOwner?.accountId || '';
           }
-          if (cachedOppUrlFieldId) issue.oppUrl = f[cachedOppUrlFieldId] || '';
-          if (cachedAccountUrlFieldId) issue.accountUrl = f[cachedAccountUrlFieldId] || '';
+          if (cachedOppUrlFieldId) issue.oppUrl = validSfUrl(f[cachedOppUrlFieldId]) || '';
+          if (cachedAccountUrlFieldId) issue.accountUrl = validSfUrl(f[cachedAccountUrlFieldId]) || '';
           if (cachedAccountCsmFieldId) {
             const rawCsm = f[cachedAccountCsmFieldId];
             issue.accountCsmName = typeof rawCsm === 'string' ? rawCsm : (rawCsm?.displayName || rawCsm?.name || '');
@@ -3951,8 +3960,8 @@ async function loadImportStep2(pm) {
       healthFromJira: cachedRiskRateFieldId ? (i.fields[cachedRiskRateFieldId]?.value || 'Green') : 'Green',
       accountOwnerName: cachedAccountOwnerFieldId ? (typeof i.fields[cachedAccountOwnerFieldId] === 'string' ? i.fields[cachedAccountOwnerFieldId] : (i.fields[cachedAccountOwnerFieldId]?.displayName || i.fields[cachedAccountOwnerFieldId]?.name || '')) : '',
       accountOwnerAccountId: cachedAccountOwnerFieldId ? (i.fields[cachedAccountOwnerFieldId]?.accountId || '') : '',
-      oppUrl: cachedOppUrlFieldId ? (i.fields[cachedOppUrlFieldId] || '') : '',
-      accountUrl: cachedAccountUrlFieldId ? (i.fields[cachedAccountUrlFieldId] || '') : '',
+      oppUrl: cachedOppUrlFieldId ? (validSfUrl(i.fields[cachedOppUrlFieldId]) || '') : '',
+      accountUrl: cachedAccountUrlFieldId ? (validSfUrl(i.fields[cachedAccountUrlFieldId]) || '') : '',
       accountCsmName: cachedAccountCsmFieldId ? (typeof i.fields[cachedAccountCsmFieldId] === 'string' ? i.fields[cachedAccountCsmFieldId] : (i.fields[cachedAccountCsmFieldId]?.displayName || i.fields[cachedAccountCsmFieldId]?.name || '')) : '',
     }));
 
