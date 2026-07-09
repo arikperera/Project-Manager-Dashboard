@@ -2603,6 +2603,13 @@ editProjectModal.addEventListener('click', (event) => {
 });
 
 portfolioGroups.addEventListener('click', (event) => {
+  // Open links inside status cells in a new tab
+  const link = event.target.closest('.cell-scroll a');
+  if (link && !link.dataset.editProject && !link.dataset.deleteProject) {
+    event.preventDefault();
+    window.open(link.href, '_blank', 'noopener,noreferrer');
+    return;
+  }
   const editButton = event.target.closest('[data-edit-project]');
   if (editButton) {
     openEditProjectModal(
@@ -2810,6 +2817,19 @@ function generateHTMLReport() {
     return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
+  function rptAvatar(name) {
+    const u = users.find(u => getUserDisplayName(u) === name);
+    if (u?.avatarUrl) return `<img src="${esc(u.avatarUrl)}" alt="${esc(name)}" style="width:20px;height:20px;border-radius:50%;object-fit:cover;margin-right:5px;vertical-align:middle;border:1px solid rgba(255,255,255,0.15);" onerror="this.style.display='none'">`;
+    const initials = name.split(/\s+/).map(w=>w[0]).join('').slice(0,2).toUpperCase();
+    return `<span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:#334155;color:#94a3b8;font-size:9px;font-weight:600;margin-right:5px;vertical-align:middle;flex-shrink:0;">${esc(initials)}</span>`;
+  }
+
+  function pmCell(p) {
+    const name = p.manager || '-';
+    if (name === '-') return '-';
+    return `<span style="display:inline-flex;align-items:center;">${rptAvatar(name)}${esc(name)}</span>`;
+  }
+
   function custCell(p) {
     const link = p.accountUrl || (customers.find(c => c.name === p.customer)?.sfLink) || '';
     return link ? `<a href="${esc(link)}" target="_blank" style="color:#7dd3fc;">${esc(p.customer||'-')}</a>` : esc(p.customer||'-');
@@ -2834,7 +2854,7 @@ function generateHTMLReport() {
         <td>${custCell(p)}</td>
         <td>${oppCell(p)}</td>
         <td>${jiraCell(p)}</td>
-        <td>${esc(p.manager||'-')}</td>
+        <td>${pmCell(p)}</td>
         <td>${progressBar(p.progress, p.estimatedHours, p.remainingHours, p.actualHours, p.health, p.riskReason, p.nrr)}</td>
         <td style="color:#fde68a">${esc(p.riskReason||'No risk reason set')}</td>
       </tr>`).join('')
@@ -2845,7 +2865,7 @@ function generateHTMLReport() {
         <td>${custCell(p)}</td>
         <td>${oppCell(p)}</td>
         <td>${jiraCell(p)}</td>
-        <td>${esc(p.manager||'-')}</td>
+        <td>${pmCell(p)}</td>
         <td>${healthPill(p.health, p.pmStatus)}</td>
         <td style="color:#cbd5e1;font-size:0.9rem;">${isEmptyStatus(p.pmStatus) ? '<em style="color:#64748b;">No status set by PM</em>' : cleanStatusHtml(p.pmStatus)}</td>
       </tr>`).join('')
@@ -2856,7 +2876,7 @@ function generateHTMLReport() {
         <td>${custCell(p)}</td>
         <td>${oppCell(p)}</td>
         <td>${jiraCell(p)}</td>
-        <td>${esc(p.manager||'-')}</td>
+        <td>${pmCell(p)}</td>
         <td>${esc(String(p.nrr||0))} hrs</td>
         <td>${esc(formatDate(p.startDate))}</td>
         <td>${esc(formatDate(p.dueDate))}</td>
