@@ -2908,7 +2908,7 @@ function generateHTMLReport() {
       <td>${custCell(p)}</td>
       <td>${oppCell(p)}</td>
       <td>${jiraCell(p)}</td>
-      <td>${esc(p.manager||'-')}</td>
+      <td>${pmCell(p)}</td>
       <td>${esc(String(p.nrr||0))} hrs</td>
       <td>${esc(formatDate(p.startDate))}</td>
       <td>${esc(formatDate(p.dueDate))}</td>
