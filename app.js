@@ -316,6 +316,8 @@ async function initData() {
     hydrateKey(kvBackups, BACKUPS_KEY, []),
     hydrateKey(kvTasks, TASKS_KEY, []),
   ]);
+  // Always keep backups sorted newest first
+  backups.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
 
   // Cache KV data to localStorage so next load renders instantly
   try { localStorage.setItem(STORAGE_KEY,   JSON.stringify(projects));  } catch {}
@@ -352,6 +354,7 @@ function createBackup(btn) {
     users: JSON.parse(JSON.stringify(users)),
   };
   backups.unshift(backup);
+  backups.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
   saveBackups();
 
   const dd = String(new Date(ts).getDate()).padStart(2, '0');
