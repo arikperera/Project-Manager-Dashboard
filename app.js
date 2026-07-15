@@ -1,4 +1,4 @@
-const PROXY_BASE = 'https://pm-proxy.demo.qa.kaltura.ai';
+const PROXY_BASE = '';
 const KV_SECRET = 'HPZTjoBph4Cz9AMGwiSsYcJf086bdgRX';
 const APP_VERSION = '1.6.0';
 const CHANGELOG = [
@@ -900,7 +900,7 @@ async function resolveJiraFieldIds() {
   // First try /jira/field (lightweight)
   try {
     const url = useProxy
-      ? 'https://pm-proxy.demo.qa.kaltura.ai/jira/field'
+      ? `${PROXY_BASE}/jira/field`
       : 'https://kaltura.atlassian.net/rest/api/3/field';
     const res = await fetch(url, opts);
     if (res.ok) {
@@ -917,7 +917,7 @@ async function resolveJiraFieldIds() {
     if (firstKey) {
       try {
         const url = useProxy
-          ? `https://pm-proxy.demo.qa.kaltura.ai/jira/issue/${firstKey}?fields=*all&expand=names`
+          ? `${PROXY_BASE}/jira/issue/${firstKey}?fields=*all&expand=names`
           : `https://kaltura.atlassian.net/rest/api/3/issue/${firstKey}?fields=*all&expand=names`;
         const res = await fetch(url, opts);
         if (res.ok) {
@@ -938,7 +938,7 @@ async function resolveRiskRateOptions(fieldId) {
   if (!issueKey) return;
   const useProxy = true;
   const url = useProxy
-    ? `https://pm-proxy.demo.qa.kaltura.ai/jira/issue/${issueKey}/editmeta`
+    ? `${PROXY_BASE}/jira/issue/${issueKey}/editmeta`
     : `https://kaltura.atlassian.net/rest/api/3/issue/${issueKey}/editmeta`;
   const opts = useProxy
     ? { headers: { Accept: 'application/json' } }
@@ -980,7 +980,7 @@ async function syncProjectProgressFromJira() {
     await Promise.all(batch.map(async (key) => {
       try {
         const url = useProxy
-          ? `https://pm-proxy.demo.qa.kaltura.ai/jira/issue/${key}?fields=${fieldsParam}`
+          ? `${PROXY_BASE}/jira/issue/${key}?fields=${fieldsParam}`
           : `https://kaltura.atlassian.net/rest/api/3/issue/${key}?fields=${fieldsParam}`;
         const fetchOpts = useProxy
           ? { headers: { Accept: 'application/json' } }
@@ -1068,7 +1068,7 @@ async function syncStatusFromJira() {
     await Promise.all(batch.map(async ({ project, issueKey }) => {
       try {
         const url = useProxy
-          ? `https://pm-proxy.demo.qa.kaltura.ai/jira/issue/${issueKey}?fields=description,updated`
+          ? `${PROXY_BASE}/jira/issue/${issueKey}?fields=description,updated`
           : `https://kaltura.atlassian.net/rest/api/3/issue/${issueKey}?fields=description,updated`;
         const opts = useProxy
           ? { headers: { Accept: 'application/json' } }
@@ -1357,7 +1357,7 @@ async function pollForNewProjects() {
   if (!settings.jiraEmail || !settings.jiraToken) return;
   let newIssues;
   try {
-    const resp = await fetch('https://pm-proxy.demo.qa.kaltura.ai/jira/new-assignments', {
+    const resp = await fetch(`${PROXY_BASE}/jira/new-assignments`, {
       headers: { Accept: 'application/json' },
     });
     if (!resp.ok) return;
@@ -1378,7 +1378,7 @@ async function pollForNewProjects() {
         const useProxy = true;
         const fieldsParam = extraFieldIds.join(',');
         const extraUrl = useProxy
-          ? `https://pm-proxy.demo.qa.kaltura.ai/jira/issue/${issue.key}?fields=${fieldsParam}`
+          ? `${PROXY_BASE}/jira/issue/${issue.key}?fields=${fieldsParam}`
           : `https://kaltura.atlassian.net/rest/api/3/issue/${issue.key}?fields=${fieldsParam}`;
         const extraResp = await fetch(extraUrl, useProxy ? { headers: { Accept: 'application/json' } } : { credentials: 'include', headers: { Accept: 'application/json' } });
         if (extraResp.ok) {
@@ -1410,7 +1410,7 @@ async function pollForNewProjects() {
 
     let sfData = { sfSkipped: true };
     try {
-      const sfResp = await fetch(`https://pm-proxy.demo.qa.kaltura.ai/sf/enrich?jiraKey=${encodeURIComponent(issue.key)}`, {
+      const sfResp = await fetch(`${PROXY_BASE}/sf/enrich?jiraKey=${encodeURIComponent(issue.key)}`, {
         headers: { Accept: 'application/json' },
       });
       if (sfResp.ok) sfData = await sfResp.json();
@@ -2430,7 +2430,7 @@ saveSettingsBtn.addEventListener('click', async () => {
   saveSettings();
 
   try {
-    await fetch('https://pm-proxy.demo.qa.kaltura.ai/settings', {
+    await fetch(`${PROXY_BASE}/settings`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ jiraEmail: settings.jiraEmail, jiraToken: settings.jiraToken, watchedAssignees: settings.watchedAssignees, pollIntervalMinutes: settings.pollIntervalMinutes }),
@@ -2445,7 +2445,7 @@ saveSettingsBtn.addEventListener('click', async () => {
   const sfClientSecret = document.getElementById('settingsSFClientSecret').value.trim();
   if (sfUsername && sfPassword && sfClientId && sfClientSecret) {
     try {
-      await fetch('https://pm-proxy.demo.qa.kaltura.ai/settings/sf', {
+      await fetch(`${PROXY_BASE}/settings/sf`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sfUsername, sfPasswordWithToken: sfPassword, sfClientId, sfClientSecret }),
@@ -3871,7 +3871,7 @@ importPmSearch.addEventListener('input', () => {
     try {
       const useProxy = true;
       const userSearchUrl = useProxy
-        ? `https://pm-proxy.demo.qa.kaltura.ai/jira/user/search?query=${encodeURIComponent(q)}`
+        ? `${PROXY_BASE}/jira/user/search?query=${encodeURIComponent(q)}`
         : `https://kaltura.atlassian.net/rest/api/3/user/search?query=${encodeURIComponent(q)}&maxResults=10`;
       const userSearchOpts = useProxy
         ? { headers: { Accept: 'application/json' } }
@@ -3930,7 +3930,7 @@ async function loadImportStep2(pm) {
   const extraFields = [cachedAccountNameFieldId, cachedMrrFieldId, cachedNrrFieldId, cachedEstHoursFieldId, cachedVMForecastFieldId, cachedRiskReasonFieldId, cachedRiskRateFieldId, cachedAccountOwnerFieldId, cachedOppUrlFieldId, cachedAccountUrlFieldId, cachedAccountCsmFieldId].filter(Boolean).join(',');
   const useProxy = true;
   const url = useProxy
-    ? `https://pm-proxy.demo.qa.kaltura.ai/jira/search/jql?jql=${encodeURIComponent(jql)}&fields=summary,status,assignee,created${extraFields ? ',' + extraFields : ''}&maxResults=200`
+    ? `${PROXY_BASE}/jira/search/jql?jql=${encodeURIComponent(jql)}&fields=summary,status,assignee,created${extraFields ? ',' + extraFields : ''}&maxResults=200`
     : `https://kaltura.atlassian.net/rest/api/3/search/jql?jql=${encodeURIComponent(jql)}&fields=summary,status,assignee,created${extraFields ? ',' + extraFields : ''}&maxResults=200`;
   const fetchOpts = useProxy
     ? { headers: { Accept: 'application/json' } }
@@ -4025,7 +4025,7 @@ importConfirmBtn.addEventListener('click', async () => {
     importProgress.textContent = `Importing ${done + 1} of ${toImport.length}...`;
     let sfData = { sfSkipped: true };
     try {
-      const sfResp = await fetch(`https://pm-proxy.demo.qa.kaltura.ai/sf/enrich?jiraKey=${encodeURIComponent(issue.key)}`, {
+      const sfResp = await fetch(`${PROXY_BASE}/sf/enrich?jiraKey=${encodeURIComponent(issue.key)}`, {
         headers: { Accept: 'application/json' },
       });
       if (sfResp.ok) sfData = await sfResp.json();
