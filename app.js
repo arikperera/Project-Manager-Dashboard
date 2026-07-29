@@ -2802,7 +2802,6 @@ function restoreFilters() {
 function resetFilters() {
   pmFilter.value = 'All';
   healthFilter.value = 'All';
-  // Reset progress — works regardless of whether first option value is "" or "All"
   progressFilter.selectedIndex = 0;
   progressFilter.options[0].selected = true;
   duemonthFilter.selectedIndex = 0;
@@ -2810,6 +2809,11 @@ function resetFilters() {
   searchInput.value = '';
   localStorage.removeItem(FILTER_STORAGE_KEY);
   renderAll();
+  // Re-apply after renderAll in case something async resets it
+  requestAnimationFrame(() => {
+    progressFilter.selectedIndex = 0;
+    progressFilter.options[0].selected = true;
+  });
 }
 
 pmFilter.addEventListener('change', () => { saveFilters(); renderTable(); });
