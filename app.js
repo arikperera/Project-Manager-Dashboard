@@ -2802,21 +2802,13 @@ function restoreFilters() {
 function resetFilters() {
   pmFilter.value = 'All';
   healthFilter.value = 'All';
-  progressFilter.selectedIndex = 0;
-  progressFilter.options[0].selected = true;
+  // Replace progress options to force a clean reset
+  progressFilter.innerHTML = '<option value="All" selected>All progress</option><option value="0-39">0–39%</option><option value="40-69">40–69%</option><option value="70-100">70–100%</option>';
   duemonthFilter.selectedIndex = 0;
   regionFilter.selectedIndex = 0;
   searchInput.value = '';
   localStorage.removeItem(FILTER_STORAGE_KEY);
-  console.log('[reset] before renderAll, progress selectedIndex:', progressFilter.selectedIndex);
   renderAll();
-  console.log('[reset] after renderAll, progress selectedIndex:', progressFilter.selectedIndex);
-  requestAnimationFrame(() => {
-    console.log('[reset] after rAF, progress selectedIndex:', progressFilter.selectedIndex);
-    progressFilter.selectedIndex = 0;
-    progressFilter.options[0].selected = true;
-    console.log('[reset] after rAF fix, progress selectedIndex:', progressFilter.selectedIndex);
-  });
 }
 
 pmFilter.addEventListener('change', () => { saveFilters(); renderTable(); });
