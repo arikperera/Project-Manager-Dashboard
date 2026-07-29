@@ -2765,6 +2765,26 @@ function saveFilters() {
 
 function restoreFilters() {
   try {
+    // URL params take priority over localStorage
+    const params = new URLSearchParams(window.location.search);
+    const urlPm = params.get('pm');
+    const urlHealth = params.get('health');
+    const urlRegion = params.get('region');
+    const urlProgress = params.get('progress');
+    const urlSearch = params.get('search');
+
+    if (urlPm || urlHealth || urlRegion || urlProgress || urlSearch) {
+      // URL params present — use them and save to localStorage
+      if (urlPm) pmFilter.value = urlPm;
+      if (urlHealth) healthFilter.value = urlHealth;
+      if (urlRegion) regionFilter.value = urlRegion;
+      if (urlProgress) progressFilter.value = urlProgress;
+      if (urlSearch) searchInput.value = urlSearch;
+      saveFilters();
+      return;
+    }
+
+    // Fall back to localStorage
     const saved = JSON.parse(localStorage.getItem(FILTER_STORAGE_KEY) || 'null');
     if (!saved) return;
     if (saved.pm) pmFilter.value = saved.pm;
