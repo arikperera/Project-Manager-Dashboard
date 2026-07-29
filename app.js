@@ -2789,7 +2789,10 @@ function restoreFilters() {
     if (!saved) return;
     if (saved.pm) pmFilter.value = saved.pm;
     if (saved.health) healthFilter.value = saved.health;
-    if (saved.progress && saved.progress !== 'All') progressFilter.value = saved.progress;
+    if (saved.progress && saved.progress !== 'All' && saved.progress !== '') {
+      progressFilter.value = saved.progress;
+      if (progressFilter.value !== saved.progress) progressFilter.selectedIndex = 0;
+    }
     if (saved.duemonth) duemonthFilter.value = saved.duemonth;
     if (saved.region) regionFilter.value = saved.region;
     if (saved.search) searchInput.value = saved.search;
@@ -2799,11 +2802,13 @@ function restoreFilters() {
 function resetFilters() {
   pmFilter.value = 'All';
   healthFilter.value = 'All';
+  // Reset progress — works regardless of whether first option value is "" or "All"
   progressFilter.selectedIndex = 0;
+  progressFilter.options[0].selected = true;
   duemonthFilter.selectedIndex = 0;
   regionFilter.selectedIndex = 0;
   searchInput.value = '';
-  saveFilters();
+  localStorage.removeItem(FILTER_STORAGE_KEY);
   renderAll();
 }
 
