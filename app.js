@@ -2748,11 +2748,54 @@ editStatusEditor.addEventListener('blur', (e) => {
 
 
 searchInput.addEventListener('input', renderTable);
-pmFilter.addEventListener('change', renderTable);
-healthFilter.addEventListener('change', renderTable);
-progressFilter.addEventListener('change', renderTable);
-duemonthFilter.addEventListener('change', renderTable);
-regionFilter.addEventListener('change', renderAll);
+const FILTER_STORAGE_KEY = 'project-dashboard-filters-v1';
+
+function saveFilters() {
+  try {
+    localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify({
+      pm: pmFilter.value,
+      health: healthFilter.value,
+      progress: progressFilter.value,
+      duemonth: duemonthFilter.value,
+      region: regionFilter.value,
+      search: searchInput.value,
+    }));
+  } catch {}
+}
+
+function restoreFilters() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(FILTER_STORAGE_KEY) || 'null');
+    if (!saved) return;
+    if (saved.pm) pmFilter.value = saved.pm;
+    if (saved.health) healthFilter.value = saved.health;
+    if (saved.progress) progressFilter.value = saved.progress;
+    if (saved.duemonth) duemonthFilter.value = saved.duemonth;
+    if (saved.region) regionFilter.value = saved.region;
+    if (saved.search) searchInput.value = saved.search;
+  } catch {}
+}
+
+function resetFilters() {
+  pmFilter.value = 'All';
+  healthFilter.value = 'All';
+  progressFilter.value = '';
+  duemonthFilter.value = '';
+  regionFilter.value = '';
+  searchInput.value = '';
+  saveFilters();
+  renderAll();
+}
+
+pmFilter.addEventListener('change', () => { saveFilters(); renderTable(); });
+healthFilter.addEventListener('change', () => { saveFilters(); renderTable(); });
+progressFilter.addEventListener('change', () => { saveFilters(); renderTable(); });
+duemonthFilter.addEventListener('change', () => { saveFilters(); renderTable(); });
+regionFilter.addEventListener('change', () => { saveFilters(); renderAll(); });
+searchInput.addEventListener('input', saveFilters);
+
+document.getElementById('refreshDashboardBtn').addEventListener('click', () => location.reload());
+document.getElementById('resetFiltersBtn').addEventListener('click', resetFilters);
 
 editHealth.addEventListener('change', () => {
   pmStatusLabel.style.display = ['Yellow', 'Red'].includes(editHealth.value) ? '' : 'none';
@@ -4155,6 +4198,7 @@ initTaskFormAutocompletes();
 async function init() {
   await initData();
   await migrateProjects();
+  restoreFilters();
   renderAll();
   startKvPoll();
   startAutoProjectPoll();
