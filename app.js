@@ -2789,7 +2789,7 @@ function restoreFilters() {
     if (!saved) return;
     if (saved.pm) pmFilter.value = saved.pm;
     if (saved.health) healthFilter.value = saved.health;
-    if (saved.progress) progressFilter.value = saved.progress;
+    if (saved.progress && saved.progress !== 'All') progressFilter.value = saved.progress;
     if (saved.duemonth) duemonthFilter.value = saved.duemonth;
     if (saved.region) regionFilter.value = saved.region;
     if (saved.search) searchInput.value = saved.search;
