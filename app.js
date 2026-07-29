@@ -2808,11 +2808,14 @@ function resetFilters() {
   regionFilter.selectedIndex = 0;
   searchInput.value = '';
   localStorage.removeItem(FILTER_STORAGE_KEY);
+  console.log('[reset] before renderAll, progress selectedIndex:', progressFilter.selectedIndex);
   renderAll();
-  // Re-apply after renderAll in case something async resets it
+  console.log('[reset] after renderAll, progress selectedIndex:', progressFilter.selectedIndex);
   requestAnimationFrame(() => {
+    console.log('[reset] after rAF, progress selectedIndex:', progressFilter.selectedIndex);
     progressFilter.selectedIndex = 0;
     progressFilter.options[0].selected = true;
+    console.log('[reset] after rAF fix, progress selectedIndex:', progressFilter.selectedIndex);
   });
 }
 
