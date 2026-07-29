@@ -2799,9 +2799,9 @@ function restoreFilters() {
 function resetFilters() {
   pmFilter.value = 'All';
   healthFilter.value = 'All';
-  progressFilter.value = '';
-  duemonthFilter.value = '';
-  regionFilter.value = '';
+  progressFilter.selectedIndex = 0;
+  duemonthFilter.selectedIndex = 0;
+  regionFilter.selectedIndex = 0;
   searchInput.value = '';
   saveFilters();
   renderAll();
