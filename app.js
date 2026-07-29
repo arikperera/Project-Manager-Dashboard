@@ -2814,7 +2814,25 @@ duemonthFilter.addEventListener('change', () => { saveFilters(); renderTable(); 
 regionFilter.addEventListener('change', () => { saveFilters(); renderAll(); });
 searchInput.addEventListener('input', saveFilters);
 
-document.getElementById('refreshDashboardBtn').addEventListener('click', () => location.reload());
+document.getElementById('refreshDashboardBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('refreshDashboardBtn');
+  const orig = btn.textContent;
+  btn.textContent = '↻ Syncing...';
+  btn.disabled = true;
+  try {
+    const [freshProjects, freshTasks] = await Promise.all([
+      kvGet(STORAGE_KEY),
+      kvGet(TASKS_KEY),
+    ]);
+    if (freshProjects) { projects = freshProjects; try { localStorage.setItem(STORAGE_KEY, JSON.stringify(projects)); } catch {} }
+    if (freshTasks) { tasks = freshTasks; try { localStorage.setItem(TASKS_KEY, JSON.stringify(tasks)); } catch {} }
+    syncProjectProgressFromJira();
+    renderAll();
+  } finally {
+    btn.textContent = orig;
+    btn.disabled = false;
+  }
+});
 document.getElementById('resetFiltersBtn').addEventListener('click', resetFilters);
 
 editHealth.addEventListener('change', () => {
