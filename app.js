@@ -1082,7 +1082,8 @@ async function syncStatusFromJira() {
         const localTime = localUpdated ? new Date(localUpdated).getTime() : 0;
 
         const recentlySaved = localTime && (Date.now() - localTime) < 10 * 60 * 1000;
-        if (!recentlySaved && (!localTime || jiraTime > localTime)) {
+        const localIsEmpty = !project.statusText || isEmptyStatus(project.statusText);
+        if (localIsEmpty || (!recentlySaved && (!localTime || jiraTime > localTime))) {
           // Jira is newer and local wasn't recently edited — pull from Jira
           const adf = data.fields?.description;
           const html = adf ? adfToHtml(adf) : '';
