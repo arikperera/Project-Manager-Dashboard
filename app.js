@@ -1483,17 +1483,34 @@ function startKvPoll() {
     let changed = false;
 
     const freshProjects = await kvGet(STORAGE_KEY);
-    if (freshProjects && JSON.stringify(freshProjects) !== JSON.stringify(projects)) {
-      projects = freshProjects;
-      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(projects)); } catch {}
-      changed = true;
+    if (freshProjects) {
+      // Merge: keep any local items not yet in KV (added while KV was slow/offline)
+      const pendingDelIds = new Set(getPendingDeletes().filter(d => d.storeKey === STORAGE_KEY).map(d => d.id));
+      const kvJiraKeys = new Set(freshProjects.map(p => p.jira).filter(Boolean));
+      const localOnly = projects.filter(p => p.jira && !kvJiraKeys.has(p.jira) && !pendingDelIds.has(getItemDeleteKey(p)));
+      const merged = localOnly.length > 0 ? [...freshProjects, ...localOnly] : freshProjects;
+      if (localOnly.length > 0) {
+        // Push merged back to KV
+        kvPut(STORAGE_KEY, merged).catch(() => {});
+      }
+      if (JSON.stringify(merged) !== JSON.stringify(projects)) {
+        projects = merged;
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(projects)); } catch {}
+        changed = true;
+      }
     }
 
     const freshTasks = await kvGet(TASKS_KEY);
-    if (freshTasks && JSON.stringify(freshTasks) !== JSON.stringify(tasks)) {
-      tasks = freshTasks;
-      try { localStorage.setItem(TASKS_KEY, JSON.stringify(tasks)); } catch {}
-      changed = true;
+    if (freshTasks) {
+      const kvTaskIds = new Set(freshTasks.map(t => t.id).filter(Boolean));
+      const localOnlyTasks = tasks.filter(t => t.id && !kvTaskIds.has(t.id));
+      const mergedTasks = localOnlyTasks.length > 0 ? [...freshTasks, ...localOnlyTasks] : freshTasks;
+      if (localOnlyTasks.length > 0) kvPut(TASKS_KEY, mergedTasks).catch(() => {});
+      if (JSON.stringify(mergedTasks) !== JSON.stringify(tasks)) {
+        tasks = mergedTasks;
+        try { localStorage.setItem(TASKS_KEY, JSON.stringify(tasks)); } catch {}
+        changed = true;
+      }
     }
 
     if (changed) renderAll();
