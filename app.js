@@ -568,7 +568,12 @@ const importProgress = document.getElementById('importProgress');
 
 async function saveProjects() {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(projects)); } catch {}
-  const ok = await kvPut(STORAGE_KEY, projects);
+  let ok = await kvPut(STORAGE_KEY, projects);
+  if (!ok) {
+    // Retry once after a short delay
+    await new Promise(r => setTimeout(r, 800));
+    ok = await kvPut(STORAGE_KEY, projects);
+  }
   if (ok) {
     getPendingDeletes().filter(d => d.storeKey === STORAGE_KEY)
       .forEach(d => removePendingDelete(d.id, STORAGE_KEY));
@@ -4172,6 +4177,8 @@ importConfirmBtn.addEventListener('click', async () => {
   }
 
   await Promise.all([saveUsers(), saveCustomers(), saveProjects()]);
+  // Wait briefly to ensure KV write completes before reloading
+  await new Promise(resolve => setTimeout(resolve, 1500));
   closeImportModal();
   location.reload();
 });
