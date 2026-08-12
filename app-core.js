@@ -25,8 +25,15 @@ function emailToDisplayName(email) {
 async function getCurrentUserName() {
   return emailToDisplayName(await getCurrentUserEmail());
 }
-const APP_VERSION = '1.16.4';
+const APP_VERSION = '1.16.5';
 const CHANGELOG = [
+  {
+    version: '1.16.5',
+    date: '2026-08-12',
+    features: [
+      'New "PM Personal Notes" block in Edit Project (projects only) — same rich-text formatting as Project Status, but purely internal: never synced to Jira, never included in the Export Report, and persists through Backup & Delete / Closed Projects / Restore just like every other project field.',
+    ]
+  },
   {
     version: '1.16.4',
     date: '2026-08-11',
