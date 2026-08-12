@@ -1,5 +1,18 @@
 
 async function trySyncLocalToKV() {
+  // Strip anything tombstoned (deleted by this browser OR any other session while we
+  // were offline) before pushing our possibly-stale local copy back to KV — otherwise
+  // a reconnecting browser with an old in-memory list can resurrect someone else's delete.
+  const projectDeleteIds = await getCombinedDeleteIds(STORAGE_KEY);
+  const taskDeleteIds = await getCombinedDeleteIds(TASKS_KEY);
+  const cleanProjects = projectDeleteIds.size ? projects.filter(p => !projectDeleteIds.has(getItemDeleteKey(p))) : projects;
+  const cleanTasks = taskDeleteIds.size ? tasks.filter(t => !taskDeleteIds.has(getItemDeleteKey(t))) : tasks;
+  if (cleanProjects.length !== projects.length) { projects = cleanProjects; try { localStorage.setItem(STORAGE_KEY, JSON.stringify(projects)); } catch {} }
+  if (cleanTasks.length !== tasks.length) { tasks = cleanTasks; try { localStorage.setItem(TASKS_KEY, JSON.stringify(tasks)); } catch {} }
+
+  await logSaveDiff(STORAGE_KEY, 'projects', projects, 'reconnect-sync');
+  await logSaveDiff(TASKS_KEY, 'tasks', tasks, 'reconnect-sync');
+
   // Push in-memory data (which has offline deletes/adds applied) to KV
   const stores = [
     [STORAGE_KEY, projects],
@@ -7,6 +20,7 @@ async function trySyncLocalToKV() {
     [CUSTOMERS_KEY, customers],
     [BACKUPS_KEY, backups],
     [TASKS_KEY, tasks],
+    [CLOSED_PROJECTS_KEY, closedProjects],
   ];
   for (const [key, data] of stores) {
     await kvPut(key, data).catch(() => {});
@@ -16,6 +30,51 @@ async function trySyncLocalToKV() {
   const banner = document.getElementById('offline-banner');
   if (banner) banner.style.display = 'none';
   showToast('Back online — changes synced to cloud.', 'success');
+}
+
+// Pulls fresh projects/tasks from KV, applying the same tombstone/pending-delete protection
+// used at page load — so a deleted item never reappears regardless of how the refresh was triggered
+// (poll tick, Refresh Dashboard button, or a plain browser reload).
+async function refreshProjectsAndTasksFromKv() {
+  let changed = false;
+
+  const freshProjects = await kvGet(STORAGE_KEY);
+  if (freshProjects) {
+    // Combined delete set: this browser's pending deletes + shared KV tombstones (other sessions' deletes)
+    const pendingDelIds = await getCombinedDeleteIds(STORAGE_KEY);
+    // Strip any pending-deleted projects that KV still has (KV write may have failed on delete)
+    const kvFiltered = freshProjects.filter(p => !pendingDelIds.has(getItemDeleteKey(p)));
+    const kvJiraKeys = new Set(kvFiltered.map(p => p.jira).filter(Boolean));
+    // Merge in local-only items for DISPLAY only (added moments ago, save still in flight) —
+    // deliberately NOT written back to KV here. A stale tab can hold a local-only item
+    // indefinitely (e.g. a leftover of something deleted elsewhere whose tombstone has since
+    // cleared); auto-pushing it back would resurrect it. Genuine offline-add persistence is
+    // handled by the save-with-retry in saveProjects/saveTasks and by trySyncLocalToKV on
+    // reconnect, both of which apply full tombstone protection.
+    const localOnly = projects.filter(p => p.jira && !kvJiraKeys.has(p.jira) && !pendingDelIds.has(getItemDeleteKey(p)));
+    const merged = localOnly.length > 0 ? [...kvFiltered, ...localOnly] : kvFiltered;
+    if (JSON.stringify(merged) !== JSON.stringify(projects)) {
+      projects = merged;
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(projects)); } catch {}
+      changed = true;
+    }
+  }
+
+  const freshTasks = await kvGet(TASKS_KEY);
+  if (freshTasks) {
+    const pendingDelTaskIds = await getCombinedDeleteIds(TASKS_KEY);
+    const kvFilteredTasks = freshTasks.filter(t => !pendingDelTaskIds.has(getItemDeleteKey(t)));
+    const kvTaskIds = new Set(kvFilteredTasks.map(t => t.id).filter(Boolean));
+    const localOnlyTasks = tasks.filter(t => t.id && !kvTaskIds.has(t.id) && !pendingDelTaskIds.has(t.id));
+    const mergedTasks = localOnlyTasks.length > 0 ? [...kvFilteredTasks, ...localOnlyTasks] : kvFilteredTasks;
+    if (JSON.stringify(mergedTasks) !== JSON.stringify(tasks)) {
+      tasks = mergedTasks;
+      try { localStorage.setItem(TASKS_KEY, JSON.stringify(tasks)); } catch {}
+      changed = true;
+    }
+  }
+
+  return changed;
 }
 
 let _kvPollTimer = null;
@@ -45,39 +104,7 @@ function startKvPoll() {
       await trySyncLocalToKV();
     }
 
-    let changed = false;
-
-    const freshProjects = await kvGet(STORAGE_KEY);
-    if (freshProjects) {
-      // Merge: keep any local items not yet in KV (added while KV was slow/offline)
-      const pendingDelIds = new Set(getPendingDeletes().filter(d => d.storeKey === STORAGE_KEY).map(d => d.id));
-      const kvJiraKeys = new Set(freshProjects.map(p => p.jira).filter(Boolean));
-      const localOnly = projects.filter(p => p.jira && !kvJiraKeys.has(p.jira) && !pendingDelIds.has(getItemDeleteKey(p)));
-      const merged = localOnly.length > 0 ? [...freshProjects, ...localOnly] : freshProjects;
-      if (localOnly.length > 0) {
-        // Push merged back to KV
-        kvPut(STORAGE_KEY, merged).catch(() => {});
-      }
-      if (JSON.stringify(merged) !== JSON.stringify(projects)) {
-        projects = merged;
-        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(projects)); } catch {}
-        changed = true;
-      }
-    }
-
-    const freshTasks = await kvGet(TASKS_KEY);
-    if (freshTasks) {
-      const kvTaskIds = new Set(freshTasks.map(t => t.id).filter(Boolean));
-      const localOnlyTasks = tasks.filter(t => t.id && !kvTaskIds.has(t.id));
-      const mergedTasks = localOnlyTasks.length > 0 ? [...freshTasks, ...localOnlyTasks] : freshTasks;
-      if (localOnlyTasks.length > 0) kvPut(TASKS_KEY, mergedTasks).catch(() => {});
-      if (JSON.stringify(mergedTasks) !== JSON.stringify(tasks)) {
-        tasks = mergedTasks;
-        try { localStorage.setItem(TASKS_KEY, JSON.stringify(tasks)); } catch {}
-        changed = true;
-      }
-    }
-
+    const changed = await refreshProjectsAndTasksFromKv();
     if (changed) renderAll();
   }, intervalMs);
 }
@@ -197,31 +224,13 @@ async function jiraProxyPut(issueKey, body) {
   if (!res.ok) throw new Error(`Jira write failed: ${res.status}`);
 }
 
-async function addJiraComment(issueKey, updatedBy) {
-  if (!updatedBy) return;
-  const payload = {
-    body: {
-      type: 'doc',
-      version: 1,
-      content: [{
-        type: 'paragraph',
-        content: [{ type: 'text', text: `Updated via PM Dashboard by: ${updatedBy}` }]
-      }]
-    }
-  };
-  try {
-    const res = await fetch(`${PROXY_BASE}/jira/issue/${issueKey}/comment`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-KV-Secret': KV_SECRET },
-      body: JSON.stringify(payload),
-    });
-    if (!res.ok) {
-      const err = await res.text();
-      console.error('[comment→Jira]', res.status, err);
-    }
-  } catch (e) {
-    console.error('[comment→Jira]', e);
-  }
+// The Jira write always authenticates as the shared service account, so Jira's own
+// "posted by" metadata can't reflect the real person — but the comment text can. Prefix
+// it with whoever is actually logged into the dashboard (via pm-identity), falling back
+// to a generic label if that lookup fails for any reason.
+async function getDashboardAttributionPrefix() {
+  const realUserName = await getCurrentUserName().catch(() => '');
+  return realUserName ? `Dashboard (${realUserName})` : 'Dashboard';
 }
 
 async function writeRiskReasonToJira(issueKey, optionId) {
@@ -295,6 +304,7 @@ function getFilteredProjects() {
   const selectedHealth = healthFilter.value;
   const selectedProgress = progressFilter.value;
   const selectedDueMonth = duemonthFilter.value;
+  const selectedAddedMonth = addedMonthFilter.value;
   const selectedRegion = regionFilter.value;
 
   function matchItem(item) {
@@ -302,13 +312,16 @@ function getFilteredProjects() {
     const matchesPm = selectedPm === 'All' || owner === selectedPm;
     const matchesHealth = selectedHealth === 'All' || item.health === selectedHealth;
     const matchesDueMonth = !selectedDueMonth || (item.dueDate || '').startsWith(selectedDueMonth);
-    const matchesSearch = !term || `${item.name || ''} ${owner} ${item.customer || ''} ${item.jira || ''}`.toLowerCase().includes(term);
+    const matchesAddedMonth = !selectedAddedMonth || (item.startDate || '').startsWith(selectedAddedMonth);
+    const jiraId = (getJiraIssueKey(item.jira) || '').split('-').pop();
+    const matchesSearch = !term || `${item.name || ''} ${owner} ${item.customer || ''} ${jiraId}`.toLowerCase().includes(term);
     let matchesProgress = true;
     if (selectedProgress === '0-39') matchesProgress = item.progress < 40;
     if (selectedProgress === '40-69') matchesProgress = item.progress >= 40 && item.progress < 70;
     if (selectedProgress === '70-100') matchesProgress = item.progress >= 70;
+    if (selectedProgress === '100+') matchesProgress = Number(item.progress) >= 100;
     const matchesRegion = !selectedRegion || item.region === selectedRegion;
-    return matchesPm && matchesHealth && matchesDueMonth && matchesSearch && matchesProgress && matchesRegion;
+    return matchesPm && matchesHealth && matchesDueMonth && matchesAddedMonth && matchesSearch && matchesProgress && matchesRegion;
   }
 
   const filteredProjects = projects.filter(matchItem);
@@ -318,6 +331,8 @@ function getFilteredProjects() {
 
 function renderTable() {
   const filteredProjects = getFilteredProjects();
+  const countBadge = document.getElementById('projectsCountBadge');
+  if (countBadge) countBadge.textContent = filteredProjects.filter(p => p.type !== 'task').length;
   const grouped = filteredProjects.reduce((acc, project) => {
     const key = project.manager || project.owner || 'Unassigned';
     if (!acc[key]) acc[key] = [];
@@ -408,8 +423,9 @@ function renderTable() {
             <td><div class="cell-scroll">${isEmptyStatus(project.statusText) ? STATUS_PLACEHOLDER : project.statusText}</div></td>
             <td><div class="cell-scroll">${(project.comments || '-').split(', ').join('<br>')}</div></td>
             <td style="white-space:nowrap;">
-              <button type="button" class="secondary-btn small-btn" data-edit-project="${project.type === 'task' ? tasks.indexOf(project) : projects.indexOf(project)}" data-item-type="${project.type || 'project'}">Edit</button>
-              <button type="button" class="ghost-btn small-btn" style="margin-top:4px;display:block;" data-delete-project="${project.type === 'task' ? tasks.indexOf(project) : projects.indexOf(project)}" data-item-type="${project.type || 'project'}">Delete</button>
+              <button type="button" class="secondary-btn small-btn" data-edit-project="${project.type === 'task' ? tasks.indexOf(project) : projects.indexOf(project)}" data-item-type="${project.type || 'project'}">${project.type === 'task' ? 'Edit Task' : 'Edit Project'}</button>
+              <button type="button" class="ghost-btn small-btn" style="margin-top:4px;display:block;" data-open-comments="${project.type === 'task' ? tasks.indexOf(project) : projects.indexOf(project)}" data-item-type="${project.type || 'project'}">Comments</button>
+              <button type="button" class="ghost-btn small-btn" style="margin-top:4px;display:block;" data-delete-project="${project.type === 'task' ? tasks.indexOf(project) : projects.indexOf(project)}" data-item-type="${project.type || 'project'}">${project.type === 'task' ? 'Delete Task' : 'Delete Project'}</button>
             </td>
           </tr>
         `;
@@ -454,6 +470,16 @@ function renderSelect() {
   }
   const currentDueMonth = duemonthFilter.value;
   duemonthFilter.innerHTML = monthOptions.map(([v, l]) => `<option value="${v}"${v === currentDueMonth ? ' selected' : ''}>${l}</option>`).join('');
+
+  const addedMonthOptions = [['', 'Project added month']];
+  for (let i = 0; i >= -2; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+    const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const label = d.toLocaleString('default', { month: 'long', year: 'numeric' });
+    addedMonthOptions.push([value, label]);
+  }
+  const currentAddedMonth = addedMonthFilter.value;
+  addedMonthFilter.innerHTML = addedMonthOptions.map(([v, l]) => `<option value="${v}"${v === currentAddedMonth ? ' selected' : ''}>${l}</option>`).join('');
 }
 
 function renderSummary() {
@@ -532,13 +558,164 @@ function closeEditProjectModal() {
   editProjectForm.reset();
   editStatusEditor.innerHTML = '';
   editStatusEditor.removeAttribute('data-placeholder-active');
-  document.getElementById('editorLinkPopup').style.display = 'none';
+  editStatusToolbar.linkPopup.style.display = 'none';
   editPmStatus.value = '';
   pmStatusLabel.style.display = 'none';
   editRiskReason.value = '';
   editRegion.value = '';
   riskReasonLabel.style.display = '';
 }
+
+const commentComposerToolbar = setupRichEditorToolbar(
+  commentComposerEditor,
+  document.getElementById('commentComposerBlock'),
+  {}
+);
+setupMentionAutocomplete(commentComposerEditor);
+
+async function openCommentsModal(itemType, itemIndex) {
+  const item = itemType === 'task' ? tasks[itemIndex] : projects[itemIndex];
+  if (!item) return;
+  const issueKey = getJiraIssueKey(item.jira);
+  if (!issueKey) {
+    showToast('No Jira issue linked to this item', 'error');
+    return;
+  }
+  commentsModal.dataset.issueKey = issueKey;
+  commentsModalTitle.textContent = `${item.name || item.parentProjectName || '-'} (${issueKey})`;
+  commentComposerEditor.innerHTML = '';
+  commentComposerEditor.removeAttribute('data-placeholder-active');
+  commentsModal.classList.remove('hidden');
+  commentsModal.setAttribute('aria-hidden', 'false');
+  await fetchAndRenderComments(issueKey);
+}
+
+function closeCommentsModal() {
+  commentsModal.classList.add('hidden');
+  commentsModal.setAttribute('aria-hidden', 'true');
+  commentComposerEditor.innerHTML = '';
+  commentComposerEditor.removeAttribute('data-placeholder-active');
+  commentComposerToolbar.linkPopup.style.display = 'none';
+  hideMentionDropdown();
+  delete commentsModal.dataset.issueKey;
+}
+
+async function fetchAndRenderComments(issueKey) {
+  commentsList.innerHTML = '<div class="comments-list-empty">Loading…</div>';
+  try {
+    const res = await fetch(`${PROXY_BASE}/jira/issue/${issueKey}/comment`, {
+      headers: { Accept: 'application/json', 'X-KV-Secret': KV_SECRET },
+    });
+    if (!res.ok) { commentsList.innerHTML = '<div class="comments-list-empty">Failed to load comments</div>'; return; }
+    const data = await res.json();
+    const comments = Array.isArray(data.comments) ? data.comments : [];
+    comments.sort((a, b) => new Date(b.created || 0) - new Date(a.created || 0));
+    if (!comments.length) {
+      commentsList.innerHTML = '<div class="comments-list-empty">No comments yet</div>';
+      return;
+    }
+    commentsList.innerHTML = comments.map(c => {
+      const author = c.author?.displayName || 'Unknown';
+      const created = c.created ? new Date(c.created).toLocaleString() : '';
+      const bodyHtml = c.body ? adfToHtml(c.body) : '';
+      return `<div class="comment-item">
+        <div class="comment-meta">
+          <span class="comment-author">${escapeHtml(author)}</span>
+          <span class="comment-meta-right">
+            <span>${escapeHtml(created)}</span>
+            <button type="button" class="comment-delete-btn" data-delete-comment="${escapeHtml(String(c.id))}" title="Delete comment" aria-label="Delete comment"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M9 3a1 1 0 0 0-1 1v1H4a1 1 0 1 0 0 2h16a1 1 0 1 0 0-2h-4V4a1 1 0 0 0-1-1H9Zm-3 6 .84 12.02A2 2 0 0 0 8.83 23h6.34a2 2 0 0 0 1.99-1.98L18 9H6Z"/></svg></button>
+          </span>
+        </div>
+        <div class="comment-body">${bodyHtml}</div>
+      </div>`;
+    }).join('');
+  } catch {
+    commentsList.innerHTML = '<div class="comments-list-empty">Failed to load comments</div>';
+  }
+}
+
+async function deleteJiraComment(issueKey, commentId) {
+  try {
+    const res = await fetch(`${PROXY_BASE}/jira/issue/${issueKey}/comment/${commentId}`, {
+      method: 'DELETE',
+      headers: { Accept: 'application/json', 'X-KV-Secret': KV_SECRET },
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+commentsList.addEventListener('click', async (event) => {
+  const btn = event.target.closest('[data-delete-comment]');
+  if (!btn) return;
+  const commentId = btn.dataset.deleteComment;
+  const issueKey = commentsModal.dataset.issueKey;
+  if (!commentId || !issueKey) return;
+  const confirmed = await showAppConfirm('Delete this comment from Jira? This cannot be undone.', {
+    title: 'Delete comment?',
+    eyebrow: 'Comments',
+    danger: true,
+    confirmLabel: 'Delete',
+  });
+  if (!confirmed) return;
+  btn.disabled = true;
+  const ok = await deleteJiraComment(issueKey, commentId);
+  if (ok) {
+    showToast('Comment deleted', 'success');
+    // Remove the item directly instead of re-fetching the whole list from Jira —
+    // avoids a second round-trip (and a visible delay) just to drop one item.
+    const item = btn.closest('.comment-item');
+    if (item) item.remove();
+    if (!commentsList.querySelector('.comment-item')) {
+      commentsList.innerHTML = '<div class="comments-list-empty">No comments yet</div>';
+    }
+  } else {
+    showToast('Failed to delete comment (check Jira permissions)', 'error');
+    btn.disabled = false;
+  }
+});
+
+async function postComposerComment(issueKey) {
+  const html = commentComposerEditor.getAttribute('data-placeholder-active') ? '' : commentComposerEditor.innerHTML.trim();
+  if (!html || !html.replace(/<[^>]+>/g, '').trim()) {
+    showToast('Comment is empty', 'error');
+    return;
+  }
+  const attribution = await getDashboardAttributionPrefix();
+  const adf = htmlToAdf(html);
+  // Attribution goes on its own line, with the actual comment starting on the next —
+  // rather than merged into the first line of whatever the user typed.
+  adf.content.unshift({ type: 'paragraph', content: [{ type: 'text', text: `${attribution}:` }] });
+  try {
+    const res = await fetch(`${PROXY_BASE}/jira/issue/${issueKey}/comment`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-KV-Secret': KV_SECRET },
+      body: JSON.stringify({ body: adf }),
+    });
+    if (!res.ok) {
+      showToast('Failed to post comment', 'error');
+      return;
+    }
+    showToast('Comment posted', 'success');
+    closeCommentsModal();
+  } catch {
+    showToast('Failed to post comment', 'error');
+  }
+}
+
+closeCommentsModalBtn.addEventListener('click', closeCommentsModal);
+cancelCommentsModalBtn.addEventListener('click', closeCommentsModal);
+commentsModal.addEventListener('click', (event) => {
+  if (event.target === commentsModal) closeCommentsModal();
+});
+saveCommentBtn.addEventListener('click', async () => {
+  const issueKey = commentsModal.dataset.issueKey;
+  if (!issueKey) return;
+  saveCommentBtn.disabled = true;
+  await postComposerComment(issueKey);
+  saveCommentBtn.disabled = false;
+});
 
 function renderRiskList() {
   if (!riskList) return;
@@ -584,19 +761,23 @@ function renderBackupsPanel() {
     selectedBackupId = backups[0].id;
   }
 
-  backupSidebar.innerHTML = backups.map(b => `
+  backupSidebar.innerHTML = backups.map(b => {
+    const isRecent = b.timestamp && (Date.now() - b.timestamp) < 3 * 24 * 60 * 60 * 1000;
+    return `
     <div class="backup-entry${b.id === selectedBackupId ? ' selected' : ''}" data-backup-id="${escapeHtml(b.id)}">
-      ${escapeHtml(b.label)}
+      <span${isRecent ? ' style="color:#fbbf24;font-weight:700;" title="Created within the last 3 days"' : ''}>${escapeHtml(b.label)}</span>
     </div>
-  `).join('');
+  `;
+  }).join('');
 
   const backup = backups.find(b => b.id === selectedBackupId);
   renderBackupMain(backup);
 }
 
 function renderBackupMain(backup) {
-  const grouped = backup.projects.reduce((acc, p) => {
-    const key = p.manager || 'Unassigned';
+  const allItems = [...(backup.projects || []), ...(backup.tasks || [])];
+  const grouped = allItems.reduce((acc, p) => {
+    const key = p.manager || p.owner || 'Unassigned';
     if (!acc[key]) acc[key] = [];
     acc[key].push(p);
     return acc;
@@ -604,7 +785,11 @@ function renderBackupMain(backup) {
 
   const tableRows = Object.keys(grouped).sort((a, b) => a.localeCompare(b)).map(manager => `
     <div class="pm-group" style="margin-bottom:10px;">
-      <div class="pm-group-header"><h4 style="display:flex;align-items:center;">${getUserAvatarHtml(manager)}${escapeHtml(manager)}</h4><span>${grouped[manager].length} project${grouped[manager].length === 1 ? '' : 's'}</span></div>
+      <div class="pm-group-header"><h4 style="display:flex;align-items:center;">${getUserAvatarHtml(manager)}${escapeHtml(manager)}</h4><span>${(() => {
+        const projCount = grouped[manager].filter(p => p.type !== 'task').length;
+        const taskCount = grouped[manager].filter(p => p.type === 'task').length;
+        return `${projCount} project${projCount === 1 ? '' : 's'}${taskCount ? ` · ${taskCount} task${taskCount === 1 ? '' : 's'}` : ''}`;
+      })()}</span></div>
       <div style="overflow-x:auto;">
         <table class="pm-table">
           <thead><tr>
@@ -617,12 +802,12 @@ function renderBackupMain(backup) {
                 const ca = (a.customer || '').toLowerCase();
                 const cb = (b.customer || '').toLowerCase();
                 if (ca !== cb) return ca.localeCompare(cb);
-                return backup.projects.indexOf(b) - backup.projects.indexOf(a);
+                return allItems.indexOf(b) - allItems.indexOf(a);
               }).map(p => {
               const pv = Math.max(0, Math.min(100, Math.round(Number(p.progress) || 0)));
               return `<tr>
                 <td>${escapeHtml(p.customer || '-')}</td>
-                <td>${escapeHtml(p.name)}</td>
+                <td>${escapeHtml(p.name || p.parentProjectName || '-')}</td>
                 <td class="jira-at-cell">
                   ${p.jira ? `<a class="jira-at-btn" href="${escapeHtml(p.jira)}" target="_blank" rel="noreferrer">${escapeHtml(getJiraLabel(p.jira))}</a>` : '<span style="color:#64748b">—</span>'}
                   ${p.atLink ? `<a class="jira-at-btn" href="${escapeHtml(p.atLink)}" target="_blank" rel="noreferrer">AT</a>` : ''}
@@ -670,6 +855,7 @@ function renderBackupMain(backup) {
     </div>
     <div id="restoreConfirm" style="display:none;" class="backup-restore-confirm">
       <label><input type="checkbox" id="restoreProjects" checked> Restore projects</label>
+      <label><input type="checkbox" id="restoreTasks" checked> Restore tasks</label>
       <label><input type="checkbox" id="restoreUsers" checked> Restore users</label>
       <button type="button" class="primary-btn small-btn" id="confirmRestoreBtn">Confirm</button>
       <button type="button" class="ghost-btn small-btn" id="cancelRestoreBtn">Cancel</button>
@@ -691,11 +877,30 @@ function renderBackupMain(backup) {
 
   document.getElementById('confirmRestoreBtn').addEventListener('click', async () => {
     const restoreProjectsEl = document.getElementById('restoreProjects');
+    const restoreTasksEl = document.getElementById('restoreTasks');
     const restoreUsersEl = document.getElementById('restoreUsers');
-    if (!restoreProjectsEl.checked && !restoreUsersEl.checked) return;
+    if (!restoreProjectsEl.checked && !restoreTasksEl.checked && !restoreUsersEl.checked) return;
     if (restoreProjectsEl.checked) {
       projects = JSON.parse(JSON.stringify(backup.projects));
-      await saveProjects();
+      // Clear tombstones for everything in this snapshot — otherwise saveProjects would
+      // strip back out anything that was deleted after this backup was taken.
+      for (const p of projects) {
+        if (p.jira) {
+          removePendingDelete(p.jira, STORAGE_KEY);
+          await removeKvTombstone(p.jira, STORAGE_KEY);
+        }
+      }
+      await saveProjects('restore-from-backup');
+    }
+    if (restoreTasksEl.checked && Array.isArray(backup.tasks)) {
+      tasks = JSON.parse(JSON.stringify(backup.tasks));
+      for (const t of tasks) {
+        if (t.id) {
+          removePendingDelete(t.id, TASKS_KEY);
+          await removeKvTombstone(t.id, TASKS_KEY);
+        }
+      }
+      await saveTasks('restore-from-backup');
     }
     if (restoreUsersEl.checked) {
       users = JSON.parse(JSON.stringify(backup.users));
@@ -705,12 +910,264 @@ function renderBackupMain(backup) {
     closeBackupsModal();
   });
 
-  document.getElementById('deleteBackupBtn').addEventListener('click', () => {
+  document.getElementById('deleteBackupBtn').addEventListener('click', async () => {
     backups = backups.filter(b => b.id !== backup.id);
-    saveBackups();
+    await addKvTombstone(backup.id, BACKUPS_KEY);
+    await saveBackups('manual-delete');
     selectedBackupId = backups.length ? backups[0].id : null;
     renderBackupsPanel();
   });
+}
+
+function getQuarterKey(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return '';
+  const q = Math.floor(d.getMonth() / 3) + 1;
+  const yy = String(d.getFullYear()).slice(2);
+  return `Q${q}${yy}`;
+}
+
+function populateClosedFilterOptions() {
+  const uniquePMs = [...new Set(closedProjects.map(p => p.manager).filter(Boolean))].sort();
+  const currentPm = closedPmFilter.value;
+  closedPmFilter.innerHTML = ['<option value="All">All PMs</option>', ...uniquePMs.map(m => `<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`)].join('');
+  if (uniquePMs.includes(currentPm) || currentPm === 'All') closedPmFilter.value = currentPm;
+
+  const monthSet = new Set(closedProjects.map(p => (p.closedAt || '').slice(0, 7)).filter(Boolean));
+  const months = [...monthSet].sort((a, b) => b.localeCompare(a));
+  const currentMonth = closedMonthFilter.value;
+  closedMonthFilter.innerHTML = ['<option value="">All closed months</option>', ...months.map(m => {
+    const label = new Date(`${m}-01T00:00:00`).toLocaleString('default', { month: 'long', year: 'numeric' });
+    return `<option value="${m}">${label}</option>`;
+  })].join('');
+  if (months.includes(currentMonth)) closedMonthFilter.value = currentMonth;
+
+  const quarterSet = new Set(closedProjects.map(p => getQuarterKey(p.closedAt)).filter(Boolean));
+  const quarters = [...quarterSet].sort().reverse();
+  const currentQuarter = closedQuarterFilter.value;
+  closedQuarterFilter.innerHTML = ['<option value="">All closed quarters</option>', ...quarters.map(q => `<option value="${q}">${q}</option>`)].join('');
+  if (quarters.includes(currentQuarter)) closedQuarterFilter.value = currentQuarter;
+}
+
+function getFilteredClosedProjects() {
+  const term = closedSearchInput.value.toLowerCase().trim();
+  const selectedPm = closedPmFilter.value;
+  const selectedRegion = closedRegionFilter.value;
+  const selectedMonth = closedMonthFilter.value;
+  const selectedQuarter = closedQuarterFilter.value;
+
+  return closedProjects.filter(p => {
+    const matchesPm = selectedPm === 'All' || (p.manager || '') === selectedPm;
+    const matchesRegion = !selectedRegion || p.region === selectedRegion;
+    const matchesMonth = !selectedMonth || (p.closedAt || '').slice(0, 7) === selectedMonth;
+    const matchesQuarter = !selectedQuarter || getQuarterKey(p.closedAt) === selectedQuarter;
+    const jiraId = (getJiraIssueKey(p.jira) || '').split('-').pop();
+    const matchesSearch = !term || `${p.name || ''} ${p.manager || ''} ${p.customer || ''} ${jiraId}`.toLowerCase().includes(term);
+    return matchesPm && matchesRegion && matchesMonth && matchesQuarter && matchesSearch;
+  });
+}
+
+function renderClosedProjectsPanel() {
+  const el = document.getElementById('closedProjectsMain');
+  populateClosedFilterOptions();
+
+  const filtered = closedProjects.length ? getFilteredClosedProjects() : [];
+  const countBadge = document.getElementById('closedProjectsCountBadge');
+  if (countBadge) countBadge.textContent = filtered.length;
+
+  if (!closedProjects.length) {
+    el.innerHTML = '<p class="muted">No closed projects yet. Projects moved here when you Backup &amp; Delete them.</p>';
+    return;
+  }
+
+  if (!filtered.length) {
+    el.innerHTML = '<p class="muted">No closed projects match the current filters.</p>';
+    return;
+  }
+
+  const grouped = filtered.reduce((acc, p) => {
+    const key = p.manager || 'Unassigned';
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(p);
+    return acc;
+  }, {});
+
+  el.innerHTML = Object.keys(grouped).sort((a, b) => a.localeCompare(b)).map(manager => `
+    <div class="pm-group" style="margin-bottom:10px;">
+      <div class="pm-group-header"><h4 style="display:flex;align-items:center;">${getUserAvatarHtml(manager)}${escapeHtml(manager)}</h4><span>${grouped[manager].length} project${grouped[manager].length === 1 ? '' : 's'}</span></div>
+      <div style="overflow-x:auto;">
+        <table class="pm-table">
+          <thead><tr>
+            <th>Customer</th><th>Opportunity</th><th>Jira / AT</th><th>NRR(h)</th>
+            <th>Start</th><th>End</th><th>Closed</th><th>Manager Notes</th><th></th>
+          </tr></thead>
+          <tbody>
+            ${grouped[manager].slice().sort((a, b) => new Date(b.closedAt || 0).getTime() - new Date(a.closedAt || 0).getTime()).map(p => `
+              <tr>
+                <td>${(() => { const custLink = p.accountUrl || (customers.find(c => c.name === p.customer)?.sfLink) || ''; return custLink ? `<a href="${escapeHtml(custLink)}" target="_blank" rel="noreferrer">${escapeHtml(p.customer || '-')}</a>` : escapeHtml(p.customer || '-'); })()}</td>
+                <td>${p.oppLink ? `<a href="${escapeHtml(p.oppLink)}" target="_blank" rel="noreferrer">${escapeHtml(p.name || '-')}</a>` : escapeHtml(p.name || '-')}</td>
+                <td class="jira-at-cell">
+                  ${p.jira ? `<a class="jira-at-btn" href="${escapeHtml(p.jira)}" target="_blank" rel="noreferrer">${escapeHtml(getJiraLabel(p.jira))}</a>` : '<span style="color:#64748b">—</span>'}
+                  ${p.atLink ? `<a class="jira-at-btn" href="${escapeHtml(p.atLink)}" target="_blank" rel="noreferrer">AT</a>` : ''}
+                </td>
+                <td>${escapeHtml(String(p.nrr || 0))} hrs</td>
+                <td>${escapeHtml(formatDate(p.startDate))}</td>
+                <td>${escapeHtml(formatDate(p.dueDate))}</td>
+                <td>${(() => {
+                  const closedTs = p.closedAt ? new Date(p.closedAt).getTime() : 0;
+                  const isRecent = closedTs && (Date.now() - closedTs) < 3 * 24 * 60 * 60 * 1000;
+                  const label = escapeHtml(formatDate((p.closedAt || '').slice(0, 10)));
+                  return isRecent ? `<span style="color:#fbbf24;font-weight:700;" title="Closed within the last 3 days">${label}</span>` : label;
+                })()}</td>
+                <td><div class="cell-scroll">${escapeHtml((p.comments || '-').split(', ').join('\n'))}</div></td>
+                <td><button type="button" class="secondary-btn small-btn restore-closed-project-btn" data-jira="${escapeHtml(p.jira || '')}">Restore</button></td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `).join('');
+
+  el.querySelectorAll('.restore-closed-project-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const jira = btn.dataset.jira;
+      // Refresh from KV right before mutating — same reasoning as backupAndDeleteProjectBtn.
+      const freshClosed = await kvGet(CLOSED_PROJECTS_KEY);
+      if (Array.isArray(freshClosed)) closedProjects = freshClosed;
+      const idx = closedProjects.findIndex(p => (p.jira || '') === jira);
+      if (idx < 0) return;
+      const [restored] = closedProjects.splice(idx, 1);
+      delete restored.closedAt;
+      removePendingDelete(jira, STORAGE_KEY);
+      await removeKvTombstone(jira, STORAGE_KEY);
+      projects.push(restored);
+      await saveClosedProjects('restore-to-active');
+      await saveProjects('restore-from-closed');
+      renderClosedProjectsPanel();
+      renderAll();
+      showToast(`${restored.name} restored to active projects.`, 'success');
+    });
+  });
+}
+
+function openClosedProjectsModal() {
+  renderClosedProjectsPanel();
+  closedProjectsModal.classList.remove('hidden');
+  closedProjectsModal.setAttribute('aria-hidden', 'false');
+}
+
+function closeClosedProjectsModal() {
+  closedProjectsModal.classList.add('hidden');
+  closedProjectsModal.setAttribute('aria-hidden', 'true');
+}
+
+const ACTIVITY_REASON_LABELS = {
+  'manual-delete': 'Manual delete',
+  'backup-and-delete': 'Backup & delete',
+  'restore-from-backup': 'Backup restore',
+  'restore-from-closed': 'Restore (Closed)',
+  'add-project': 'Project added',
+  'add-task': 'Task added',
+  'edit-save': 'Edited',
+  'import-from-jira': 'Imported (Jira)',
+  'auto-add-new-project': 'Auto-added (Jira)',
+  'jira-progress-sync': 'Jira field sync',
+  'jira-status-sync': 'Jira status sync',
+  'reconnect-sync': 'Reconnect sync',
+  'user-rename-propagation': 'User renamed',
+  'customer-rename-propagation': 'Customer renamed',
+  'migrate-projects': 'Data migration',
+  'create-backup': 'Backup created',
+  'restore-to-active': 'Restored to active',
+};
+function formatActivityReason(reason) {
+  return ACTIVITY_REASON_LABELS[reason] || reason || 'Unknown';
+}
+
+// Collapse near-duplicate entries for the same store/added/removed set that land within
+// a few seconds of each other — e.g. import-from-jira followed by a page-reload Jira
+// sync re-detecting the same new project due to KV read-after-write lag.
+function dedupeActivityEntries(entries) {
+  const kept = [];
+  for (const e of entries) {
+    const key = JSON.stringify({
+      store: e.store,
+      added: (e.added || []).map(p => p.jira || p.name).sort(),
+      removed: (e.removed || []).map(p => p.jira || p.name).sort(),
+      edited: (e.edited || []).map(p => p.jira || p.name).sort(),
+    });
+    const dup = kept.find(k => k._key === key && Math.abs(k.ts - e.ts) < 30000);
+    if (dup) {
+      const generic = ['jira-progress-sync', 'jira-status-sync'];
+      if (generic.includes(dup.reason) && !generic.includes(e.reason)) {
+        Object.assign(dup, e, { _key: key });
+      }
+      continue;
+    }
+    kept.push({ ...e, _key: key });
+  }
+  return kept;
+}
+
+async function renderActivityLogPanel() {
+  const el = document.getElementById('activityLogMain');
+  el.innerHTML = '<p class="muted">Loading…</p>';
+  const log = await getActivityLog();
+  const hours = Number(activityLogRangeFilter.value) || 24;
+  const cutoff = Date.now() - hours * 60 * 60 * 1000;
+  const entries = dedupeActivityEntries(
+    (Array.isArray(log) ? log : []).filter(e => e.ts >= cutoff).sort((a, b) => b.ts - a.ts)
+  );
+
+  if (!entries.length) {
+    el.innerHTML = `<p class="muted">No activity in the last ${hours} hours.</p>`;
+    return;
+  }
+
+  const jiraRef = (p) => p.jira ? ` (<a href="${escapeHtml(p.jira)}" target="_blank" rel="noreferrer">${escapeHtml(getJiraLabel(p.jira))}</a>)` : '';
+  const rows = entries.map(e => {
+    const time = new Date(e.ts).toLocaleString('default', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const countChange = e.beforeCount !== e.afterCount
+      ? `<span style="color:${e.afterCount > e.beforeCount ? '#4ade80' : '#f87171'};font-weight:600;">${e.beforeCount} → ${e.afterCount}</span>`
+      : `${e.beforeCount} → ${e.afterCount}`;
+    const addedList = (e.added || []).map(p => `<div style="color:#4ade80;">+ ${escapeHtml(p.customer ? p.customer + ' — ' : '')}${escapeHtml(p.name || '-')}${jiraRef(p)}</div>`).join('');
+    const removedList = (e.removed || []).map(p => `<div style="color:#f87171;">− ${escapeHtml(p.customer ? p.customer + ' — ' : '')}${escapeHtml(p.name || '-')}${jiraRef(p)}</div>`).join('');
+    const editedList = (e.edited || []).map(p => {
+      const changeLines = (p.changes || []).map(c => `<div style="color:#94a3b8;padding-left:14px;">${escapeHtml(c.field)}: ${escapeHtml(c.from)} → ${escapeHtml(c.to)}</div>`).join('');
+      return `<div style="color:#7dd3fc;">✎ ${escapeHtml(p.customer ? p.customer + ' — ' : '')}${escapeHtml(p.name || '-')}${jiraRef(p)}</div>${changeLines}`;
+    }).join('');
+    return `
+      <tr>
+        <td style="white-space:nowrap;">${escapeHtml(time)}</td>
+        <td style="white-space:nowrap;">${escapeHtml(e.user || '-')}</td>
+        <td style="white-space:nowrap;">${escapeHtml(e.store || '-')}</td>
+        <td style="white-space:nowrap;">${escapeHtml(formatActivityReason(e.reason))}</td>
+        <td style="white-space:nowrap;">${countChange}</td>
+        <td>${addedList}${removedList}${editedList}</td>
+      </tr>`;
+  }).join('');
+
+  el.innerHTML = `
+    <div style="overflow-x:auto;">
+      <table class="activity-log-table">
+        <thead><tr>
+          <th>When</th><th>By</th><th>Store</th><th>Reason</th><th>Count</th><th style="width:100%;">Added/Removed/Edited</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+}
+
+function openActivityLogModal() {
+  activityLogModal.classList.remove('hidden');
+  activityLogModal.setAttribute('aria-hidden', 'false');
+  renderActivityLogPanel();
+}
+
+function closeActivityLogModal() {
+  activityLogModal.classList.add('hidden');
+  activityLogModal.setAttribute('aria-hidden', 'true');
 }
 
 function openBackupsModal() {
@@ -885,7 +1342,7 @@ editProjectForm.addEventListener('submit', async (event) => {
   selectedProject.statusText = isEmptyStatus(rawStatus) ? '' : rawStatus;
   selectedProject.statusUpdatedAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
 
-  if (itemType === 'task') { await saveTasks(); } else { await saveProjects(); }
+  if (itemType === 'task') { await saveTasks('edit-save'); } else { await saveProjects('edit-save'); }
   renderAll();
   closeEditProjectModal();
 
@@ -895,19 +1352,17 @@ editProjectForm.addEventListener('submit', async (event) => {
       const jiraWriteError = (label) => (e) => {
         console.error(`[${label}→Jira]`, e); showToast(`Jira ${label} sync failed: ${e.message}`);
       };
-      const updatedBy = selectedProject.manager || '';
       writeRiskReasonToJira(issueKey, riskOptionId || null).catch(jiraWriteError('riskReason'));
       writeRiskRateToJira(issueKey, selectedProject.health).catch(jiraWriteError('riskRate'));
       if (newDueDate) writeDueDateToJira(issueKey, newDueDate).catch(jiraWriteError('dueDate'));
       if (selectedProject.region) writeRegionToJira(issueKey, selectedProject.region).catch(jiraWriteError('region'));
       writeStatusToJira(issueKey, selectedProject.statusText).catch(jiraWriteError('status'));
       if (managerChanged) writeAssigneeToJira(issueKey, selectedProject.manager).catch(jiraWriteError('assignee'));
-      addJiraComment(issueKey, updatedBy).catch(() => {});
     }
   }
 });
 
-modalProjectForm.addEventListener('submit', (event) => {
+modalProjectForm.addEventListener('submit', async (event) => {
   event.preventDefault();
 
   const pmName = document.getElementById('modalProjectPm').value.trim();
@@ -915,13 +1370,14 @@ modalProjectForm.addEventListener('submit', (event) => {
   const salesName = document.getElementById('modalProjectSales').value.trim();
   const nrrValue = document.getElementById('modalProjectNrrValue').value.trim();
   const mrrValue = document.getElementById('modalProjectMrrValue').value.trim();
+  const jiraValue = document.getElementById('modalProjectJira').value.trim();
 
   projects.unshift({
     customer: document.getElementById('modalProjectCustomer').value.trim() || 'Unknown',
     name: document.getElementById('modalProjectName').value.trim(),
     oppLink: document.getElementById('modalProjectOppLink').value.trim(),
     manager: pmName || 'Unassigned',
-    jira: document.getElementById('modalProjectJira').value.trim(),
+    jira: jiraValue,
     nrr: Number(document.getElementById('modalProjectNrr').value),
     nrrUsd: nrrValue ? Number(nrrValue) || null : null,
     mrrUsd: mrrValue ? Number(mrrValue) || null : null,
@@ -937,9 +1393,16 @@ modalProjectForm.addEventListener('submit', (event) => {
     region: document.getElementById('modalProjectRegion').value,
   });
 
-  const newProjectJiraKey = getJiraIssueKey(document.getElementById('modalProjectJira').value.trim());
+  // Clear any lingering tombstone for this jira key — otherwise saveProjects would strip
+  // this deliberate add right back out, since it still matches a prior deletion.
+  if (jiraValue) {
+    removePendingDelete(jiraValue, STORAGE_KEY);
+    await removeKvTombstone(jiraValue, STORAGE_KEY);
+  }
+
+  const newProjectJiraKey = getJiraIssueKey(jiraValue);
   const newProjectDueDate = parseDateInput(document.getElementById('modalProjectDueDate').value);
-  saveProjects();
+  await saveProjects('add-project');
   renderAll();
   closeModal();
   syncProjectProgressFromJira();
@@ -1003,6 +1466,15 @@ function closeSettingsModal() {
 closeSettingsBtn.addEventListener('click', closeSettingsModal);
 cancelSettingsBtn.addEventListener('click', closeSettingsModal);
 settingsModal.addEventListener('click', (e) => { if (e.target === settingsModal) closeSettingsModal(); });
+
+openActivityLogBtn.addEventListener('click', () => {
+  closeSettingsModal();
+  openActivityLogModal();
+});
+closeActivityLogModalBtn.addEventListener('click', closeActivityLogModal);
+activityLogModal.addEventListener('click', (e) => { if (e.target === activityLogModal) closeActivityLogModal(); });
+activityLogRangeFilter.addEventListener('change', renderActivityLogPanel);
+refreshActivityLogBtn.addEventListener('click', renderActivityLogPanel);
 saveSettingsBtn.addEventListener('click', async () => {
   settings.jiraEmail = document.getElementById('settingsJiraEmail').value.trim();
   settings.jiraToken = document.getElementById('settingsJiraToken').value.trim();
@@ -1169,7 +1641,7 @@ customersModalBody.addEventListener('click', (e) => {
     cust.sfLink = newSf;
     if (oldName !== newName) {
       projects.forEach(p => { if (p.customer === oldName) p.customer = newName; });
-      saveProjects();
+      saveProjects('customer-rename-propagation');
       renderAll();
     }
     saveCustomers();
@@ -1213,6 +1685,14 @@ portfolioGroups.addEventListener('click', (event) => {
     );
     return;
   }
+  const commentsButton = event.target.closest('[data-open-comments]');
+  if (commentsButton) {
+    openCommentsModal(
+      commentsButton.dataset.itemType || 'project',
+      Number(commentsButton.dataset.openComments)
+    );
+    return;
+  }
   const deleteButton = event.target.closest('[data-delete-project]');
   if (deleteButton) {
     openDeleteProjectModal(
@@ -1222,112 +1702,12 @@ portfolioGroups.addEventListener('click', (event) => {
   }
 });
 
-editProjectModal.addEventListener('click', (event) => {
-  const toolbarButton = event.target.closest('[data-rich-command]');
-  if (toolbarButton) {
-    event.preventDefault();
-    document.execCommand(toolbarButton.dataset.richCommand, false, null);
-    editStatusEditor.focus();
-    return;
-  }
-  const colorLabel = event.target.closest('.toolbar-color-btn');
-  if (colorLabel) {
-    editStatusEditor.focus();
-  }
-});
-
-document.getElementById('editorColorPicker').addEventListener('change', (event) => {
-  const color = event.target.value;
-  document.getElementById('editorColorSwatch').style.background = color;
-  document.execCommand('foreColor', false, color);
-  editStatusEditor.focus();
-});
-
-document.getElementById('editorFontSize').addEventListener('change', (e) => {
-  const size = e.target.value;
-  if (!size) return;
-  editStatusEditor.focus();
-  const sel = window.getSelection();
-  if (!sel || !sel.rangeCount) return;
-
-  if (!sel.isCollapsed) {
-    // Text selected — wrap it in a span with the chosen size
-    const range = sel.getRangeAt(0);
-    try {
-      const frag = range.extractContents();
-      const span = document.createElement('span');
-      span.style.fontSize = size + 'pt';
-      span.appendChild(frag);
-      range.insertNode(span);
-      sel.removeAllRanges();
-      const newRange = document.createRange();
-      newRange.selectNodeContents(span);
-      sel.addRange(newRange);
-    } catch {}
-  } else {
-    // No selection — insert a zero-width space span so future typing uses this size
-    const range = sel.getRangeAt(0);
-    const span = document.createElement('span');
-    span.style.fontSize = size + 'pt';
-    span.innerHTML = '​'; // zero-width space as anchor
-    range.insertNode(span);
-    // Place cursor inside the span after the zero-width space
-    const newRange = document.createRange();
-    newRange.setStart(span.firstChild, 1);
-    newRange.collapse(true);
-    sel.removeAllRanges();
-    sel.addRange(newRange);
-  }
-  // Keep value visible
-});
-
-let _savedLinkSelection = null;
-document.getElementById('editorInsertLink').addEventListener('click', () => {
-  _savedLinkSelection = window.getSelection()?.getRangeAt(0)?.cloneRange() || null;
-  const selectedText = window.getSelection()?.toString() || '';
-  document.getElementById('editorLinkText').value = selectedText;
-  document.getElementById('editorLinkUrl').value = '';
-  const popup = document.getElementById('editorLinkPopup');
-  popup.style.display = popup.style.display === 'flex' ? 'none' : 'flex';
-  if (popup.style.display === 'flex') document.getElementById('editorLinkUrl').focus();
-});
-
-document.getElementById('editorLinkCancel').addEventListener('click', () => {
-  document.getElementById('editorLinkPopup').style.display = 'none';
-  editStatusEditor.focus();
-});
-
-document.getElementById('editorLinkInsert').addEventListener('click', () => {
-  const url = document.getElementById('editorLinkUrl').value.trim();
-  const text = document.getElementById('editorLinkText').value.trim() || url;
-  if (!url) return;
-  editStatusEditor.focus();
-  if (_savedLinkSelection) {
-    const sel = window.getSelection();
-    sel.removeAllRanges();
-    sel.addRange(_savedLinkSelection);
-  }
-  document.execCommand('insertHTML', false, `<a href="${escapeHtml(url)}" target="_blank" rel="noreferrer">${escapeHtml(text)}</a>`);
-  document.getElementById('editorLinkPopup').style.display = 'none';
-  _savedLinkSelection = null;
-});
-
-editStatusEditor.addEventListener('focus', () => {
-  if (editStatusEditor.getAttribute('data-placeholder-active')) {
-    editStatusEditor.innerHTML = '';
-    editStatusEditor.removeAttribute('data-placeholder-active');
-  }
-});
-
-editStatusEditor.addEventListener('blur', (e) => {
-  // Don't trigger placeholder if focus moved to an element inside the edit modal
-  if (e.relatedTarget && editProjectModal.contains(e.relatedTarget)) return;
-  if (!editStatusEditor.textContent.trim() && !editStatusEditor.querySelector('img, br, li, div')) {
-    editStatusEditor.innerHTML = '<span style="font-style:italic;opacity:0.5;">No Status Entered</span>';
-    editStatusEditor.setAttribute('data-placeholder-active', '1');
-  }
-});
-
+const editStatusToolbar = setupRichEditorToolbar(
+  editStatusEditor,
+  document.getElementById('editStatusEditorBlock'),
+  { placeholderHtml: '<span style="font-style:italic;opacity:0.5;">No Status Entered</span>' }
+);
+setupMentionAutocomplete(editStatusEditor);
 
 searchInput.addEventListener('input', renderTable);
 const FILTER_STORAGE_KEY = 'project-dashboard-filters-v1';
@@ -1339,6 +1719,7 @@ function saveFilters() {
       health: healthFilter.value,
       progress: progressFilter.value,
       duemonth: duemonthFilter.value,
+      addedmonth: addedMonthFilter.value,
       region: regionFilter.value,
       search: searchInput.value,
     }));
@@ -1353,14 +1734,16 @@ function restoreFilters() {
     const urlHealth = params.get('health');
     const urlRegion = params.get('region');
     const urlProgress = params.get('progress');
+    const urlAddedMonth = params.get('addedmonth');
     const urlSearch = params.get('search');
 
-    if (urlPm || urlHealth || urlRegion || urlProgress || urlSearch) {
+    if (urlPm || urlHealth || urlRegion || urlProgress || urlAddedMonth || urlSearch) {
       // URL params present — use them and save to localStorage
       if (urlPm) pmFilter.value = urlPm;
       if (urlHealth) healthFilter.value = urlHealth;
       if (urlRegion) regionFilter.value = urlRegion;
       if (urlProgress) progressFilter.value = urlProgress;
+      if (urlAddedMonth) addedMonthFilter.value = urlAddedMonth;
       if (urlSearch) searchInput.value = urlSearch;
       saveFilters();
       return;
@@ -1376,6 +1759,7 @@ function restoreFilters() {
       if (progressFilter.value !== saved.progress) progressFilter.selectedIndex = 0;
     }
     if (saved.duemonth) duemonthFilter.value = saved.duemonth;
+    if (saved.addedmonth) addedMonthFilter.value = saved.addedmonth;
     if (saved.region) regionFilter.value = saved.region;
     if (saved.search) searchInput.value = saved.search;
   } catch {}
@@ -1385,8 +1769,9 @@ function resetFilters() {
   pmFilter.value = 'All';
   healthFilter.value = 'All';
   // Replace progress options to force a clean reset
-  progressFilter.innerHTML = '<option value="All" selected>All progress</option><option value="0-39">0–39%</option><option value="40-69">40–69%</option><option value="70-100">70–100%</option>';
+  progressFilter.innerHTML = '<option value="All" selected>All progress</option><option value="0-39">0–39%</option><option value="40-69">40–69%</option><option value="70-100">70–100%</option><option value="100+">Above 100%</option>';
   duemonthFilter.selectedIndex = 0;
+  addedMonthFilter.selectedIndex = 0;
   regionFilter.selectedIndex = 0;
   searchInput.value = '';
   localStorage.removeItem(FILTER_STORAGE_KEY);
@@ -1397,6 +1782,7 @@ pmFilter.addEventListener('change', () => { saveFilters(); renderTable(); });
 healthFilter.addEventListener('change', () => { saveFilters(); renderTable(); });
 progressFilter.addEventListener('change', () => { saveFilters(); renderTable(); });
 duemonthFilter.addEventListener('change', () => { saveFilters(); renderTable(); });
+addedMonthFilter.addEventListener('change', () => { saveFilters(); renderTable(); });
 regionFilter.addEventListener('change', () => { saveFilters(); renderAll(); });
 searchInput.addEventListener('input', saveFilters);
 
@@ -1406,12 +1792,7 @@ document.getElementById('refreshDashboardBtn').addEventListener('click', async (
   btn.textContent = '↻ Syncing...';
   btn.disabled = true;
   try {
-    const [freshProjects, freshTasks] = await Promise.all([
-      kvGet(STORAGE_KEY),
-      kvGet(TASKS_KEY),
-    ]);
-    if (freshProjects) { projects = freshProjects; try { localStorage.setItem(STORAGE_KEY, JSON.stringify(projects)); } catch {} }
-    if (freshTasks) { tasks = freshTasks; try { localStorage.setItem(TASKS_KEY, JSON.stringify(tasks)); } catch {} }
+    await refreshProjectsAndTasksFromKv();
     syncProjectProgressFromJira();
     renderAll();
   } finally {

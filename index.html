@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Project Manager Dashboard</title>
-    <link rel="icon" type="image/png" href="favicon1.png" />
+    <link rel="icon" type="image/png" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAAEnQAABJ0Ad5mH3gAAAAPdEVYdFNvZnR3YXJlAFBpY2FzYReRwFEAAAKnaVRYdFhNTDpjb20uYWRvYmUueG1wAAAAAAA8P3hwYWNrZXQgYmVnaW49J++7vycgaWQ9J1c1TTBNcENlaGlIenJlU3pOVGN6a2M5ZCc/Pg0KPHg6eG1wbWV0YSB4bWxuczp4PSJhZG9iZTpuczptZXRhLyI+PHJkZjpSREYgeG1sbnM6cmRmPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5LzAyLzIyLXJkZi1zeW50YXgtbnMjIj48cmRmOkRlc2NyaXB0aW9uIHJkZjphYm91dD0idXVpZDpmYWY1YmRkNS1iYTNkLTExZGEtYWQzMS1kMzNkNzUxODJmMWIiIHhtbG5zOnhtcD0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wLyI+PHhtcDpDcmVhdG9yVG9vbD5QaWNhc2E8L3htcDpDcmVhdG9yVG9vbD48eG1wOmNyZWF0b3J0b29sPlBpY2FzYTwveG1wOmNyZWF0b3J0b29sPjwvcmRmOkRlc2NyaXB0aW9uPjxyZGY6RGVzY3JpcHRpb24gcmRmOmFib3V0PSJ1dWlkOmZhZjViZGQ1LWJhM2QtMTFkYS1hZDMxLWQzM2Q3NTE4MmYxYiIgeG1sbnM6ZXhpZj0iaHR0cDovL25zLmFkb2JlLmNvbS9leGlmLzEuMC8iPjxleGlmOkltYWdlVW5pcXVlSUQ+NTU0ZTdlYTY3NTY4ZmFmZDAwMDAwMDAwMDAwMDAwMDA8L2V4aWY6SW1hZ2VVbmlxdWVJRD48ZXhpZjpFeGlmVmVyc2lvbj4wMjIwPC9leGlmOkV4aWZWZXJzaW9uPjwvcmRmOkRlc2NyaXB0aW9uPjwvcmRmOlJERj48L3g6eG1wbWV0YT4NCjw/eHBhY2tldCBlbmQ9J3cnPz7dEfQ+AAAJeUlEQVRYR1WX3a9dx1nGf+/M+t777PPt48OxU5K6sd02VJUi2qoQibQoLVXLR0VFgSuEKkQveoO44Ia/AQmpSID4A0qRyA1VoaR2IEpdXJzYrUliNU6OHTtx4vO1z95r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" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -33,6 +33,7 @@
             <button id="importFromJiraBtn" class="secondary-btn">Import from Jira</button>
             <button id="manageUsersBtn" class="secondary-btn">Manage users</button>
             <button id="manageCustomersBtn" class="secondary-btn">Manage customers</button>
+            <button id="closedProjectsBtn" class="secondary-btn">Closed projects</button>
             <button id="createBackupBtn" class="secondary-btn">Create backup</button>
             <button id="backupsPanelBtn" class="secondary-btn">Backups</button>
             <button id="settingsBtn" class="secondary-btn">⚙ Settings</button>
@@ -78,7 +79,7 @@
             <div class="panel-header">
               <div>
                 <p class="eyebrow">Live portfolio</p>
-                <h3>Projects</h3>
+                <h3>Projects <span id="projectsCountBadge" class="pill" style="margin-left:6px;">0</span></h3>
               </div>
               <span class="pill">Updated today</span>
             </div>
@@ -98,6 +99,10 @@
                 <option value="0-39">0–39%</option>
                 <option value="40-69">40–69%</option>
                 <option value="70-100">70–100%</option>
+                <option value="100+">Above 100%</option>
+              </select>
+              <select id="addedMonthFilter">
+                <option value="">Project added month</option>
               </select>
               <select id="duemonthFilter">
                 <option value="">All months</option>
@@ -121,6 +126,27 @@
 
         </section>
       </main>
+    </div>
+
+    <div id="appDialogModal" class="modal hidden" aria-hidden="true">
+      <div class="modal-card app-dialog-card">
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow" id="appDialogEyebrow">Confirm</p>
+            <h3 id="appDialogTitle">Are you sure?</h3>
+          </div>
+          <button id="closeAppDialogBtn" class="ghost-btn" type="button" aria-label="Close">×</button>
+        </div>
+        <div class="app-dialog-body">
+          <p id="appDialogMessage" class="muted"></p>
+          <input id="appDialogInput" type="password" autocomplete="off" style="display:none;" />
+          <p id="appDialogError" class="app-dialog-error hidden"></p>
+        </div>
+        <div class="modal-actions">
+          <button type="button" id="appDialogCancelBtn" class="ghost-btn">Cancel</button>
+          <button type="button" id="appDialogConfirmBtn" class="primary-btn">OK</button>
+        </div>
+      </div>
     </div>
 
     <div id="editProjectModal" class="modal hidden" aria-hidden="true">
@@ -208,6 +234,7 @@
             </div>
           </label>
           <label>Project Status</label>
+          <div class="rich-editor-block" id="editStatusEditorBlock">
           <div class="editor-toolbar">
             <button type="button" class="ghost-btn small-btn" data-rich-command="bold" title="Bold"><b>B</b></button>
             <button type="button" class="ghost-btn small-btn" data-rich-command="italic" title="Italic"><i>I</i></button>
@@ -222,12 +249,12 @@
             <span class="toolbar-color-wrap">
               <span class="toolbar-color-a">A</span>
               <label class="toolbar-color-btn ghost-btn small-btn" title="Text color">
-                <span id="editorColorSwatch" style="display:inline-block;width:14px;height:14px;border-radius:3px;background:#eff6ff;border:1px solid rgba(255,255,255,0.25);"></span>
-                <input type="color" id="editorColorPicker" value="#eff6ff" style="width:0;height:0;opacity:0;position:absolute;">
+                <span data-role="colorSwatch" style="display:inline-block;width:14px;height:14px;border-radius:3px;background:#eff6ff;border:1px solid rgba(255,255,255,0.25);"></span>
+                <input type="color" data-role="colorPicker" value="#eff6ff" style="width:0;height:0;opacity:0;position:absolute;">
               </label>
             </span>
             <span class="toolbar-sep"></span>
-            <select id="editorFontSize" title="Font size" style="width:58px;padding:4px 6px;border:1px solid var(--line);border-radius:10px;background:rgba(15,23,42,0.95);color:var(--text);font-family:inherit;font-size:0.88rem;cursor:pointer;">
+            <select data-role="fontSize" title="Font size" style="width:58px;padding:4px 6px;border:1px solid var(--line);border-radius:10px;background:rgba(15,23,42,0.95);color:var(--text);font-family:inherit;font-size:0.88rem;cursor:pointer;">
               <option value="8" selected>8</option>
               <option value="9">9</option>
               <option value="10">10</option>
@@ -243,22 +270,142 @@
               <option value="48">48</option>
               <option value="72">72</option>
             </select>
-            <button type="button" id="editorInsertLink" class="ghost-btn small-btn" title="Insert link">🔗</button>
+            <button type="button" data-role="insertLink" class="ghost-btn small-btn" title="Insert link">🔗</button>
           </div>
-          <div id="editorLinkPopup" style="display:none;margin-top:6px;background:#0f172a;border:1px solid #223249;border-radius:10px;padding:10px 12px;display:none;gap:8px;flex-direction:column;">
-            <input id="editorLinkUrl" type="url" placeholder="https://..." style="width:100%;border:1px solid #334155;background:#0b1220;color:#eff6ff;border-radius:8px;padding:7px 10px;font-size:0.9rem;" />
-            <input id="editorLinkText" type="text" placeholder="Display text (optional)" style="width:100%;border:1px solid #334155;background:#0b1220;color:#eff6ff;border-radius:8px;padding:7px 10px;font-size:0.9rem;" />
+          <div data-role="linkPopup" style="display:none;margin-top:6px;background:#0f172a;border:1px solid #223249;border-radius:10px;padding:10px 12px;gap:8px;flex-direction:column;">
+            <input data-role="linkUrl" type="url" placeholder="https://..." style="width:100%;border:1px solid #334155;background:#0b1220;color:#eff6ff;border-radius:8px;padding:7px 10px;font-size:0.9rem;" />
+            <input data-role="linkText" type="text" placeholder="Display text (optional)" style="width:100%;border:1px solid #334155;background:#0b1220;color:#eff6ff;border-radius:8px;padding:7px 10px;font-size:0.9rem;" />
             <div style="display:flex;gap:8px;justify-content:flex-end;">
-              <button type="button" id="editorLinkCancel" class="ghost-btn small-btn">Cancel</button>
-              <button type="button" id="editorLinkInsert" class="primary-btn small-btn">Insert</button>
+              <button type="button" data-role="linkCancel" class="ghost-btn small-btn">Cancel</button>
+              <button type="button" data-role="linkInsert" class="primary-btn small-btn">Insert</button>
             </div>
           </div>
           <div id="editStatusEditor" class="rich-editor" contenteditable="true" spellcheck="true" lang="en"></div>
+          </div>
+          <label id="pmNotesLabel">PM Personal Notes</label>
+          <div class="rich-editor-block" id="pmNotesEditorBlock">
+          <div class="editor-toolbar">
+            <button type="button" class="ghost-btn small-btn" data-rich-command="bold" title="Bold"><b>B</b></button>
+            <button type="button" class="ghost-btn small-btn" data-rich-command="italic" title="Italic"><i>I</i></button>
+            <button type="button" class="ghost-btn small-btn" data-rich-command="underline" title="Underline"><u>U</u></button>
+            <span class="toolbar-sep"></span>
+            <button type="button" class="ghost-btn small-btn" data-rich-command="insertUnorderedList" title="Bullet list">• List</button>
+            <button type="button" class="ghost-btn small-btn" data-rich-command="insertOrderedList" title="Numbered list">1. List</button>
+            <span class="toolbar-sep"></span>
+            <button type="button" class="ghost-btn small-btn" data-rich-command="outdent" title="Decrease indent">⇤</button>
+            <button type="button" class="ghost-btn small-btn" data-rich-command="indent" title="Increase indent">⇥</button>
+            <span class="toolbar-sep"></span>
+            <span class="toolbar-color-wrap">
+              <span class="toolbar-color-a">A</span>
+              <label class="toolbar-color-btn ghost-btn small-btn" title="Text color">
+                <span data-role="colorSwatch" style="display:inline-block;width:14px;height:14px;border-radius:3px;background:#eff6ff;border:1px solid rgba(255,255,255,0.25);"></span>
+                <input type="color" data-role="colorPicker" value="#eff6ff" style="width:0;height:0;opacity:0;position:absolute;">
+              </label>
+            </span>
+            <span class="toolbar-sep"></span>
+            <select data-role="fontSize" title="Font size" style="width:58px;padding:4px 6px;border:1px solid var(--line);border-radius:10px;background:rgba(15,23,42,0.95);color:var(--text);font-family:inherit;font-size:0.88rem;cursor:pointer;">
+              <option value="8" selected>8</option>
+              <option value="9">9</option>
+              <option value="10">10</option>
+              <option value="11">11</option>
+              <option value="12">12</option>
+              <option value="14">14</option>
+              <option value="16">16</option>
+              <option value="18">18</option>
+              <option value="20">20</option>
+              <option value="24">24</option>
+              <option value="28">28</option>
+              <option value="36">36</option>
+              <option value="48">48</option>
+              <option value="72">72</option>
+            </select>
+            <button type="button" data-role="insertLink" class="ghost-btn small-btn" title="Insert link">🔗</button>
+          </div>
+          <div data-role="linkPopup" style="display:none;margin-top:6px;background:#0f172a;border:1px solid #223249;border-radius:10px;padding:10px 12px;gap:8px;flex-direction:column;">
+            <input data-role="linkUrl" type="url" placeholder="https://..." style="width:100%;border:1px solid #334155;background:#0b1220;color:#eff6ff;border-radius:8px;padding:7px 10px;font-size:0.9rem;" />
+            <input data-role="linkText" type="text" placeholder="Display text (optional)" style="width:100%;border:1px solid #334155;background:#0b1220;color:#eff6ff;border-radius:8px;padding:7px 10px;font-size:0.9rem;" />
+            <div style="display:flex;gap:8px;justify-content:flex-end;">
+              <button type="button" data-role="linkCancel" class="ghost-btn small-btn">Cancel</button>
+              <button type="button" data-role="linkInsert" class="primary-btn small-btn">Insert</button>
+            </div>
+          </div>
+          <div id="pmNotesEditor" class="rich-editor" contenteditable="true" spellcheck="true" lang="en"></div>
+          </div>
           <div class="modal-actions">
             <button type="button" id="cancelEditModalBtn" class="ghost-btn">Cancel</button>
             <button type="submit" class="primary-btn">Save changes</button>
           </div>
         </form>
+      </div>
+    </div>
+
+    <div id="commentsModal" class="modal hidden" aria-hidden="true">
+      <div class="modal-card edit-project-modal-card">
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Comments</p>
+            <h3 id="commentsModalTitle">Project</h3>
+          </div>
+          <button id="closeCommentsModalBtn" class="ghost-btn" type="button" aria-label="Close">×</button>
+        </div>
+        <div class="status-form modal-form">
+          <label>Add comment</label>
+          <div class="rich-editor-block" id="commentComposerBlock">
+            <div class="editor-toolbar">
+              <button type="button" class="ghost-btn small-btn" data-rich-command="bold" title="Bold"><b>B</b></button>
+              <button type="button" class="ghost-btn small-btn" data-rich-command="italic" title="Italic"><i>I</i></button>
+              <button type="button" class="ghost-btn small-btn" data-rich-command="underline" title="Underline"><u>U</u></button>
+              <span class="toolbar-sep"></span>
+              <button type="button" class="ghost-btn small-btn" data-rich-command="insertUnorderedList" title="Bullet list">• List</button>
+              <button type="button" class="ghost-btn small-btn" data-rich-command="insertOrderedList" title="Numbered list">1. List</button>
+              <span class="toolbar-sep"></span>
+              <button type="button" class="ghost-btn small-btn" data-rich-command="outdent" title="Decrease indent">⇤</button>
+              <button type="button" class="ghost-btn small-btn" data-rich-command="indent" title="Increase indent">⇥</button>
+              <span class="toolbar-sep"></span>
+              <span class="toolbar-color-wrap">
+                <span class="toolbar-color-a">A</span>
+                <label class="toolbar-color-btn ghost-btn small-btn" title="Text color">
+                  <span data-role="colorSwatch" style="display:inline-block;width:14px;height:14px;border-radius:3px;background:#eff6ff;border:1px solid rgba(255,255,255,0.25);"></span>
+                  <input type="color" data-role="colorPicker" value="#eff6ff" style="width:0;height:0;opacity:0;position:absolute;">
+                </label>
+              </span>
+              <span class="toolbar-sep"></span>
+              <select data-role="fontSize" title="Font size" style="width:58px;padding:4px 6px;border:1px solid var(--line);border-radius:10px;background:rgba(15,23,42,0.95);color:var(--text);font-family:inherit;font-size:0.88rem;cursor:pointer;">
+                <option value="8" selected>8</option>
+                <option value="9">9</option>
+                <option value="10">10</option>
+                <option value="11">11</option>
+                <option value="12">12</option>
+                <option value="14">14</option>
+                <option value="16">16</option>
+                <option value="18">18</option>
+                <option value="20">20</option>
+                <option value="24">24</option>
+                <option value="28">28</option>
+                <option value="36">36</option>
+                <option value="48">48</option>
+                <option value="72">72</option>
+              </select>
+              <button type="button" data-role="insertLink" class="ghost-btn small-btn" title="Insert link">🔗</button>
+            </div>
+            <div data-role="linkPopup" style="display:none;margin-top:6px;background:#0f172a;border:1px solid #223249;border-radius:10px;padding:10px 12px;gap:8px;flex-direction:column;">
+              <input data-role="linkUrl" type="url" placeholder="https://..." style="width:100%;border:1px solid #334155;background:#0b1220;color:#eff6ff;border-radius:8px;padding:7px 10px;font-size:0.9rem;" />
+              <input data-role="linkText" type="text" placeholder="Display text (optional)" style="width:100%;border:1px solid #334155;background:#0b1220;color:#eff6ff;border-radius:8px;padding:7px 10px;font-size:0.9rem;" />
+              <div style="display:flex;gap:8px;justify-content:flex-end;">
+                <button type="button" data-role="linkCancel" class="ghost-btn small-btn">Cancel</button>
+                <button type="button" data-role="linkInsert" class="primary-btn small-btn">Insert</button>
+              </div>
+            </div>
+            <div id="commentComposerEditor" class="rich-editor" contenteditable="true" spellcheck="true" lang="en"></div>
+          </div>
+          <div class="comments-divider"></div>
+          <label>Existing comments</label>
+          <div id="commentsList" class="comments-list"></div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" id="cancelCommentsModalBtn" class="ghost-btn">Cancel</button>
+          <button type="button" id="saveCommentBtn" class="primary-btn">Save Comment</button>
+        </div>
       </div>
     </div>
 
@@ -454,6 +601,44 @@
       </div>
     </div>
 
+    <div id="closedProjectsModal" class="modal hidden" aria-hidden="true">
+      <div class="backups-modal-card">
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Archive</p>
+            <h3>Closed Projects <span id="closedProjectsCountBadge" class="pill" style="margin-left:6px;">0</span></h3>
+          </div>
+          <button id="closeClosedProjectsModalBtn" class="ghost-btn" type="button" aria-label="Close">×</button>
+        </div>
+        <div class="filter-row" style="margin-bottom:12px;">
+          <input id="closedSearchInput" type="search" placeholder="Search by Project, Customer or PM" />
+          <select id="closedPmFilter">
+            <option value="All">All PMs</option>
+          </select>
+          <select id="closedRegionFilter">
+            <option value="">All Regions</option>
+            <option value="APAC">APAC</option>
+            <option value="EMEA">EMEA</option>
+            <option value="North America">North America</option>
+            <option value="LatAm">LatAm</option>
+            <option value="Internal">Internal</option>
+            <option value="ROW">ROW</option>
+          </select>
+          <select id="closedMonthFilter">
+            <option value="">All closed months</option>
+          </select>
+          <select id="closedQuarterFilter">
+            <option value="">All closed quarters</option>
+          </select>
+          <button id="refreshClosedProjectsBtn" class="ghost-btn small-btn" title="Refresh closed projects">↻ Refresh</button>
+          <button id="resetClosedFiltersBtn" class="ghost-btn small-btn" title="Reset all filters">✕ Reset</button>
+        </div>
+        <div class="backup-main" id="closedProjectsMain">
+          <!-- rendered by renderClosedProjectsPanel() -->
+        </div>
+      </div>
+    </div>
+
     <div id="addCustomerModal" class="modal hidden" aria-hidden="true">
       <div class="modal-card">
         <div class="modal-header">
@@ -512,10 +697,39 @@
           <label>Connected App Client Secret<input id="settingsSFClientSecret" type="password" placeholder="Consumer Secret" /></label>
           <p id="settingsSFStatus" class="muted" style="min-height:18px;font-size:0.8rem;"></p>
 
+          <hr style="border-color:#334155;margin:16px 0;" />
+
+          <p class="eyebrow" style="margin-bottom:6px;">Diagnostics</p>
+          <p class="muted" style="margin-bottom:8px;">Track every add/remove to projects and tasks, to help trace disappearing or reappearing items.</p>
+          <button type="button" id="openActivityLogBtn" class="ghost-btn small-btn">View Activity Log</button>
+
           <div class="modal-actions">
             <button type="button" id="cancelSettingsBtn" class="ghost-btn">Cancel</button>
             <button type="button" id="saveSettingsBtn" class="primary-btn">Save &amp; sync</button>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="activityLogModal" class="modal hidden" aria-hidden="true">
+      <div class="backups-modal-card">
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Diagnostics</p>
+            <h3>Activity Log</h3>
+          </div>
+          <button id="closeActivityLogModalBtn" class="ghost-btn" type="button" aria-label="Close">×</button>
+        </div>
+        <div class="filter-row" style="margin-bottom:12px;">
+          <select id="activityLogRangeFilter">
+            <option value="24">Last 24 hours</option>
+            <option value="48">Last 48 hours</option>
+            <option value="168">Last 7 days</option>
+          </select>
+          <button id="refreshActivityLogBtn" class="ghost-btn small-btn">↻ Refresh</button>
+        </div>
+        <div class="backup-main" id="activityLogMain">
+          <!-- rendered by renderActivityLogPanel() -->
         </div>
       </div>
     </div>
@@ -528,7 +742,7 @@
             <h3 id="deleteProjectModalTitle">Project name</h3>
           </div>
         </div>
-        <p class="muted" style="margin-bottom:16px;">This action cannot be undone. Would you like to back up this project to the latest backup record first?</p>
+        <p class="muted" style="margin-bottom:16px;">Delete cannot be undone. Backup & Delete moves this project to Closed Projects first, where it can be restored later.</p>
         <div class="modal-actions">
           <button type="button" id="cancelDeleteProjectBtn" class="ghost-btn">Cancel</button>
           <button type="button" id="deleteProjectBtn" class="ghost-btn">Delete</button>

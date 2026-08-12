@@ -36,18 +36,36 @@ const KV_ALLOWED_KEYS = new Set([
   'project-dashboard-customers-v1',
   'project-dashboard-backups-v1',
   'project-dashboard-tasks-v1',
+  'project-dashboard-tombstones-v1',
+  'project-dashboard-closed-projects-v1',
+  'project-dashboard-activity-log-v1',
 ]);
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, PUT, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Accept, X-KV-Secret',
 };
+
+// Credentialed CORS (reflects the exact origin + allows cookies) — needed only for /me,
+// since browsers reject `Access-Control-Allow-Origin: *` on requests sent with
+// credentials:'include'. Kept separate from the generic CORS_HEADERS above (used by every
+// other route, none of which rely on cookies) so this doesn't change behavior elsewhere.
+function credentialedCorsHeaders(request) {
+  const origin = request.headers.get('Origin') || '*';
+  return {
+    'Access-Control-Allow-Origin': origin,
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Accept, X-KV-Secret',
+    'Access-Control-Allow-Credentials': 'true',
+    'Vary': 'Origin',
+  };
+}
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { ...CORS_HEADERS, 'Content-Type': 'application/json; charset=utf-8' },
+    headers: { ...CORS_HEADERS, 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' },
   });
 }
 
@@ -66,7 +84,11 @@ async function jiraFetch(env, path, options = {}) {
     },
   });
   const body = await res.text();
-  return new Response(body, {
+  // 204/205/304 are null-body statuses — the Response constructor throws if given
+  // a non-null body (even an empty string) alongside one of these, as happens with
+  // Jira's DELETE /comment/:id, which returns 204 with an empty body.
+  const isNullBodyStatus = res.status === 204 || res.status === 205 || res.status === 304;
+  return new Response(isNullBodyStatus ? null : body, {
     status: res.status,
     headers: { ...CORS_HEADERS, 'Content-Type': 'application/json; charset=utf-8' },
   });
@@ -115,9 +137,10 @@ export default {
     const path = url.pathname;
     const method = request.method;
 
-    // CORS preflight
+    // CORS preflight — reflect the exact origin (rather than wildcard) so a credentialed
+    // request (e.g. to /me) can also pass its preflight; harmless for every other route.
     if (method === 'OPTIONS') {
-      return new Response(null, { status: 204, headers: CORS_HEADERS });
+      return new Response(null, { status: 204, headers: credentialedCorsHeaders(request) });
     }
 
     // GET /kv/:key — read from KV
@@ -125,7 +148,12 @@ export default {
       if (env.KV_SECRET && request.headers.get('X-KV-Secret') !== env.KV_SECRET) return json({ error: 'Unauthorized' }, 401);
       const key = path.substring(4);
       if (!KV_ALLOWED_KEYS.has(key)) return json({ error: 'Invalid key' }, 400);
-      const value = await env.DASHBOARD_KV.get(key);
+      // cacheTtl: 60 is the lowest Cloudflare KV allows — without it, a GET can be served
+      // from this edge location's own cache for much longer, which is how two fetches from
+      // the same browser seconds apart returned different item counts (one hit a fresher
+      // read, one hit a stale cached one). Cache-Control: no-store (in json()) covers the
+      // HTTP layer; this covers KV's own internal edge cache.
+      const value = await env.DASHBOARD_KV.get(key, { cacheTtl: 60 });
       if (!value) return json(null);
       let parsed;
       try { parsed = JSON.parse(value); } catch { return json({ error: 'Corrupt KV value' }, 500); }
@@ -143,20 +171,109 @@ export default {
       return json({ ok: true });
     }
 
+    // POST /activity-log — append one entry under its own KV key so concurrent writers
+    // from different browsers never collide (unlike a single shared JSON array, which
+    // needs read-modify-write and loses entries under concurrent writes). Cloudflare KV's
+    // native TTL handles pruning automatically — no separate cleanup needed.
+    if (method === 'POST' && path === '/activity-log') {
+      if (env.KV_SECRET && request.headers.get('X-KV-Secret') !== env.KV_SECRET) return json({ error: 'Unauthorized' }, 401);
+      const body = await request.text();
+      let entry;
+      try { entry = JSON.parse(body); } catch { return json({ error: 'Invalid JSON' }, 400); }
+      const ts = entry.ts || Date.now();
+      const key = `activity-log:${String(ts).padStart(14, '0')}:${Math.random().toString(36).slice(2, 8)}`;
+      await env.DASHBOARD_KV.put(key, JSON.stringify({ ...entry, ts }), { expirationTtl: 7 * 24 * 60 * 60 });
+      return json({ ok: true });
+    }
+
+    // GET /activity-log — aggregate every entry under the prefix, newest first
+    if (method === 'GET' && path === '/activity-log') {
+      if (env.KV_SECRET && request.headers.get('X-KV-Secret') !== env.KV_SECRET) return json({ error: 'Unauthorized' }, 401);
+      const entries = [];
+      let cursor;
+      do {
+        const page = await env.DASHBOARD_KV.list({ prefix: 'activity-log:', cursor, limit: 1000 });
+        for (const k of page.keys) {
+          const val = await env.DASHBOARD_KV.get(k.name, { cacheTtl: 60 });
+          if (val) { try { entries.push(JSON.parse(val)); } catch {} }
+        }
+        cursor = page.list_complete ? undefined : page.cursor;
+      } while (cursor);
+      entries.sort((a, b) => (b.ts || 0) - (a.ts || 0));
+      return json(entries);
+    }
+
+    // POST /tombstone — body {id, storeKey} — records one deletion as its own KV key
+    // (`tombstone:{storeKey}:{id}`), so concurrent add/remove calls from different sessions
+    // are independent atomic KV operations instead of a shared-array read-modify-write that
+    // can silently lose or resurrect entries under concurrent writes. 180-day native TTL
+    // handles pruning automatically.
+    if (method === 'POST' && path === '/tombstone') {
+      if (env.KV_SECRET && request.headers.get('X-KV-Secret') !== env.KV_SECRET) return json({ error: 'Unauthorized' }, 401);
+      const body = await request.text();
+      let entry;
+      try { entry = JSON.parse(body); } catch { return json({ error: 'Invalid JSON' }, 400); }
+      if (!entry.id || !entry.storeKey) return json({ error: 'id and storeKey required' }, 400);
+      const ts = entry.ts || Date.now();
+      const key = `tombstone:${entry.storeKey}:${entry.id}`;
+      await env.DASHBOARD_KV.put(key, JSON.stringify({ id: entry.id, storeKey: entry.storeKey, ts }), { expirationTtl: 180 * 24 * 60 * 60 });
+      return json({ ok: true });
+    }
+
+    // DELETE /tombstone — body {id, storeKey} — must be called before deliberately
+    // re-adding a previously-deleted item, otherwise the next save would strip it right
+    // back out.
+    if (method === 'DELETE' && path === '/tombstone') {
+      if (env.KV_SECRET && request.headers.get('X-KV-Secret') !== env.KV_SECRET) return json({ error: 'Unauthorized' }, 401);
+      const body = await request.text();
+      let entry;
+      try { entry = JSON.parse(body); } catch { return json({ error: 'Invalid JSON' }, 400); }
+      if (!entry.id || !entry.storeKey) return json({ error: 'id and storeKey required' }, 400);
+      const key = `tombstone:${entry.storeKey}:${entry.id}`;
+      await env.DASHBOARD_KV.delete(key);
+      return json({ ok: true });
+    }
+
+    // GET /tombstones?storeKey=X — list every tombstoned id for one store
+    if (method === 'GET' && path === '/tombstones') {
+      if (env.KV_SECRET && request.headers.get('X-KV-Secret') !== env.KV_SECRET) return json({ error: 'Unauthorized' }, 401);
+      const storeKey = url.searchParams.get('storeKey');
+      if (!storeKey) return json({ error: 'storeKey required' }, 400);
+      const prefix = `tombstone:${storeKey}:`;
+      const entries = [];
+      let cursor;
+      do {
+        const page = await env.DASHBOARD_KV.list({ prefix, cursor, limit: 1000 });
+        for (const k of page.keys) {
+          const val = await env.DASHBOARD_KV.get(k.name, { cacheTtl: 60 });
+          if (val) { try { entries.push(JSON.parse(val)); } catch {} }
+        }
+        cursor = page.list_complete ? undefined : page.cursor;
+      } while (cursor);
+      return json(entries);
+    }
+
     // Health check
     if (path === '/health') {
       return json({ ok: true });
     }
 
-    // GET /me — return current user's email from Cloudflare Access JWT
+    // GET /me — return current user's email from Cloudflare Access JWT. Needs credentialed
+    // CORS (reflected origin + Allow-Credentials) since the browser only attaches the
+    // Access session cookie cross-origin when the request is sent with credentials:'include'.
     if (method === 'GET' && path === '/me') {
+      const meCors = credentialedCorsHeaders(request);
+      const meJson = (data, status = 200) => new Response(JSON.stringify(data), {
+        status,
+        headers: { ...meCors, 'Content-Type': 'application/json; charset=utf-8' },
+      });
       const jwt = request.headers.get('Cf-Access-Jwt-Assertion');
-      if (!jwt) return json({ email: null });
+      if (!jwt) return meJson({ email: null });
       try {
         const payload = JSON.parse(atob(jwt.split('.')[1]));
-        return json({ email: payload.email || null });
+        return meJson({ email: payload.email || null });
       } catch {
-        return json({ email: null });
+        return meJson({ email: null });
       }
     }
 
@@ -202,7 +319,7 @@ export default {
       return json(allIssues);
     }
 
-    // GET/PUT /jira/issue/:key  (and sub-paths like /jira/issue/:key/editmeta)
+    // GET/PUT/POST/DELETE /jira/issue/:key  (and sub-paths like /jira/issue/:key/comment/:id)
     if (path.startsWith('/jira/issue/')) {
       const jiraPath = path.substring('/jira/'.length); // e.g. issue/PSVAMB-123
       const queryString = url.search; // includes ?fields=... etc
@@ -216,6 +333,9 @@ export default {
           headers: { 'Content-Type': 'application/json' },
           body,
         });
+      }
+      if (method === 'DELETE') {
+        return jiraFetch(env, jiraPath, { method });
       }
     }
 
@@ -295,29 +415,6 @@ export default {
         sfTokenCache = null;
         return json({ sfError: e.message });
       }
-    }
-
-    // GET /kv/:key
-    if (method === 'GET' && path.startsWith('/kv/')) {
-      if (request.headers.get('X-KV-Secret') !== env.KV_SECRET) return json({ error: 'Unauthorized' }, 401);
-      const key = path.substring('/kv/'.length);
-      if (!key) return json({ error: 'key required' }, 400);
-      const value = await env.DASHBOARD_KV.get(key, 'text');
-      if (value === null) return json(null);
-      return new Response(value, {
-        status: 200,
-        headers: { ...CORS_HEADERS, 'Content-Type': 'application/json; charset=utf-8' },
-      });
-    }
-
-    // PUT /kv/:key
-    if (method === 'PUT' && path.startsWith('/kv/')) {
-      if (request.headers.get('X-KV-Secret') !== env.KV_SECRET) return json({ error: 'Unauthorized' }, 401);
-      const key = path.substring('/kv/'.length);
-      if (!key) return json({ error: 'key required' }, 400);
-      const body = await request.text();
-      await env.DASHBOARD_KV.put(key, body);
-      return json({ ok: true });
     }
 
     return json({ error: 'Not found' }, 404);

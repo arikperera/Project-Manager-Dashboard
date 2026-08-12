@@ -143,6 +143,10 @@ function generateHTMLReport() {
     ...projects,
     ...tasks.map(t => ({ ...t, manager: t.owner, name: t.name || t.parentProjectName })),
   ];
+  const allProjCount = allItems.filter(p => p.type !== 'task').length;
+  const allTaskCount = allItems.filter(p => p.type === 'task').length;
+  const allProjectsLabel = (projCount, taskCount) =>
+    `${projCount} project${projCount === 1 ? '' : 's'}${taskCount ? ` · ${taskCount} task${taskCount === 1 ? '' : 's'}` : ''}`;
   const grouped = allItems.reduce((acc, p) => {
     const key = p.manager || 'Unassigned';
     if (!acc[key]) acc[key] = [];
@@ -211,7 +215,7 @@ function generateHTMLReport() {
   const newSection = newProjects.length && backups.length >= 1 ? `
     <section style="margin-bottom:32px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-        <h2 style="font-size:1.1rem;color:#7dd3fc;margin:0">Newly Added Projects</h2>
+        <h2 style="font-size:1.1rem;margin:0">Newly Added Projects (<span id="newSectionCount" data-orig="${newProjects.length}">${newProjects.length}</span>)</h2>
         <select onchange="changePageSize(this)" style="background:#0b1220;color:#eff6ff;border:1px solid #223249;border-radius:8px;padding:5px 10px;font-size:0.85rem;cursor:pointer;">
           <option value="5">Show 5</option><option value="10">Show 10</option>
         </select>
@@ -307,7 +311,9 @@ ${(() => {
   const regionStats = {};
   REGIONS.forEach(r => {
     const rp = projects.filter(p => p.region === r);
+    const rt = tasks.filter(t => t.region === r);
     const rAtRisk = rp.filter(p => Number(p.progress) >= 100);
+    const rHealthAtRisk = rp.filter(p => p.health === 'Red' || p.health === 'Yellow');
     const rNew = backups.length >= 1 ? rp.filter(p => !backupNames.has(p.name)) : [];
     regionStats[r] = {
       total: rp.length,
@@ -317,6 +323,9 @@ ${(() => {
       hYellow: rp.filter(p => p.health==='Yellow').length,
       hRed: rp.filter(p => p.health==='Red').length,
       atRisk: rAtRisk.length,
+      healthAtRisk: rHealthAtRisk.length,
+      allProjCount: rp.length,
+      allTaskCount: rt.length,
       newCount: rNew.length,
       newNrr: rNew.reduce((s,p) => s + (Number(p.nrrUsd)||0), 0),
       newMrr: rNew.reduce((s,p) => s + (Number(p.mrrUsd)||0), 0),
@@ -365,7 +374,7 @@ ${(() => {
 
 <section>
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
-    <h2 style="margin:0">Over Budget Projects</h2>
+    <h2 style="margin:0">Over Budget Projects (<span id="atRiskSectionCount" data-orig="${atRisk.length}">${atRisk.length}</span>)</h2>
     <select onchange="changePageSize(this)" style="background:#0b1220;color:#eff6ff;border:1px solid #223249;border-radius:8px;padding:5px 10px;font-size:0.85rem;cursor:pointer;">
       <option value="5">Show 5</option><option value="10">Show 10</option>
     </select>
@@ -384,7 +393,7 @@ ${(() => {
   <div style="border-top:1px solid #223249;margin:24px 0 14px;"></div>
 
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
-    <h2 style="margin:0">Project Health</h2>
+    <h2 style="margin:0">Project Health (<span id="healthSectionCount" data-orig="${healthAtRisk.length}">${healthAtRisk.length}</span>)</h2>
     <select onchange="changePageSize(this)" style="background:#0b1220;color:#eff6ff;border:1px solid #223249;border-radius:8px;padding:5px 10px;font-size:0.85rem;cursor:pointer;">
       <option value="5">Show 5</option><option value="10">Show 10</option>
     </select>
@@ -404,7 +413,7 @@ ${(() => {
 ${newSection}
 
 <section>
-  <h2>All Projects</h2>
+  <h2>All Projects (<span id="allProjectsSectionCount" data-orig-proj="${allProjCount}" data-orig-task="${allTaskCount}">${allProjectsLabel(allProjCount, allTaskCount)}</span>)</h2>
   <div class="filter-bar">
     <select id="rPmFilter" onchange="applyFilters()">
       <option value="">All PMs</option>${pmOptions}
@@ -533,12 +542,26 @@ function applyRegionFilter() {
     if (el('rptNewCount')) el('rptNewCount').textContent = s.newCount;
     if (el('rptNewMrr')) el('rptNewMrr').textContent = formatCurrencyRpt(s.newMrr);
     if (el('rptNewNrr')) el('rptNewNrr').textContent = formatCurrencyRpt(s.newNrr);
+    if (el('atRiskSectionCount')) el('atRiskSectionCount').textContent = s.atRisk;
+    if (el('healthSectionCount')) el('healthSectionCount').textContent = s.healthAtRisk;
+    if (el('newSectionCount')) el('newSectionCount').textContent = s.newCount;
+    if (el('allProjectsSectionCount')) {
+      const e = el('allProjectsSectionCount');
+      const pc = s.allProjCount, tc = s.allTaskCount;
+      e.textContent = pc + ' project' + (pc === 1 ? '' : 's') + (tc ? (' · ' + tc + ' task' + (tc === 1 ? '' : 's')) : '');
+    }
   } else {
     // restore original values from data attributes
-    ['rptTotal','rptMrr','rptNrr','rptHGreen','rptHYellow','rptHRed','rptAtRisk','rptNewCount','rptNewMrr','rptNewNrr'].forEach(id => {
+    ['rptTotal','rptMrr','rptNrr','rptHGreen','rptHYellow','rptHRed','rptAtRisk','rptNewCount','rptNewMrr','rptNewNrr',
+     'atRiskSectionCount','healthSectionCount','newSectionCount'].forEach(id => {
       const e = el(id);
       if (e && e.dataset.orig !== undefined) e.textContent = e.dataset.orig;
     });
+    const allEl = el('allProjectsSectionCount');
+    if (allEl && allEl.dataset.origProj !== undefined) {
+      const pc = Number(allEl.dataset.origProj), tc = Number(allEl.dataset.origTask);
+      allEl.textContent = pc + ' project' + (pc === 1 ? '' : 's') + (tc ? (' · ' + tc + ' task' + (tc === 1 ? '' : 's')) : '');
+    }
   }
   // Reset pagination so page windows respect the new filter, then re-apply
   // PM/health/progress filters on top of the region selection.
@@ -569,7 +592,19 @@ const exportOnlyBtn = document.getElementById('exportOnlyBtn');
 const exportAndBackupBtn = document.getElementById('exportAndBackupBtn');
 const exportCancelBtn = document.getElementById('exportCancelBtn');
 
-exportBtn.addEventListener('click', () => {
+async function checkActionPassword(action) {
+  const result = await openAppDialog({
+    title: `Enter password to ${action}`,
+    eyebrow: 'Password required',
+    isPassword: true,
+    confirmLabel: 'OK',
+    validate: (value) => (value === '1271' ? null : 'Incorrect password.'),
+  });
+  return result !== null;
+}
+
+exportBtn.addEventListener('click', async () => {
+  if (!(await checkActionPassword('export report'))) return;
   exportChoiceModal.classList.remove('hidden');
   exportChoiceModal.setAttribute('aria-hidden', 'false');
 });
@@ -785,16 +820,55 @@ usersModalBody.addEventListener('click', (e) => {
 
     propagateUserRename(oldName, newName);
     saveUsers();
-    saveProjects();
+    saveProjects('user-rename-propagation');
     renderAll();
     renderUsersModal();
   }
 });
 
-createBackupBtn.addEventListener('click', () => createBackup(createBackupBtn));
+createBackupBtn.addEventListener('click', async () => {
+  if (!(await checkActionPassword('create a backup'))) return;
+  createBackup(createBackupBtn);
+});
 backupsPanelBtn.addEventListener('click', openBackupsModal);
 closeBackupsModalBtn.addEventListener('click', closeBackupsModal);
 backupsModal.addEventListener('click', (e) => { if (e.target === backupsModal) closeBackupsModal(); });
+
+closedProjectsBtn.addEventListener('click', openClosedProjectsModal);
+closeClosedProjectsModalBtn.addEventListener('click', closeClosedProjectsModal);
+closedProjectsModal.addEventListener('click', (e) => { if (e.target === closedProjectsModal) closeClosedProjectsModal(); });
+
+closedSearchInput.addEventListener('input', renderClosedProjectsPanel);
+closedPmFilter.addEventListener('change', renderClosedProjectsPanel);
+closedRegionFilter.addEventListener('change', renderClosedProjectsPanel);
+closedMonthFilter.addEventListener('change', renderClosedProjectsPanel);
+closedQuarterFilter.addEventListener('change', renderClosedProjectsPanel);
+
+resetClosedFiltersBtn.addEventListener('click', () => {
+  closedSearchInput.value = '';
+  closedPmFilter.value = 'All';
+  closedRegionFilter.value = '';
+  closedMonthFilter.value = '';
+  closedQuarterFilter.value = '';
+  renderClosedProjectsPanel();
+});
+
+refreshClosedProjectsBtn.addEventListener('click', async () => {
+  const orig = refreshClosedProjectsBtn.textContent;
+  refreshClosedProjectsBtn.textContent = '↻ Syncing...';
+  refreshClosedProjectsBtn.disabled = true;
+  try {
+    const fresh = await kvGet(CLOSED_PROJECTS_KEY);
+    if (fresh) {
+      closedProjects = fresh;
+      try { localStorage.setItem(CLOSED_PROJECTS_KEY, JSON.stringify(closedProjects)); } catch {}
+    }
+    renderClosedProjectsPanel();
+  } finally {
+    refreshClosedProjectsBtn.textContent = orig;
+    refreshClosedProjectsBtn.disabled = false;
+  }
+});
 
 backupSidebar.addEventListener('click', (e) => {
   const entry = e.target.closest('[data-backup-id]');
@@ -1003,13 +1077,19 @@ deleteProjectBtn.addEventListener('click', async () => {
   if (itemType === 'task') {
     const deletedId = tasks[deleteProjectIndex]?.id;
     tasks.splice(deleteProjectIndex, 1);
-    if (deletedId) addPendingDelete(deletedId, TASKS_KEY);
-    await saveTasks();
+    if (deletedId) {
+      addPendingDelete(deletedId, TASKS_KEY);
+      await addKvTombstone(deletedId, TASKS_KEY);
+    }
+    await saveTasks('manual-delete');
   } else {
     const deletedKey = getItemDeleteKey(projects[deleteProjectIndex] || {});
     projects.splice(deleteProjectIndex, 1);
-    if (deletedKey) addPendingDelete(deletedKey, STORAGE_KEY);
-    await saveProjects();
+    if (deletedKey) {
+      addPendingDelete(deletedKey, STORAGE_KEY);
+      await addKvTombstone(deletedKey, STORAGE_KEY);
+    }
+    await saveProjects('manual-delete');
   }
   renderAll();
   closeDeleteProjectModal();
@@ -1024,23 +1104,45 @@ backupAndDeleteProjectBtn.addEventListener('click', async () => {
   const itemType = deleteProjectModal.dataset.itemType || 'project';
   const item = itemType === 'task' ? tasks[deleteProjectIndex] : projects[deleteProjectIndex];
   const latestBackup = backups[0];
-  const existingIndex = latestBackup.projects.findIndex(p => p.name === (item.name || item.parentProjectName));
+  // Match by type + a stable key (task id / project jira) — matching by name alone would
+  // wrongly match a task against its own parent project's backup entry (same name), and
+  // silently overwrite the project's snapshot with the task's data.
+  const existingIndex = latestBackup.projects.findIndex(p =>
+    itemType === 'task' ? (p.type === 'task' && p.id === item.id) : (p.type !== 'task' && p.jira === item.jira)
+  );
   if (existingIndex >= 0) {
     latestBackup.projects[existingIndex] = JSON.parse(JSON.stringify(item));
   } else {
     latestBackup.projects.push(JSON.parse(JSON.stringify(item)));
   }
-  await saveBackups();
+  await saveBackups('backup-and-delete');
   if (itemType === 'task') {
     const deletedId = tasks[deleteProjectIndex]?.id;
     tasks.splice(deleteProjectIndex, 1);
-    if (deletedId) addPendingDelete(deletedId, TASKS_KEY);
-    await saveTasks();
+    if (deletedId) {
+      addPendingDelete(deletedId, TASKS_KEY);
+      await addKvTombstone(deletedId, TASKS_KEY);
+    }
+    await saveTasks('backup-and-delete');
   } else {
     const deletedKey = getItemDeleteKey(projects[deleteProjectIndex] || {});
+    const closedCopy = JSON.parse(JSON.stringify(projects[deleteProjectIndex]));
+    const resolutionDate = await getJiraResolutionDate(getJiraIssueKey(closedCopy.jira));
+    closedCopy.closedAt = resolutionDate || new Date().toISOString();
+    // Refresh from KV right before mutating — a long-lived tab's in-memory copy can be
+    // stale (missing closures added by other sessions since page load), and saving it
+    // wholesale would silently wipe those out.
+    const freshClosed = await kvGet(CLOSED_PROJECTS_KEY);
+    if (Array.isArray(freshClosed)) closedProjects = freshClosed;
+    closedProjects = closedProjects.filter(p => (p.jira || '') !== (closedCopy.jira || ''));
+    closedProjects.push(closedCopy);
+    await saveClosedProjects('backup-and-delete');
     projects.splice(deleteProjectIndex, 1);
-    if (deletedKey) addPendingDelete(deletedKey, STORAGE_KEY);
-    await saveProjects();
+    if (deletedKey) {
+      addPendingDelete(deletedKey, STORAGE_KEY);
+      await addKvTombstone(deletedKey, STORAGE_KEY);
+    }
+    await saveProjects('backup-and-delete');
   }
   renderAll();
   closeDeleteProjectModal();
@@ -1064,7 +1166,7 @@ let importDebounceTimer = null;
 let importSelectedPm = null; // { accountId, displayName }
 let importFetchedIssues = []; // raw Jira issue objects
 
-function openImportModal() {
+async function openImportModal() {
   clearTimeout(importDebounceTimer);
   importPmSearch.value = '';
   importPmResults.classList.add('hidden');
@@ -1081,6 +1183,9 @@ function openImportModal() {
   importModal.classList.remove('hidden');
   importModal.setAttribute('aria-hidden', 'false');
   setTimeout(() => importPmSearch.focus(), 50);
+  // Refresh from KV so "already imported" detection (getExistingJiraKeys) reflects the
+  // true current state, not a possibly-stale in-memory copy from earlier in this tab's session.
+  await refreshProjectsAndTasksFromKv();
 }
 
 function closeImportModal() {
@@ -1270,6 +1375,12 @@ importConfirmBtn.addEventListener('click', async () => {
       if (sfResp.ok) sfData = await sfResp.json();
     } catch {}
     const project = buildProjectFromEnrichment(issue, sfData);
+    // Clear any lingering tombstone for this jira key — otherwise saveProjects would strip
+    // this deliberate re-import right back out, since it still matches a prior deletion.
+    if (project.jira) {
+      removePendingDelete(project.jira, STORAGE_KEY);
+      await removeKvTombstone(project.jira, STORAGE_KEY);
+    }
     projects.unshift(project);
 
     // Auto-create PM user if not already in users list, store jiraAccountId
@@ -1307,7 +1418,7 @@ importConfirmBtn.addEventListener('click', async () => {
     done++;
   }
 
-  await Promise.all([saveUsers(), saveCustomers(), saveProjects()]);
+  await Promise.all([saveUsers(), saveCustomers(), saveProjects('import-from-jira')]);
   // Wait briefly to ensure KV write completes before reloading
   await new Promise(resolve => setTimeout(resolve, 1500));
   closeImportModal();
@@ -1356,6 +1467,7 @@ taskModalForm.addEventListener('submit', async (e) => {
   const owner = document.getElementById('taskOwner').value.trim();
   const region = document.getElementById('taskRegion').value;
   if (!custName || !projName || !owner) return;
+  const matchingProject = projects.find(p => p.jira === jira);
   tasks.push({
     id: `task_${Date.now()}`,
     type: 'task',
@@ -1368,7 +1480,9 @@ taskModalForm.addEventListener('submit', async (e) => {
     riskReason: '',
     pmStatus: '',
     statusText: '',
-    comments: '',
+    accountUrl: matchingProject?.accountUrl || '',
+    oppLink: matchingProject?.oppLink || '',
+    comments: matchingProject?.manager ? `PM - ${matchingProject.manager}` : '',
     progress: 0,
     nrr: null,
     nrrUsd: null,
@@ -1381,7 +1495,7 @@ taskModalForm.addEventListener('submit', async (e) => {
     remainingHours: null,
     actualHours: null,
   });
-  await saveTasks();
+  await saveTasks('add-task');
   renderAll();
   closeTaskModal();
 });

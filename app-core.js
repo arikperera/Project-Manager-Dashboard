@@ -1,7 +1,403 @@
 const PROXY_BASE = 'https://pm-proxy.demo.qa.kaltura.ai';
 const KV_SECRET = 'HPZTjoBph4Cz9AMGwiSsYcJf086bdgRX';
-const APP_VERSION = '1.6.0';
+const PM_IDENTITY_BASE = 'https://pm-identity.demo.qa.kaltura.ai';
+
+// Real logged-in user, read from the K-Vibe gate session cookie via pm-identity (a private
+// K-Vibe app, unlike the public pm-proxy — the cookie only reaches apps that are
+// password-gated). Cached per page load since it doesn't change mid-session.
+let _cachedCurrentUserEmail;
+async function getCurrentUserEmail() {
+  if (_cachedCurrentUserEmail !== undefined) return _cachedCurrentUserEmail;
+  try {
+    const res = await fetch(`${PM_IDENTITY_BASE}/me`, { credentials: 'include' });
+    const data = res.ok ? await res.json() : { email: null };
+    _cachedCurrentUserEmail = data.email || null;
+  } catch {
+    _cachedCurrentUserEmail = null;
+  }
+  return _cachedCurrentUserEmail;
+}
+function emailToDisplayName(email) {
+  if (!email) return '';
+  const local = email.split('@')[0];
+  return local.split('.').map(part => part.charAt(0).toUpperCase() + part.slice(1)).join(' ');
+}
+async function getCurrentUserName() {
+  return emailToDisplayName(await getCurrentUserEmail());
+}
+const APP_VERSION = '1.16.4';
 const CHANGELOG = [
+  {
+    version: '1.16.4',
+    date: '2026-08-11',
+    features: [
+      'Fix: the v1.16.3 fix for phantom "removed" log entries had no expiration — a browser tab left open for a long time (background tabs get throttled, and the periodic refresh skips itself while a modal is open) could keep comparing against a days-old local snapshot, misreporting long-gone items as newly removed every time that tab saved anything. The local snapshot is now only trusted for 90 seconds; older than that, it falls back to a fresh read.',
+    ]
+  },
+  {
+    version: '1.16.3',
+    date: '2026-08-09',
+    features: [
+      'Fix: the Activity Log could occasionally re-report an already-deleted item as "removed" a second time on a later, unrelated save. Cause: the log\'s before/after comparison re-fetched from KV each time, which is only eventually consistent across regions and could return a slightly stale snapshot. Now compares against this browser\'s own last-confirmed state instead of a fresh (and sometimes stale) read.',
+    ]
+  },
+  {
+    version: '1.16.2',
+    date: '2026-08-09',
+    features: [
+      'Removed the automatic "Dashboard (Name): Updated via PM Dashboard" Jira comment that used to post on every project edit — now that the Comments window exists for real commentary, that generic noise comment is gone. Saving an edit still syncs the actual field values (status, health, due date, etc.) to Jira as before, just without the extra comment.',
+    ]
+  },
+  {
+    version: '1.16.1',
+    date: '2026-08-09',
+    features: [
+      'Activity Log now also tracks field-level edits (PM reassignment, health, CSM/Sales, region, risk reason, AT link, due date, name/customer, and whether Project Status changed) — previously it only tracked items being added or removed, so a pure edit like reassigning a PM left no trace at all.',
+    ]
+  },
+  {
+    version: '1.16.0',
+    date: '2026-08-09',
+    features: [
+      'Fix: a deleted project could resurrect itself with zero trace in the Activity Log, if another (often stale) browser tab saved anything around the same time. Root cause: delete-tombstones lived in one shared list requiring read-modify-write on every add/remove — under concurrent writes, a stale tab\'s save could push the deleted item straight back and even erase the tombstone that was just created for it. Tombstones are now individual KV entries (same fix already applied to the Activity Log earlier), so add/remove are independent atomic operations with nothing to race. All 29 existing tombstones were migrated over; none lost protection.',
+      'Removed a redundant "clear tombstones for anything present in this save" step that ran after every single save — it was meant as a safety net for restoring an item, but every restore/import/add flow already clears the specific tombstone it needs to, and the blanket version was the actual mechanism a stale save could exploit to erase someone else\'s tombstone.',
+    ]
+  },
+  {
+    version: '1.15.3',
+    date: '2026-08-09',
+    features: [
+      'Comment attribution ("Dashboard (Name):") now sits on its own line, with the comment text starting on the next line instead of running on immediately after it.',
+    ]
+  },
+  {
+    version: '1.15.2',
+    date: '2026-08-09',
+    features: [
+      'Fix: bold/links/color could silently lose their formatting when they were the very first thing typed in Project Status or a comment (before the browser wraps subsequent lines in their own block) — formatting inside lists or later lines was unaffected. Now applies correctly everywhere.',
+    ]
+  },
+  {
+    version: '1.15.1',
+    date: '2026-08-09',
+    features: [
+      'Replaced the browser\'s native password/confirm popups (export report, create backup, delete comment) with dialogs styled to match the rest of the dashboard.',
+      'Delete-comment button now uses a clearer red trash-can icon instead of an emoji.',
+    ]
+  },
+  {
+    version: '1.15.0',
+    date: '2026-08-08',
+    features: [
+      'New "Comments" button on every project/task row (between Edit and Delete) opens a window to write and view Jira comments without leaving the dashboard — same rich-text toolbar as Project Status, existing comments shown newest-first, posted comments prefixed "Dashboard (Real Name): ...".',
+      'Type @ in the comment composer or Project Status editor to search Jira users and insert a real mention — the mentioned person gets a genuine Jira notification.',
+      'Edit/Delete buttons relabeled to "Edit Project"/"Delete Project" (or "Edit Task"/"Delete Task") for clarity now that there\'s a third button.',
+      'Each existing comment in the Comments window now has a trash button to delete it from Jira (with a confirmation prompt first, since it can\'t be undone).',
+    ]
+  },
+  {
+    version: '1.14.1',
+    date: '2026-08-08',
+    features: [
+      'Fix: Import/Add Project could silently fail to persist if the project\'s Jira key was still tombstoned from an earlier deletion — the save step would strip it right back out. Both flows now clear any lingering tombstone before saving.',
+      'pollForNewProjects (auto-add) now also checks shared KV tombstones, not just this browser\'s own pending deletes, so it won\'t auto-resurrect something deleted from another session.',
+      'Jira comment attribution format changed to "Dashboard (Real Name): Updated via PM Dashboard".',
+    ]
+  },
+  {
+    version: '1.14.0',
+    date: '2026-08-08',
+    features: [
+      'Real user identity: reads the K-Vibe gate session cookie via a new private helper app (pm-identity) to know who\'s actually logged in.',
+      'Activity Log now shows a "By" column with the real person who took each action.',
+      'Jira comments posted from the dashboard are now prefixed with the real logged-in user, e.g. "Arik Perera (Dashboard - Real User): Updated via PM Dashboard" — the Jira account posting it is still the shared service account, but the comment text now says who really made the change.',
+    ]
+  },
+  {
+    version: '1.13.5',
+    date: '2026-08-07',
+    features: [
+      'Activity Log now also tracks Closed Projects and Backups (previously untracked) — so if entries disappear from either again, there\'ll be a record of when and via what action.',
+    ]
+  },
+  {
+    version: '1.13.4',
+    date: '2026-08-07',
+    features: [
+      'Critical fix: v1.13.3 broke the entire dashboard (blank page, zero projects). Cause: the last fix used a nested template literal inside the Export report\'s inline script — but that whole script lives inside app-modals.js\'s own outer template literal, so the extra backticks broke out of it and corrupted every line after. Replaced with plain string concatenation. Verified with node --check before deploying this time.',
+    ]
+  },
+  {
+    version: '1.13.3',
+    date: '2026-08-07',
+    features: [
+      'Fix: Export report\'s "All Projects" header counted projects + tasks combined, while "Total Projects" up top counts projects only — the two numbers looked contradictory. "All Projects" now shows a clear breakdown, e.g. "106 projects · 13 tasks".',
+    ]
+  },
+  {
+    version: '1.13.2',
+    date: '2026-08-07',
+    features: [
+      'Fix: the new section-header counts in Export report (Over Budget, Project Health, Newly Added, All Projects) were static and didn\'t update with the Region filter, unlike the top stat cards. They now update together.',
+    ]
+  },
+  {
+    version: '1.13.1',
+    date: '2026-08-07',
+    features: [
+      'Export report: fixed "Newly Added Projects" header color (was a stray blue, now matches every other section), and every section header now shows its count in parentheses — e.g. "Over Budget Projects (15)"',
+    ]
+  },
+  {
+    version: '1.13.0',
+    date: '2026-08-07',
+    features: [
+      'Create backup / Export and Backup now snapshots current tasks too, not just projects and users — grouped under each task\'s owner, same as everywhere else.',
+      'Backups viewer and Restore checklist updated to match — a "Restore tasks" option now appears alongside Restore projects/users.',
+    ]
+  },
+  {
+    version: '1.12.7',
+    date: '2026-08-06',
+    features: [
+      'Fix: the Backups viewer grouped tasks under "Unassigned" and showed "undefined" for their project name — it only knew about project fields (.manager/.name), not task fields (.owner/.parentProjectName). Now shows tasks under their real owner with the correct project name.',
+      'Cleaned up duplicate backup entries left over from earlier resurrection bugs (same task pushed into the July 22 backup multiple times before the type-aware matching fix).',
+    ]
+  },
+  {
+    version: '1.12.6',
+    date: '2026-08-06',
+    features: [
+      'Fix: Backup & Delete on a task matched against the latest backup by name, which falls back to the task\'s parent project name — silently overwriting that project\'s backup snapshot with the task\'s data. Matching is now type-aware (task id / project jira), so tasks and projects can never collide in a backup.',
+    ]
+  },
+  {
+    version: '1.12.5',
+    date: '2026-08-06',
+    features: [
+      'Fix: closedProjects (Closed Projects archive) could be silently wiped by a long-lived tab with a stale local copy doing a Backup & Delete or Restore — it\'s only refreshed from KV at page load, so a tab open for hours would overwrite the whole archive with its outdated snapshot on the next mutation. Both write paths now refresh from KV immediately before mutating.',
+      'Recovered 7 of Hadar Blonskey\'s Aug 5th closures that were wiped by this bug, using full project snapshots preserved in the July 22 backup.',
+    ]
+  },
+  {
+    version: '1.12.4',
+    date: '2026-08-06',
+    features: [
+      'Critical fix: tasks have both a jira field (parent project) and their own id, but every tombstone/pending-delete check used the jira field as the match key — while task tombstones are recorded by task id. The two never matched, so task tombstones have silently done nothing since they were introduced. getItemDeleteKey now uses id for tasks.',
+      'Backups now get the same delete protection as projects/tasks: deleting a backup records a tombstone, and saveBackups strips tombstoned entries before writing — closes the same resurrection class for the Backups tab.',
+    ]
+  },
+  {
+    version: '1.12.3',
+    date: '2026-08-06',
+    features: [
+      'Fix: the periodic background poll could resurrect an already-deleted project/task if a long-lived browser tab still held a stale local copy whose tombstone had since cleared. The poll no longer auto-pushes "local-only" items back to KV — it still shows them locally, but persistence now only happens through the actual save action or the dedicated reconnect-sync flow, both of which are tombstone-protected.',
+    ]
+  },
+  {
+    version: '1.12.2',
+    date: '2026-08-06',
+    features: [
+      'Export report and Create backup now require a password before proceeding',
+    ]
+  },
+  {
+    version: '1.12.1',
+    date: '2026-08-06',
+    features: [
+      'Fix: Import from Jira could silently skip a project if this browser tab\'s in-memory list was stale (still showing it as "already imported" from before it was deleted). The import modal now refreshes from KV every time it opens.',
+    ]
+  },
+  {
+    version: '1.12.0',
+    date: '2026-08-06',
+    features: [
+      'Activity Log rearchitected: each entry now writes to its own KV key (via new pm-proxy /activity-log routes) instead of a shared JSON array, so concurrent writes from different browsers can no longer silently overwrite each other\'s entries. Old entries auto-expire after 7 days via KV TTL.',
+    ]
+  },
+  {
+    version: '1.11.6',
+    date: '2026-08-06',
+    features: [
+      'Fix: a reassigned project (PM changed in Jira) could revert back to the old PM a few minutes later — a stale browser tab\'s periodic Jira sync would write its whole outdated projects list back to KV, clobbering the reassignment. Both sync loops now refresh from KV before applying any field updates.',
+    ]
+  },
+  {
+    version: '1.11.5',
+    date: '2026-08-06',
+    features: [
+      'Fix: Activity Log table was inheriting the main dashboard\'s fixed 1500px-min-width table styling, ignoring all column-width tweaks. Now uses its own compact table style — columns size to content, Added/Removed merged into one column.',
+    ]
+  },
+  {
+    version: '1.11.4',
+    date: '2026-08-06',
+    features: [
+      'Activity Log: tighter column widths, human-readable reason labels (e.g. "Jira field sync" instead of "jira-progress-sync"), and de-duplication of near-simultaneous entries for the same add/remove (fixes a project appearing to be logged twice right after import)',
+    ]
+  },
+  {
+    version: '1.11.3',
+    date: '2026-08-06',
+    features: [
+      'Activity Log: narrower When/Store/Reason/Count columns to give Added/Removed more room; Jira IDs in those columns are now clickable links',
+    ]
+  },
+  {
+    version: '1.11.2',
+    date: '2026-08-06',
+    features: [
+      'Fix: Restore (from Closed Projects or from a full Backup) immediately undid itself — saveProjects\' tombstone-strip check removed the restored item right back out since its old delete tombstone was never cleared. Both restore paths now clear the relevant tombstone(s) first.',
+    ]
+  },
+  {
+    version: '1.11.1',
+    date: '2026-08-06',
+    features: [
+      'Closed Projects: the Closed date is highlighted in amber for 3 days after closure, to flag recent activity at a glance',
+      'Backups: recently created backups (within 3 days) are highlighted in the sidebar the same way',
+    ]
+  },
+  {
+    version: '1.11.0',
+    date: '2026-08-06',
+    features: [
+      'Added Activity Log (Settings > Diagnostics) — records every add/remove to projects and tasks with a reason tag (manual delete, backup & delete, Jira sync, auto-add, restore, etc.), filterable by last 24h/48h/7 days',
+    ]
+  },
+  {
+    version: '1.10.5',
+    date: '2026-08-05',
+    features: [
+      'Added "Project added month" filter to the dashboard (between Progress and Due month) — shows projects with a Start Date in the current, previous, or 2-months-prior month',
+    ]
+  },
+  {
+    version: '1.10.4',
+    date: '2026-08-05',
+    features: [
+      'Fix: a stale browser session touched by a Jira sync (progress/status) could push a deleted project or task straight back to KV via saveProjects/saveTasks, bypassing all tombstone checks. Both save functions now always strip tombstoned items before writing.',
+    ]
+  },
+  {
+    version: '1.10.3',
+    date: '2026-08-05',
+    features: [
+      'Fix: "Projects" count badge on the dashboard was counting projects + tasks combined. Now counts projects only, matching the top nav total.',
+    ]
+  },
+  {
+    version: '1.10.2',
+    date: '2026-08-05',
+    features: [
+      'Tasks now inherit Customer/Account URL and Opportunity URL from their linked project, so those columns are hyperlinked same as projects',
+      'Tasks: Manager Notes now shows "PM - <name>" for the PM of the linked project/Jira, set at creation time',
+      'Backfilled both fixes for all 13 existing tasks',
+    ]
+  },
+  {
+    version: '1.10.1',
+    date: '2026-08-05',
+    features: [
+      'Added a live count badge next to "Projects" on the dashboard and "Closed Projects" in the archive — both update dynamically as filters are applied',
+    ]
+  },
+  {
+    version: '1.10.0',
+    date: '2026-08-05',
+    features: [
+      'Closed Projects: added search, PM filter, Region filter, Closed Month filter, Closed Quarter filter (e.g. Q326), and matching Refresh/Reset buttons',
+    ]
+  },
+  {
+    version: '1.9.6',
+    date: '2026-08-05',
+    features: [
+      'Fix: reconnecting after a dropped connection pushed a stale local copy of projects/tasks straight to KV with no tombstone check, which could resurrect something another session had already deleted. The reconnect sync now strips tombstoned items first.',
+    ]
+  },
+  {
+    version: '1.9.5',
+    date: '2026-08-03',
+    features: [
+      'Delete project dialog wording updated: Backup & Delete is now reversible via Closed Projects > Restore, so the message no longer claims all deletion is permanent',
+    ]
+  },
+  {
+    version: '1.9.4',
+    date: '2026-08-03',
+    features: [
+      'Fix: search matched the full Jira URL, so short terms like "tp" (a substring of "http") falsely matched nearly every project. Search now matches only the numeric Jira ID (e.g. 146770), not the project key prefix or URL.',
+    ]
+  },
+  {
+    version: '1.9.3',
+    date: '2026-08-03',
+    features: [
+      'Closed date now pulled from Jira resolution date (when the issue was marked Done/Canceled) instead of the local delete timestamp',
+      'Closed Projects: Customer and Opportunity columns are now hyperlinked, same as the main dashboard',
+      'Backfilled Closed date corrections for all 13 historical closures using real Jira resolution dates',
+    ]
+  },
+  {
+    version: '1.9.2',
+    date: '2026-08-03',
+    features: [
+      'Fix: Closed date in Closed Projects showed a raw timestamp instead of a simple dd/mm/yy date like the End date column',
+    ]
+  },
+  {
+    version: '1.9.1',
+    date: '2026-08-03',
+    features: [
+      'Closed projects: within each PM group, sorted by most recently closed first',
+      'Backfilled Closed projects archive with 9 historical closures from June/July',
+    ]
+  },
+  {
+    version: '1.9.0',
+    date: '2026-08-03',
+    features: [
+      'New "Closed projects" archive — permanent record of every project sent through Backup & Delete, grouped by PM',
+      'Closed projects can be restored back into active projects from the archive',
+    ]
+  },
+  {
+    version: '1.8.2',
+    date: '2026-08-03',
+    features: [
+      'Progress filter: added "Above 100%" option to quickly view over-budget projects',
+    ]
+  },
+  {
+    version: '1.8.1',
+    date: '2026-08-03',
+    features: [
+      'Fix: "Refresh Dashboard" button bypassed tombstone/pending-delete protection — now uses the same protected merge as the background poll and page reload',
+    ]
+  },
+  {
+    version: '1.8.0',
+    date: '2026-08-03',
+    features: [
+      'Fix: deleted projects/tasks resurrecting when another browser/session still had them locally',
+      'Shared delete tombstones now stored in KV so deletions are visible across all open sessions',
+      'pollForNewProjects now respects pending deletes',
+    ]
+  },
+  {
+    version: '1.7.0',
+    date: '2026-07-31',
+    features: [
+      'app.js split into app-core.js, app-render.js, app-modals.js for faster deployment',
+      'Filter persistence — filters saved across page refreshes',
+      'URL filter params — ?pm=Name filters dashboard on load',
+      'Refresh and Reset filter buttons',
+      'KV poll merges local-only projects instead of overwriting',
+      'Import: 1.5s wait after save before reload to ensure KV write completes',
+      'Jira sync: always pull status from Jira when local statusText is empty',
+    ]
+  },
   {
     version: '1.6.0',
     date: '2026-07-02',
@@ -184,19 +580,174 @@ function removePendingDelete(id, storeKey) {
 }
 
 function getItemDeleteKey(item) {
-  // Use jira URL for projects (no id field), id for tasks/customers
+  // Tasks have BOTH a jira field (their parent project's issue) and their own id — must use
+  // id, or every tombstone/pending-delete check silently never matches (tombstones for tasks
+  // are recorded by task.id, not by the parent project's jira URL).
+  if (item.type === 'task') return item.id || '';
+  // Projects have no id field, so jira is the natural key. Fall back to id for anything else.
   return item.jira || item.id || '';
 }
 
-function applyPendingDeletes(arr, storeKey) {
-  const pending = getPendingDeletes().filter(d => d.storeKey === storeKey);
-  if (!pending.length) return arr;
-  return arr.filter(item => !pending.find(d => d.id === getItemDeleteKey(item)));
+// Shared cross-session delete tombstones — protects against another browser/session
+// pushing a deleted item back because it still has it locally. Each tombstone is its own
+// KV key server-side (see proxy-worker.js POST/DELETE/GET /tombstone(s)), not a single
+// shared JSON array — a shared array requires read-modify-write on every add/remove, and
+// two concurrent writes (e.g. one session deleting an item while another session's stale
+// tab saves its own unrelated edit) can race: the stale save's tombstone-check can read
+// before the delete's write lands, push the "deleted" item straight back into KV, and then
+// clear the very tombstone that was just created — a real incident (Nomura/PSVAMB-145761,
+// 2026-08-09) that this per-key redesign closes, since each add/remove is now an
+// independent atomic KV operation with no shared list to race on.
+async function addKvTombstone(id, storeKey) {
+  if (!id) return;
+  try {
+    await fetch(`${PROXY_BASE}/tombstone`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-KV-Secret': KV_SECRET },
+      body: JSON.stringify({ id, storeKey, ts: Date.now() }),
+    });
+  } catch {}
 }
 
-async function saveTasks() {
+// Must be called before re-adding a previously-deleted item (restore from Closed
+// Projects/backup, Import, Add Project) — otherwise saveProjects/saveTasks strip it right
+// back out again since it still matches the tombstone that was recorded when it was deleted.
+async function removeKvTombstone(id, storeKey) {
+  if (!id) return;
+  try {
+    await fetch(`${PROXY_BASE}/tombstone`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json', 'X-KV-Secret': KV_SECRET },
+      body: JSON.stringify({ id, storeKey }),
+    });
+  } catch {}
+}
+
+async function getKvTombstonesForStore(storeKey) {
+  try {
+    const res = await fetch(`${PROXY_BASE}/tombstones?storeKey=${encodeURIComponent(storeKey)}`, {
+      headers: { Accept: 'application/json', 'X-KV-Secret': KV_SECRET },
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data) ? data : [];
+  } catch {
+    return [];
+  }
+}
+
+// Combined delete-id set for a store: this browser's pending deletes + the shared KV tombstones
+async function getCombinedDeleteIds(storeKey) {
+  const ids = new Set(getPendingDeletes().filter(d => d.storeKey === storeKey).map(d => d.id));
+  const remote = await getKvTombstonesForStore(storeKey);
+  remote.forEach(t => ids.add(t.id));
+  return ids;
+}
+
+// Shared activity log — records every add/remove to projects or tasks, with a reason
+// tag, so cross-session disappear/reappear mysteries can be traced. Each entry writes to
+// its own KV key server-side (see proxy-worker.js POST /activity-log) instead of a single
+// shared JSON array, so concurrent writers from different browsers never clobber each
+// other's entries. Cloudflare KV's native TTL prunes entries after 7 days automatically.
+async function logActivity(entry) {
+  try {
+    const user = await getCurrentUserName();
+    await fetch(`${PROXY_BASE}/activity-log`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-KV-Secret': KV_SECRET },
+      body: JSON.stringify({ ts: Date.now(), user, ...entry }),
+    });
+  } catch {}
+}
+
+async function getActivityLog() {
+  try {
+    const res = await fetch(`${PROXY_BASE}/activity-log`, {
+      headers: { 'X-KV-Secret': KV_SECRET },
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data) ? data : [];
+  } catch {
+    return [];
+  }
+}
+
+// Fields worth calling out by name when a manual edit changes them. Deliberately excludes
+// anything the automatic Jira syncs touch (progress, hours, dueDate mirrored from Jira,
+// etc.) — those fire constantly and would flood the log, which is why field-diffing below
+// only runs for reason === 'edit-save' in the first place, not as a belt-and-suspenders here.
+const EDIT_TRACKED_FIELDS = {
+  customer: 'Customer',
+  name: 'Name',
+  manager: 'PM',
+  health: 'Health',
+  pmStatus: 'PM Status',
+  region: 'Region',
+  riskReason: 'Risk Reason',
+  atLink: 'AT Link',
+  csm: 'CSM',
+  sales: 'Sales',
+  dueDate: 'End Date',
+};
+
+// Compares the KV state right before a save against what's about to be written, and logs
+// added/removed items, plus (for manual edits only) which fields changed on items that were
+// neither added nor removed — otherwise a pure field edit like a PM reassignment produces no
+// diff in the added/removed sets and silently logs nothing at all.
+async function logSaveDiff(storeKey, storeLabel, afterArray, reason) {
+  try {
+    const cached = _lastKnownKvState[storeKey];
+    const beforeArray = (cached && Date.now() - cached.ts < _KV_CACHE_MAX_AGE_MS) ? cached.value : await kvGet(storeKey);
+    if (!Array.isArray(beforeArray)) return;
+    const beforeKeys = new Set(beforeArray.map(getItemDeleteKey).filter(Boolean));
+    const afterKeys = new Set(afterArray.map(getItemDeleteKey).filter(Boolean));
+    const added = afterArray.filter(item => { const k = getItemDeleteKey(item); return k && !beforeKeys.has(k); });
+    const removed = beforeArray.filter(item => { const k = getItemDeleteKey(item); return k && !afterKeys.has(k); });
+
+    let edited = [];
+    if (reason === 'edit-save') {
+      const beforeByKey = new Map(beforeArray.map(item => [getItemDeleteKey(item), item]));
+      edited = afterArray.map(after => {
+        const key = getItemDeleteKey(after);
+        const before = key ? beforeByKey.get(key) : null;
+        if (!before) return null;
+        const changes = [];
+        for (const [field, label] of Object.entries(EDIT_TRACKED_FIELDS)) {
+          const beforeVal = before[field] ?? '';
+          const afterVal = after[field] ?? '';
+          if (beforeVal !== afterVal) changes.push({ field: label, from: beforeVal || '(empty)', to: afterVal || '(empty)' });
+        }
+        if ((before.statusText || '') !== (after.statusText || '')) {
+          changes.push({ field: 'Project Status', from: '', to: '(updated)' });
+        }
+        if (!changes.length) return null;
+        return { customer: after.customer, name: after.name || after.parentProjectName || after.label, jira: after.jira, changes };
+      }).filter(Boolean);
+    }
+
+    if (!added.length && !removed.length && !edited.length) return;
+    await logActivity({
+      store: storeLabel,
+      reason: reason || 'unknown',
+      beforeCount: beforeArray.length,
+      afterCount: afterArray.length,
+      added: added.map(item => ({ customer: item.customer, name: item.name || item.parentProjectName || item.label, jira: item.jira })),
+      removed: removed.map(item => ({ customer: item.customer, name: item.name || item.parentProjectName || item.label, jira: item.jira })),
+      edited,
+    });
+  } catch {}
+}
+
+async function saveTasks(reason) {
+  const deleteIds = await getCombinedDeleteIds(TASKS_KEY);
+  if (deleteIds.size) {
+    const cleaned = tasks.filter(t => !deleteIds.has(getItemDeleteKey(t)));
+    if (cleaned.length !== tasks.length) tasks = cleaned;
+  }
+  await logSaveDiff(TASKS_KEY, 'tasks', tasks, reason);
   try { localStorage.setItem(TASKS_KEY, JSON.stringify(tasks)); } catch {}
-  const ok = await kvPut(TASKS_KEY, tasks);
+  const ok = await kvPutWithRetry(TASKS_KEY, tasks);
   if (ok) {
     // Clear any pending deletes for tasks since KV is now up to date
     getPendingDeletes().filter(d => d.storeKey === TASKS_KEY)
@@ -209,13 +760,41 @@ async function saveTasks() {
 const BACKUPS_KEY = 'project-dashboard-backups-v1';
 let backups = JSON.parse(localStorage.getItem('project-dashboard-backups-v1') || '[]');
 
+const CLOSED_PROJECTS_KEY = 'project-dashboard-closed-projects-v1';
+let closedProjects = JSON.parse(localStorage.getItem('project-dashboard-closed-projects-v1') || '[]');
+
+async function saveClosedProjects(reason) {
+  await logSaveDiff(CLOSED_PROJECTS_KEY, 'closedProjects', closedProjects, reason);
+  try { localStorage.setItem(CLOSED_PROJECTS_KEY, JSON.stringify(closedProjects)); } catch {}
+  const ok = await kvPutWithRetry(CLOSED_PROJECTS_KEY, closedProjects);
+  if (!ok) _wasOffline = true;
+}
+
+// This browser's own last-confirmed view of each KV key, timestamped — updated on every
+// successful read AND write. logSaveDiff prefers this over a fresh network read for its
+// "before" snapshot ONLY while it's recent (see _KV_CACHE_MAX_AGE_MS below), since
+// Cloudflare KV is only eventually consistent across regions: a fresh GET moments after a
+// write can still return the pre-write value, which made logSaveDiff occasionally report
+// already-deleted items as "removed" a second time in an unrelated later save.
+//
+// The cache must expire, though — a tab left open for hours/days (background tabs get their
+// timers throttled/suspended by the browser, and the periodic refresh in app-render.js
+// deliberately skips itself while a modal is open) can otherwise sit on a snapshot from long
+// before several real deletes happened, making EVERY later save from that tab misreport all
+// of them as "removed" again. Past _KV_CACHE_MAX_AGE_MS, a fresh network read is more likely
+// to be right than a very old local snapshot, so fall back to it.
+const _lastKnownKvState = {};
+const _KV_CACHE_MAX_AGE_MS = 90 * 1000;
+
 async function kvGet(key) {
   try {
     const res = await fetch(`${PROXY_BASE}/kv/${encodeURIComponent(key)}`, {
       headers: { 'X-KV-Secret': KV_SECRET },
     });
     if (!res.ok) return null;
-    return await res.json();
+    const value = await res.json();
+    if (Array.isArray(value)) _lastKnownKvState[key] = { value: JSON.parse(JSON.stringify(value)), ts: Date.now() };
+    return value;
   } catch {
     return null;
   }
@@ -228,10 +807,24 @@ async function kvPut(key, value) {
       headers: { 'Content-Type': 'application/json', 'X-KV-Secret': KV_SECRET },
       body: JSON.stringify(value),
     });
+    if (res.ok && Array.isArray(value)) _lastKnownKvState[key] = { value: JSON.parse(JSON.stringify(value)), ts: Date.now() };
     return res.ok;
   } catch {
     return false;
   }
+}
+
+// One retry after a transient failure, shared by every save* function — projects/tasks and
+// closedProjects/backups all need it equally: a dropped write to closedProjects during a
+// project delete, for instance, would leave an item removed from active projects but never
+// actually landed in Closed Projects, with no other trace of it anywhere.
+async function kvPutWithRetry(key, value) {
+  let ok = await kvPut(key, value);
+  if (!ok) {
+    await new Promise(r => setTimeout(r, 800));
+    ok = await kvPut(key, value);
+  }
+  return ok;
 }
 
 async function initData() {
@@ -254,16 +847,18 @@ async function initData() {
     customers = JSON.parse(localStorage.getItem(CUSTOMERS_KEY) || '[]');
     backups = JSON.parse(localStorage.getItem(BACKUPS_KEY) || '[]');
     tasks = JSON.parse(localStorage.getItem(TASKS_KEY) || '[]');
+    closedProjects = JSON.parse(localStorage.getItem(CLOSED_PROJECTS_KEY) || '[]');
     return;
   }
 
-  const [kvProjects, kvUsers, kvSettings, kvCustomers, kvBackups, kvTasks] = await Promise.all([
+  const [kvProjects, kvUsers, kvSettings, kvCustomers, kvBackups, kvTasks, kvClosedProjects] = await Promise.all([
     kvGet(STORAGE_KEY),
     kvGet(USERS_KEY),
     kvGet(SETTINGS_KEY),
     kvGet(CUSTOMERS_KEY),
     kvGet(BACKUPS_KEY),
     kvGet(TASKS_KEY),
+    kvGet(CLOSED_PROJECTS_KEY),
   ]);
 
   async function hydrateKey(kvValue, lsKey, fallback) {
@@ -271,17 +866,17 @@ async function initData() {
       let value = Array.isArray(kvValue) ? kvValue : kvValue;
 
       if (Array.isArray(kvValue)) {
-        // Step 1: apply offline deletes on top of KV
+        // Step 1: apply offline deletes on top of KV (this browser's pending deletes + shared KV tombstones)
         const beforeDeletes = value.length;
-        value = applyPendingDeletes(value, lsKey);
+        const deleteIds = await getCombinedDeleteIds(lsKey);
+        value = deleteIds.size ? value.filter(item => !deleteIds.has(getItemDeleteKey(item))) : value;
         const hadDeletes = value.length < beforeDeletes;
 
         // Step 2: merge offline adds — items in localStorage not present in KV (by id)
         const lsValue = JSON.parse(localStorage.getItem(lsKey) || 'null');
         if (Array.isArray(lsValue) && lsValue.length > 0) {
           const kvIds = new Set(value.map(item => item.id).filter(Boolean));
-          const pendingDeleteIds = new Set(getPendingDeletes().filter(d => d.storeKey === lsKey).map(d => d.id));
-          const offlineAdds = lsValue.filter(item => item.id && !kvIds.has(item.id) && !pendingDeleteIds.has(item.id));
+          const offlineAdds = lsValue.filter(item => item.id && !kvIds.has(item.id) && !deleteIds.has(item.id));
           if (offlineAdds.length > 0) {
             value = [...value, ...offlineAdds];
           }
@@ -308,13 +903,14 @@ async function initData() {
     return lsValue !== null ? lsValue : fallback;
   }
 
-  [projects, users, settings, customers, backups, tasks] = await Promise.all([
+  [projects, users, settings, customers, backups, tasks, closedProjects] = await Promise.all([
     hydrateKey(kvProjects, STORAGE_KEY, defaultProjects),
     hydrateKey(kvUsers, USERS_KEY, []),
     hydrateKey(kvSettings, SETTINGS_KEY, {}),
     hydrateKey(kvCustomers, CUSTOMERS_KEY, []),
     hydrateKey(kvBackups, BACKUPS_KEY, []),
     hydrateKey(kvTasks, TASKS_KEY, []),
+    hydrateKey(kvClosedProjects, CLOSED_PROJECTS_KEY, []),
   ]);
   // Always keep backups sorted newest first
   backups.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
@@ -326,12 +922,21 @@ async function initData() {
   try { localStorage.setItem(CUSTOMERS_KEY, JSON.stringify(customers)); } catch {}
   try { localStorage.setItem(BACKUPS_KEY,   JSON.stringify(backups));   } catch {}
   try { localStorage.setItem(TASKS_KEY,    JSON.stringify(tasks));     } catch {}
+  try { localStorage.setItem(CLOSED_PROJECTS_KEY, JSON.stringify(closedProjects)); } catch {}
 }
 
-async function saveBackups() {
+async function saveBackups(reason) {
+  const deleteIds = await getCombinedDeleteIds(BACKUPS_KEY);
+  if (deleteIds.size) {
+    const cleaned = backups.filter(b => !deleteIds.has(getItemDeleteKey(b)));
+    if (cleaned.length !== backups.length) backups = cleaned;
+  }
+  await logSaveDiff(BACKUPS_KEY, 'backups', backups, reason);
   try { localStorage.setItem(BACKUPS_KEY, JSON.stringify(backups)); } catch {}
-  const ok = await kvPut(BACKUPS_KEY, backups);
-  if (!ok) _wasOffline = true;
+  const ok = await kvPutWithRetry(BACKUPS_KEY, backups);
+  if (!ok) {
+    _wasOffline = true;
+  }
 }
 
 function formatBackupLabel(ts) {
@@ -352,10 +957,11 @@ function createBackup(btn) {
     timestamp: ts,
     projects: JSON.parse(JSON.stringify(projects)),
     users: JSON.parse(JSON.stringify(users)),
+    tasks: JSON.parse(JSON.stringify(tasks)),
   };
   backups.unshift(backup);
   backups.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-  saveBackups();
+  saveBackups('create-backup');
 
   const dd = String(new Date(ts).getDate()).padStart(2, '0');
   const mm = String(new Date(ts).getMonth() + 1).padStart(2, '0');
@@ -460,7 +1066,7 @@ async function migrateProjects() {
     }
   }
   // Never save if projects is still the default sample data — would overwrite real KV data
-  if (changed && projects !== defaultProjects) await saveProjects();
+  if (changed && projects !== defaultProjects) await saveProjects('migrate-projects');
 }
 
 // Pre-populate from localStorage for instant render while KV loads in background
@@ -490,6 +1096,22 @@ const editRiskReason = document.getElementById('editRiskReason');
 const editRegion = document.getElementById('editRegion');
 const riskReasonLabel = document.getElementById('riskReasonLabel');
 const riskList = document.getElementById('riskList');
+const commentsModal = document.getElementById('commentsModal');
+const closeCommentsModalBtn = document.getElementById('closeCommentsModalBtn');
+const cancelCommentsModalBtn = document.getElementById('cancelCommentsModalBtn');
+const saveCommentBtn = document.getElementById('saveCommentBtn');
+const commentsModalTitle = document.getElementById('commentsModalTitle');
+const commentComposerEditor = document.getElementById('commentComposerEditor');
+const commentsList = document.getElementById('commentsList');
+const appDialogModal = document.getElementById('appDialogModal');
+const appDialogEyebrow = document.getElementById('appDialogEyebrow');
+const appDialogTitle = document.getElementById('appDialogTitle');
+const appDialogMessage = document.getElementById('appDialogMessage');
+const appDialogInput = document.getElementById('appDialogInput');
+const appDialogError = document.getElementById('appDialogError');
+const appDialogCancelBtn = document.getElementById('appDialogCancelBtn');
+const appDialogConfirmBtn = document.getElementById('appDialogConfirmBtn');
+const closeAppDialogBtn = document.getElementById('closeAppDialogBtn');
 const exportBtn = document.getElementById('exportBtn');
 const manageUsersBtn = document.getElementById('manageUsersBtn');
 const usersModal = document.getElementById('usersModal');
@@ -506,6 +1128,11 @@ const saveAddCustomerBtn = document.getElementById('saveAddCustomerBtn');
 const settingsBtn = document.getElementById('settingsBtn');
 const settingsModal = document.getElementById('settingsModal');
 const closeSettingsBtn = document.getElementById('closeSettingsBtn');
+const openActivityLogBtn = document.getElementById('openActivityLogBtn');
+const activityLogModal = document.getElementById('activityLogModal');
+const closeActivityLogModalBtn = document.getElementById('closeActivityLogModalBtn');
+const activityLogRangeFilter = document.getElementById('activityLogRangeFilter');
+const refreshActivityLogBtn = document.getElementById('refreshActivityLogBtn');
 const cancelSettingsBtn = document.getElementById('cancelSettingsBtn');
 const saveSettingsBtn = document.getElementById('saveSettingsBtn');
 const deleteProjectModal = document.getElementById('deleteProjectModal');
@@ -527,6 +1154,16 @@ const backupsModal = document.getElementById('backupsModal');
 const closeBackupsModalBtn = document.getElementById('closeBackupsModalBtn');
 const backupMain = document.getElementById('backupMain');
 const backupSidebar = document.getElementById('backupSidebar');
+const closedProjectsBtn = document.getElementById('closedProjectsBtn');
+const closedProjectsModal = document.getElementById('closedProjectsModal');
+const closeClosedProjectsModalBtn = document.getElementById('closeClosedProjectsModalBtn');
+const closedSearchInput = document.getElementById('closedSearchInput');
+const closedPmFilter = document.getElementById('closedPmFilter');
+const closedRegionFilter = document.getElementById('closedRegionFilter');
+const closedMonthFilter = document.getElementById('closedMonthFilter');
+const closedQuarterFilter = document.getElementById('closedQuarterFilter');
+const refreshClosedProjectsBtn = document.getElementById('refreshClosedProjectsBtn');
+const resetClosedFiltersBtn = document.getElementById('resetClosedFiltersBtn');
 const addProjectBtn = document.getElementById('addProjectBtn') || document.getElementById('addNewBtn');
 const addNewBtn = document.getElementById('addNewBtn');
 const addNewChoiceModal = document.getElementById('addNewChoiceModal');
@@ -549,6 +1186,7 @@ const salesList = null;
 const healthFilter = document.getElementById('healthFilter');
 const progressFilter = document.getElementById('progressFilter');
 const duemonthFilter = document.getElementById('duemonthFilter');
+const addedMonthFilter = document.getElementById('addedMonthFilter');
 const regionFilter = document.getElementById('regionFilter');
 const importFromJiraBtn = document.getElementById('importFromJiraBtn');
 const importModal = document.getElementById('importModal');
@@ -566,14 +1204,18 @@ const importBackBtn = document.getElementById('importBackBtn');
 const importConfirmBtn = document.getElementById('importConfirmBtn');
 const importProgress = document.getElementById('importProgress');
 
-async function saveProjects() {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(projects)); } catch {}
-  let ok = await kvPut(STORAGE_KEY, projects);
-  if (!ok) {
-    // Retry once after a short delay
-    await new Promise(r => setTimeout(r, 800));
-    ok = await kvPut(STORAGE_KEY, projects);
+async function saveProjects(reason) {
+  // Strip anything tombstoned (by this browser or any other session) before persisting —
+  // guards every caller (delete handlers, Jira sync loops, etc.) against writing back a
+  // stale in-memory copy that still contains an item someone else already deleted.
+  const deleteIds = await getCombinedDeleteIds(STORAGE_KEY);
+  if (deleteIds.size) {
+    const cleaned = projects.filter(p => !deleteIds.has(getItemDeleteKey(p)));
+    if (cleaned.length !== projects.length) projects = cleaned;
   }
+  await logSaveDiff(STORAGE_KEY, 'projects', projects, reason);
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(projects)); } catch {}
+  const ok = await kvPutWithRetry(STORAGE_KEY, projects);
   if (ok) {
     getPendingDeletes().filter(d => d.storeKey === STORAGE_KEY)
       .forEach(d => removePendingDelete(d.id, STORAGE_KEY));
@@ -581,6 +1223,376 @@ async function saveProjects() {
     _wasOffline = true;
   }
 }
+
+function setupRichEditorToolbar(editorEl, scopeEl, options = {}) {
+  const placeholderHtml = options.placeholderHtml || '';
+  const colorPicker = scopeEl.querySelector('[data-role="colorPicker"]');
+  const colorSwatch = scopeEl.querySelector('[data-role="colorSwatch"]');
+  const fontSize = scopeEl.querySelector('[data-role="fontSize"]');
+  const insertLinkBtn = scopeEl.querySelector('[data-role="insertLink"]');
+  const linkPopup = scopeEl.querySelector('[data-role="linkPopup"]');
+  const linkUrl = scopeEl.querySelector('[data-role="linkUrl"]');
+  const linkText = scopeEl.querySelector('[data-role="linkText"]');
+  const linkCancel = scopeEl.querySelector('[data-role="linkCancel"]');
+  const linkInsert = scopeEl.querySelector('[data-role="linkInsert"]');
+  const blurGuardEl = scopeEl.closest('.modal') || scopeEl;
+
+  let savedLinkSelection = null;
+
+  scopeEl.addEventListener('click', (event) => {
+    const toolbarButton = event.target.closest('[data-rich-command]');
+    if (toolbarButton) {
+      event.preventDefault();
+      document.execCommand(toolbarButton.dataset.richCommand, false, null);
+      editorEl.focus();
+      return;
+    }
+    const colorLabel = event.target.closest('.toolbar-color-btn');
+    if (colorLabel) {
+      editorEl.focus();
+    }
+  });
+
+  colorPicker.addEventListener('change', (event) => {
+    const color = event.target.value;
+    colorSwatch.style.background = color;
+    document.execCommand('foreColor', false, color);
+    editorEl.focus();
+  });
+
+  fontSize.addEventListener('change', (e) => {
+    const size = e.target.value;
+    if (!size) return;
+    editorEl.focus();
+    const sel = window.getSelection();
+    if (!sel || !sel.rangeCount) return;
+
+    if (!sel.isCollapsed) {
+      // Text selected — wrap it in a span with the chosen size
+      const range = sel.getRangeAt(0);
+      try {
+        const frag = range.extractContents();
+        const span = document.createElement('span');
+        span.style.fontSize = size + 'pt';
+        span.appendChild(frag);
+        range.insertNode(span);
+        sel.removeAllRanges();
+        const newRange = document.createRange();
+        newRange.selectNodeContents(span);
+        sel.addRange(newRange);
+      } catch {}
+    } else {
+      // No selection — insert a zero-width space span so future typing uses this size
+      const range = sel.getRangeAt(0);
+      const span = document.createElement('span');
+      span.style.fontSize = size + 'pt';
+      span.innerHTML = '​'; // zero-width space as anchor
+      range.insertNode(span);
+      // Place cursor inside the span after the zero-width space
+      const newRange = document.createRange();
+      newRange.setStart(span.firstChild, 1);
+      newRange.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(newRange);
+    }
+  });
+
+  insertLinkBtn.addEventListener('click', () => {
+    savedLinkSelection = window.getSelection()?.getRangeAt(0)?.cloneRange() || null;
+    const selectedText = window.getSelection()?.toString() || '';
+    linkText.value = selectedText;
+    linkUrl.value = '';
+    linkPopup.style.display = linkPopup.style.display === 'flex' ? 'none' : 'flex';
+    if (linkPopup.style.display === 'flex') linkUrl.focus();
+  });
+
+  linkCancel.addEventListener('click', () => {
+    linkPopup.style.display = 'none';
+    editorEl.focus();
+  });
+
+  linkInsert.addEventListener('click', () => {
+    const url = linkUrl.value.trim();
+    const text = linkText.value.trim() || url;
+    if (!url) return;
+    editorEl.focus();
+    if (savedLinkSelection) {
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(savedLinkSelection);
+    }
+    document.execCommand('insertHTML', false, `<a href="${escapeHtml(url)}" target="_blank" rel="noreferrer">${escapeHtml(text)}</a>`);
+    linkPopup.style.display = 'none';
+    savedLinkSelection = null;
+  });
+
+  editorEl.addEventListener('focus', () => {
+    if (editorEl.getAttribute('data-placeholder-active')) {
+      editorEl.innerHTML = '';
+      editorEl.removeAttribute('data-placeholder-active');
+    }
+  });
+
+  if (placeholderHtml) {
+    editorEl.addEventListener('blur', (e) => {
+      // Don't trigger placeholder if focus moved to another element inside the same modal
+      if (e.relatedTarget && blurGuardEl.contains(e.relatedTarget)) return;
+      if (!editorEl.textContent.trim() && !editorEl.querySelector('img, br, li, div')) {
+        editorEl.innerHTML = placeholderHtml;
+        editorEl.setAttribute('data-placeholder-active', '1');
+      }
+    });
+  }
+
+  return { linkPopup };
+}
+
+// --- @mention autocomplete, shared by every rich editor instance ---
+let _mentionDropdownEl = null;
+let _mentionState = { editorEl: null, node: null, atOffset: -1, endOffset: -1, items: [], activeIndex: -1 };
+let _mentionSearchTimer = null;
+let _mentionInserting = false;
+
+function getMentionDropdown() {
+  if (!_mentionDropdownEl) {
+    _mentionDropdownEl = document.createElement('ul');
+    _mentionDropdownEl.id = 'mentionDropdown';
+    _mentionDropdownEl.className = 'mention-dropdown hidden';
+    document.body.appendChild(_mentionDropdownEl);
+    _mentionDropdownEl.addEventListener('mousedown', (e) => {
+      const li = e.target.closest('li[data-account-id]');
+      if (!li) return;
+      e.preventDefault();
+      insertMention(li.dataset.accountId, li.dataset.displayName);
+    });
+  }
+  return _mentionDropdownEl;
+}
+
+function hideMentionDropdown() {
+  const dd = getMentionDropdown();
+  dd.classList.add('hidden');
+  _mentionState.editorEl = null;
+  _mentionState.node = null;
+  _mentionState.items = [];
+  _mentionState.activeIndex = -1;
+}
+
+function setMentionActive(index) {
+  const dd = getMentionDropdown();
+  _mentionState.activeIndex = index;
+  [...dd.children].forEach((li, i) => li.classList.toggle('active', i === index));
+}
+
+function moveMentionActive(delta) {
+  if (!_mentionState.items.length) return;
+  const next = (_mentionState.activeIndex + delta + _mentionState.items.length) % _mentionState.items.length;
+  setMentionActive(next);
+}
+
+function renderMentionDropdown(items) {
+  const dd = getMentionDropdown();
+  _mentionState.items = items;
+  if (!items.length) {
+    dd.innerHTML = '<li class="mention-dropdown-empty">No users found</li>';
+  } else {
+    dd.innerHTML = items.map(u => `
+      <li data-account-id="${escapeHtml(u.accountId)}" data-display-name="${escapeHtml(u.displayName)}">
+        <span class="mention-dropdown-name">${escapeHtml(u.displayName)}</span>
+        <span class="mention-dropdown-email">${escapeHtml(u.emailAddress || '')}</span>
+      </li>`).join('');
+  }
+  dd.classList.remove('hidden');
+  setMentionActive(items.length ? 0 : -1);
+}
+
+function positionMentionDropdown() {
+  const dd = getMentionDropdown();
+  const sel = window.getSelection();
+  let rect = null;
+  if (sel && sel.rangeCount) {
+    const range = sel.getRangeAt(0).cloneRange();
+    range.collapse(true);
+    rect = range.getClientRects()[0] || range.getBoundingClientRect();
+  }
+  if (!rect || (!rect.width && !rect.height && !rect.top && !rect.left)) {
+    rect = _mentionState.editorEl ? _mentionState.editorEl.getBoundingClientRect() : { bottom: 0, left: 0 };
+  }
+  dd.style.top = `${rect.bottom + 4}px`;
+  dd.style.left = `${rect.left}px`;
+}
+
+function insertMention(accountId, displayName) {
+  const { node, atOffset, endOffset, editorEl } = _mentionState;
+  if (!node || !node.parentNode || !editorEl) { hideMentionDropdown(); return; }
+  _mentionInserting = true;
+  const range = document.createRange();
+  try {
+    range.setStart(node, atOffset);
+    range.setEnd(node, endOffset);
+  } catch {
+    hideMentionDropdown();
+    _mentionInserting = false;
+    return;
+  }
+  range.deleteContents();
+
+  const frag = document.createDocumentFragment();
+  if (accountId) {
+    const mentionSpan = document.createElement('span');
+    mentionSpan.className = 'mention';
+    mentionSpan.contentEditable = 'false';
+    mentionSpan.dataset.accountId = accountId;
+    mentionSpan.textContent = '@' + (displayName || '');
+    frag.appendChild(mentionSpan);
+  } else {
+    frag.appendChild(document.createTextNode('@' + (displayName || '')));
+  }
+  const spaceNode = document.createTextNode(' ');
+  frag.appendChild(spaceNode);
+  range.insertNode(frag);
+
+  const sel = window.getSelection();
+  const newRange = document.createRange();
+  newRange.setStartAfter(spaceNode);
+  newRange.collapse(true);
+  sel.removeAllRanges();
+  sel.addRange(newRange);
+
+  hideMentionDropdown();
+  editorEl.focus();
+  setTimeout(() => { _mentionInserting = false; }, 0);
+}
+
+function setupMentionAutocomplete(editorEl) {
+  editorEl.addEventListener('input', () => {
+    if (_mentionInserting) return;
+    const sel = window.getSelection();
+    if (!sel || !sel.rangeCount || !sel.isCollapsed) { hideMentionDropdown(); return; }
+    const range = sel.getRangeAt(0);
+    const node = range.startContainer;
+    if (node.nodeType !== Node.TEXT_NODE) { hideMentionDropdown(); return; }
+    const textBefore = node.textContent.slice(0, range.startOffset);
+    const match = /(?:^|\s)@([\w.-]{1,30})$/.exec(textBefore);
+    if (!match) { hideMentionDropdown(); return; }
+    const query = match[1];
+    _mentionState.editorEl = editorEl;
+    _mentionState.node = node;
+    _mentionState.atOffset = range.startOffset - query.length - 1;
+    _mentionState.endOffset = range.startOffset;
+
+    clearTimeout(_mentionSearchTimer);
+    _mentionSearchTimer = setTimeout(async () => {
+      try {
+        const res = await fetch(`${PROXY_BASE}/jira/user/search?query=${encodeURIComponent(query)}`, {
+          headers: { Accept: 'application/json', 'X-KV-Secret': KV_SECRET },
+        });
+        if (!res.ok) { hideMentionDropdown(); return; }
+        const jiraUsers = await res.json();
+        renderMentionDropdown(Array.isArray(jiraUsers) ? jiraUsers.slice(0, 8) : []);
+        positionMentionDropdown();
+      } catch { hideMentionDropdown(); }
+    }, 300);
+  });
+
+  editorEl.addEventListener('keydown', (e) => {
+    const dd = getMentionDropdown();
+    if (dd.classList.contains('hidden') || _mentionState.editorEl !== editorEl) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); moveMentionActive(1); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); moveMentionActive(-1); }
+    else if (e.key === 'Enter') {
+      if (_mentionState.activeIndex >= 0 && _mentionState.items[_mentionState.activeIndex]) {
+        e.preventDefault();
+        const item = _mentionState.items[_mentionState.activeIndex];
+        insertMention(item.accountId, item.displayName);
+      }
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      hideMentionDropdown();
+    }
+  });
+
+  editorEl.addEventListener('blur', () => {
+    setTimeout(() => { if (_mentionState.editorEl === editorEl) hideMentionDropdown(); }, 0);
+  });
+}
+
+// --- Dashboard-styled replacement for native confirm()/prompt() dialogs ---
+let _appDialogState = null;
+
+function finishAppDialog(result) {
+  if (!_appDialogState) return;
+  const resolve = _appDialogState.resolve;
+  _appDialogState = null;
+  appDialogModal.classList.add('hidden');
+  appDialogModal.setAttribute('aria-hidden', 'true');
+  appDialogInput.value = '';
+  appDialogError.classList.add('hidden');
+  resolve(result);
+}
+
+function setupAppDialog() {
+  function onConfirm() {
+    if (!_appDialogState) return;
+    if (_appDialogState.validate) {
+      const value = appDialogInput.value;
+      const errorMsg = _appDialogState.validate(value);
+      if (errorMsg) {
+        appDialogError.textContent = errorMsg;
+        appDialogError.classList.remove('hidden');
+        appDialogInput.value = '';
+        appDialogInput.focus();
+        return;
+      }
+      finishAppDialog(value);
+    } else {
+      finishAppDialog(true);
+    }
+  }
+  function onCancel() {
+    if (!_appDialogState) return;
+    finishAppDialog(_appDialogState.isPassword ? null : false);
+  }
+  appDialogConfirmBtn.addEventListener('click', onConfirm);
+  appDialogCancelBtn.addEventListener('click', onCancel);
+  closeAppDialogBtn.addEventListener('click', onCancel);
+  appDialogModal.addEventListener('click', (e) => { if (e.target === appDialogModal) onCancel(); });
+  appDialogInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); onConfirm(); }
+  });
+}
+
+function openAppDialog({ eyebrow, title, message, isPassword = false, danger = false, confirmLabel = 'OK', validate = null }) {
+  appDialogEyebrow.textContent = eyebrow || (isPassword ? 'Password required' : 'Confirm');
+  appDialogTitle.textContent = title || (isPassword ? 'Enter password' : 'Are you sure?');
+  appDialogMessage.textContent = message || '';
+  appDialogMessage.style.display = message ? '' : 'none';
+  appDialogInput.style.display = isPassword ? '' : 'none';
+  appDialogInput.value = '';
+  appDialogError.classList.add('hidden');
+  appDialogConfirmBtn.textContent = confirmLabel;
+  appDialogConfirmBtn.classList.toggle('danger-btn', danger);
+  appDialogConfirmBtn.classList.toggle('primary-btn', !danger);
+  appDialogModal.classList.remove('hidden');
+  appDialogModal.setAttribute('aria-hidden', 'false');
+  if (isPassword) setTimeout(() => appDialogInput.focus(), 30);
+  return new Promise((resolve) => {
+    _appDialogState = { resolve, isPassword, validate };
+  });
+}
+
+function showAppConfirm(message, opts = {}) {
+  return openAppDialog({
+    message,
+    isPassword: false,
+    danger: opts.danger || false,
+    title: opts.title,
+    eyebrow: opts.eyebrow,
+    confirmLabel: opts.confirmLabel || 'OK',
+  });
+}
+
+setupAppDialog();
 
 let addUserReturnContext = null;
 
@@ -794,6 +1806,20 @@ function getJiraIssueKey(jira) {
   return pathMatch ? pathMatch[1] : '';
 }
 
+async function getJiraResolutionDate(issueKey) {
+  if (!issueKey) return null;
+  try {
+    const res = await fetch(`${PROXY_BASE}/jira/issue/${issueKey}?fields=resolutiondate`, {
+      headers: { Accept: 'application/json' },
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.fields?.resolutiondate || null;
+  } catch {
+    return null;
+  }
+}
+
 function validSfUrl(url) {
   if (!url || typeof url !== 'string') return '';
   // Reject URLs with N/A, null, undefined, or non-SF-looking IDs
@@ -962,6 +1988,11 @@ async function resolveRiskRateOptions(fieldId) {
 }
 
 async function syncProjectProgressFromJira() {
+  // Pull the latest KV state first — otherwise a stale in-memory copy of `projects`
+  // (e.g. a browser tab that's been open since before someone else's edit) would get
+  // written back wholesale by saveProjects() below, clobbering that other change.
+  await refreshProjectsAndTasksFromKv().catch(() => {});
+
   const issueKeys = projects
     .map((project) => getJiraIssueKey(project.jira))
     .filter(Boolean);
@@ -1055,11 +2086,15 @@ async function syncProjectProgressFromJira() {
         console.warn(`Jira sync failed for ${key}`, error);
       }
     }));
-    if (changed) { saveProjects(); renderAll(); changed = false; }
+    if (changed) { saveProjects('jira-progress-sync'); renderAll(); changed = false; }
   }
 }
 
 async function syncStatusFromJira() {
+  // Same reasoning as syncProjectProgressFromJira — refresh before mutating so we don't
+  // write back a stale copy that clobbers someone else's concurrent change.
+  await refreshProjectsAndTasksFromKv().catch(() => {});
+
   const useProxy = true;
   const BATCH_SIZE = 10;
   let changed = false;
@@ -1106,7 +2141,7 @@ async function syncStatusFromJira() {
   }
 
   if (changed) {
-    saveProjects();
+    saveProjects('jira-status-sync');
     renderAll();
   }
 }
@@ -1161,6 +2196,12 @@ function adfInlineToHtml(node) {
     if (/^https?:/i.test(url)) return `<a href="${escapeHtml(url)}">${escapeHtml(url)}</a>`;
     return '';
   }
+  if (node.type === 'mention') {
+    const id = node.attrs?.id || '';
+    let text = node.attrs?.text || '';
+    if (text && !text.startsWith('@')) text = '@' + text;
+    return `<span class="mention" contenteditable="false" data-account-id="${escapeHtml(id)}">${escapeHtml(text)}</span>`;
+  }
   if (node.type !== 'text') return '';
   let text = escapeHtml(node.text || '');
   if (!text) return '';
@@ -1189,13 +2230,31 @@ function htmlToAdf(html) {
   return { version: 1, type: 'doc', content: content.length ? content : [{ type: 'paragraph', content: [] }] };
 }
 
+function isAdfBlockNode(node) {
+  if (node.nodeType !== Node.ELEMENT_NODE) return false;
+  return /^(ul|ol|li|h[1-6]|div|p|br)$/.test(node.tagName.toLowerCase());
+}
+
 function htmlNodesToAdf(nodes) {
   const result = [];
-  for (const node of nodes) {
-    if (node.nodeType === Node.TEXT_NODE) {
-      const text = node.textContent || '';
-      if (text.trim()) result.push({ type: 'paragraph', content: [{ type: 'text', text }] });
-    } else if (node.nodeType === Node.ELEMENT_NODE) {
+  const nodeList = [...nodes];
+  let i = 0;
+  while (i < nodeList.length) {
+    const node = nodeList[i];
+    // A run of bare text/inline-formatted nodes with no wrapping <div>/<p> — happens for
+    // the first line typed in a contenteditable before the browser wraps subsequent lines
+    // in <div>s. Merge the whole run into ONE paragraph (via inlineNodeToAdf, which knows
+    // how to apply marks for a node passed directly rather than only to its children).
+    if (node.nodeType === Node.TEXT_NODE || !isAdfBlockNode(node)) {
+      const runContent = [];
+      while (i < nodeList.length && (nodeList[i].nodeType === Node.TEXT_NODE || !isAdfBlockNode(nodeList[i]))) {
+        runContent.push(...inlineNodeToAdf(nodeList[i]));
+        i++;
+      }
+      if (runContent.length) result.push({ type: 'paragraph', content: runContent });
+      continue;
+    }
+    if (node.nodeType === Node.ELEMENT_NODE) {
       const tag = node.tagName.toLowerCase();
       if (tag === 'ul' || tag === 'ol') {
         const listType = tag === 'ul' ? 'bulletList' : 'orderedList';
@@ -1249,51 +2308,61 @@ function htmlNodesToAdf(nodes) {
         }
       } else if (tag === 'br') {
         result.push({ type: 'paragraph', content: [] });
-      } else {
-        // span, b, i, strong, em, etc. at block level — wrap in paragraph
-        const content = htmlInlineToAdf(node);
-        if (content.length) result.push({ type: 'paragraph', content });
       }
+      i++;
+      continue;
     }
+    i++;
   }
   return result;
+}
+
+// Converts a SINGLE DOM node (text node, or an inline-formatted element like <b>/<a>/<span>)
+// into ADF inline node(s), applying that node's own mark if it has one. Used both when
+// iterating a block container's children (htmlInlineToAdf) and when an inline-formatted
+// element appears bare at the top level with no wrapping <div> — e.g. the first line typed
+// in a contenteditable, before the browser wraps subsequent lines. Passing such a node
+// straight to htmlInlineToAdf would only look at ITS children and never apply the mark for
+// the node itself, silently dropping bold/links/color on that first line.
+function inlineNodeToAdf(node) {
+  if (node.nodeType === Node.TEXT_NODE) {
+    const text = node.textContent || '';
+    return text ? [{ type: 'text', text }] : [];
+  }
+  if (node.nodeType !== Node.ELEMENT_NODE) return [];
+  const tag = node.tagName.toLowerCase();
+  if (tag === 'br') return [{ type: 'hardBreak' }];
+  if (tag === 'span' && node.classList.contains('mention') && node.dataset.accountId) {
+    return [{ type: 'mention', attrs: { id: node.dataset.accountId, text: node.textContent || '' } }];
+  }
+  const inner = htmlInlineToAdf(node);
+  if (tag === 'strong' || tag === 'b') {
+    inner.forEach(n => { if (n.type === 'text') { n.marks = [...(n.marks || []), { type: 'strong' }]; } });
+  } else if (tag === 'em' || tag === 'i') {
+    inner.forEach(n => { if (n.type === 'text') { n.marks = [...(n.marks || []), { type: 'em' }]; } });
+  } else if (tag === 'u') {
+    inner.forEach(n => { if (n.type === 'text') { n.marks = [...(n.marks || []), { type: 'underline' }]; } });
+  } else if (tag === 'a') {
+    const href = node.getAttribute('href') || '';
+    inner.forEach(n => { if (n.type === 'text') { n.marks = [...(n.marks || []), { type: 'link', attrs: { href } }]; } });
+  } else if (tag === 'span') {
+    const color = node.style?.color || '';
+    if (color) {
+      inner.forEach(n => { if (n.type === 'text') { n.marks = [...(n.marks || []), { type: 'textColor', attrs: { color } }]; } });
+    }
+  } else if (tag === 'font') {
+    const color = node.getAttribute('color') || '';
+    if (color) {
+      inner.forEach(n => { if (n.type === 'text') { n.marks = [...(n.marks || []), { type: 'textColor', attrs: { color } }]; } });
+    }
+  }
+  return inner;
 }
 
 function htmlInlineToAdf(el) {
   const result = [];
   for (const node of el.childNodes) {
-    if (node.nodeType === Node.TEXT_NODE) {
-      const text = node.textContent || '';
-      if (text) result.push({ type: 'text', text });
-    } else if (node.nodeType === Node.ELEMENT_NODE) {
-      const tag = node.tagName.toLowerCase();
-      if (tag === 'br') {
-        result.push({ type: 'hardBreak' });
-      } else {
-        const inner = htmlInlineToAdf(node);
-        if (tag === 'strong' || tag === 'b') {
-          inner.forEach(n => { if (n.type === 'text') { n.marks = [...(n.marks || []), { type: 'strong' }]; } });
-        } else if (tag === 'em' || tag === 'i') {
-          inner.forEach(n => { if (n.type === 'text') { n.marks = [...(n.marks || []), { type: 'em' }]; } });
-        } else if (tag === 'u') {
-          inner.forEach(n => { if (n.type === 'text') { n.marks = [...(n.marks || []), { type: 'underline' }]; } });
-        } else if (tag === 'a') {
-          const href = node.getAttribute('href') || '';
-          inner.forEach(n => { if (n.type === 'text') { n.marks = [...(n.marks || []), { type: 'link', attrs: { href } }]; } });
-        } else if (tag === 'span') {
-          const color = node.style?.color || '';
-          if (color) {
-            inner.forEach(n => { if (n.type === 'text') { n.marks = [...(n.marks || []), { type: 'textColor', attrs: { color } }]; } });
-          }
-        } else if (tag === 'font') {
-          const color = node.getAttribute('color') || '';
-          if (color) {
-            inner.forEach(n => { if (n.type === 'text') { n.marks = [...(n.marks || []), { type: 'textColor', attrs: { color } }]; } });
-          }
-        }
-        result.push(...inner);
-      }
-    }
+    result.push(...inlineNodeToAdf(node));
   }
   return result.filter(n => n.type !== 'text' || n.text);
 }
@@ -1372,7 +2441,10 @@ async function pollForNewProjects() {
     return;
   }
   const existing = getExistingJiraKeys();
-  const toAdd = newIssues.filter(issue => !existing.has(issue.key));
+  // Combined (local + shared KV) delete set — auto-add is a background process, so it
+  // should respect a deletion made by ANY session, not just this browser's own.
+  const deleteJiraUrls = await getCombinedDeleteIds(STORAGE_KEY);
+  const toAdd = newIssues.filter(issue => !existing.has(issue.key) && !deleteJiraUrls.has(`https://kaltura.atlassian.net/browse/${issue.key}`));
   if (!toAdd.length) return;
 
   const addedKeys = [];
@@ -1433,7 +2505,7 @@ async function pollForNewProjects() {
     }
     addedKeys.push({ key: issue.key, sfUnavailable: !!(sfData.sfSkipped || sfData.sfError) });
   }
-  saveProjects();
+  saveProjects('auto-add-new-project');
   renderAll();
   showNewProjectsBanner(addedKeys);
 }
