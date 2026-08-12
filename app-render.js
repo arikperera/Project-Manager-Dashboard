@@ -544,6 +544,17 @@ function openEditProjectModal(itemType, itemIndex) {
     editStatusEditor.innerHTML = '<span style="font-style:italic;opacity:0.5;">No Status Entered</span>';
     editStatusEditor.setAttribute('data-placeholder-active', '1');
   }
+  pmNotesLabel.style.display = itemType === 'task' ? 'none' : '';
+  document.getElementById('pmNotesEditorBlock').style.display = itemType === 'task' ? 'none' : '';
+  if (itemType !== 'task') {
+    if (item.pmNotes) {
+      pmNotesEditor.innerHTML = item.pmNotes;
+      pmNotesEditor.removeAttribute('data-placeholder-active');
+    } else {
+      pmNotesEditor.innerHTML = '<span style="font-style:italic;opacity:0.5;">No notes yet</span>';
+      pmNotesEditor.setAttribute('data-placeholder-active', '1');
+    }
+  }
   editProjectForm.dataset.itemType = itemType;
   editProjectForm.dataset.itemIndex = String(itemIndex);
   editProjectForm.dataset.projectIndex = String(itemIndex); // keep for backward compat
@@ -559,6 +570,9 @@ function closeEditProjectModal() {
   editStatusEditor.innerHTML = '';
   editStatusEditor.removeAttribute('data-placeholder-active');
   editStatusToolbar.linkPopup.style.display = 'none';
+  pmNotesEditor.innerHTML = '';
+  pmNotesEditor.removeAttribute('data-placeholder-active');
+  pmNotesToolbar.linkPopup.style.display = 'none';
   editPmStatus.value = '';
   pmStatusLabel.style.display = 'none';
   editRiskReason.value = '';
@@ -1341,6 +1355,10 @@ editProjectForm.addEventListener('submit', async (event) => {
   const rawStatus = editStatusEditor.getAttribute('data-placeholder-active') ? '' : editStatusEditor.innerHTML.trim();
   selectedProject.statusText = isEmptyStatus(rawStatus) ? '' : rawStatus;
   selectedProject.statusUpdatedAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+  if (itemType !== 'task') {
+    const rawNotes = pmNotesEditor.getAttribute('data-placeholder-active') ? '' : pmNotesEditor.innerHTML.trim();
+    selectedProject.pmNotes = isEmptyStatus(rawNotes) ? '' : rawNotes;
+  }
 
   if (itemType === 'task') { await saveTasks('edit-save'); } else { await saveProjects('edit-save'); }
   renderAll();
