@@ -1709,6 +1709,12 @@ const editStatusToolbar = setupRichEditorToolbar(
 );
 setupMentionAutocomplete(editStatusEditor);
 
+const pmNotesToolbar = setupRichEditorToolbar(
+  pmNotesEditor,
+  document.getElementById('pmNotesEditorBlock'),
+  { placeholderHtml: '<span style="font-style:italic;opacity:0.5;">No notes yet</span>' }
+);
+
 searchInput.addEventListener('input', renderTable);
 const FILTER_STORAGE_KEY = 'project-dashboard-filters-v1';
 
