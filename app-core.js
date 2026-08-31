@@ -25,8 +25,44 @@ function emailToDisplayName(email) {
 async function getCurrentUserName() {
   return emailToDisplayName(await getCurrentUserEmail());
 }
-const APP_VERSION = '1.16.5';
+const APP_VERSION = '1.17.1';
 const CHANGELOG = [
+  {
+    version: '1.17.1',
+    date: '2026-08-14',
+    features: [
+      'Fix: the Activity Log could show "Project Status" (or "PM Personal Notes") as updated even when you only edited the other field — saving always re-reads both editors\' HTML, and the browser doesn\'t always serialize it back byte-identical to what was stored, which looked like a change that never happened. Now compares both fields through the same round-trip before deciding.',
+    ]
+  },
+  {
+    version: '1.17.0',
+    date: '2026-08-14',
+    features: [
+      'Activity Log now opens as its own standalone page in a new tab, instead of a window over the dashboard — keep both open side by side.',
+      'Project Status / PM Personal Notes edit entries in the Activity Log are now clickable ("(updated)") — opens a popover showing the actual text that was saved, without needing to reopen the project.',
+    ]
+  },
+  {
+    version: '1.16.8',
+    date: '2026-08-12',
+    features: [
+      'The hourglass on Save/Post/Delete buttons now actually spins while the action runs, instead of a static icon — shown as its own animated element next to the label text.',
+    ]
+  },
+  {
+    version: '1.16.7',
+    date: '2026-08-12',
+    features: [
+      'Save/Post/Delete buttons now show an hourglass ("⏳ Saving...", "⏳ Posting...") while the action is in progress, so a save that takes a moment doesn\'t look unresponsive — added to Edit Project\'s "Save changes", Comments\' "Save Comment", and the delete-comment button.',
+    ]
+  },
+  {
+    version: '1.16.6',
+    date: '2026-08-12',
+    features: [
+      'Editing PM Personal Notes now shows up in the Activity Log (as "PM Personal Notes: (updated)", same style as Project Status) — temporary while we confirm the feature is working well for everyone; may go back to untracked once that\'s settled.',
+    ]
+  },
   {
     version: '1.16.5',
     date: '2026-08-12',
@@ -667,19 +703,6 @@ async function logActivity(entry) {
   } catch {}
 }
 
-async function getActivityLog() {
-  try {
-    const res = await fetch(`${PROXY_BASE}/activity-log`, {
-      headers: { 'X-KV-Secret': KV_SECRET },
-    });
-    if (!res.ok) return [];
-    const data = await res.json();
-    return Array.isArray(data) ? data : [];
-  } catch {
-    return [];
-  }
-}
-
 // Fields worth calling out by name when a manual edit changes them. Deliberately excludes
 // anything the automatic Jira syncs touch (progress, hours, dueDate mirrored from Jira,
 // etc.) — those fire constantly and would flood the log, which is why field-diffing below
@@ -697,6 +720,14 @@ const EDIT_TRACKED_FIELDS = {
   sales: 'Sales',
   dueDate: 'End Date',
 };
+
+// Round-trips an HTML string through a detached element so two strings that differ only
+// by browser HTML serialization quirks (not actual content) compare equal.
+function normalizeHtmlForCompare(html) {
+  const div = document.createElement('div');
+  div.innerHTML = html || '';
+  return div.innerHTML;
+}
 
 // Compares the KV state right before a save against what's about to be written, and logs
 // added/removed items, plus (for manual edits only) which fields changed on items that were
@@ -725,8 +756,16 @@ async function logSaveDiff(storeKey, storeLabel, afterArray, reason) {
           const afterVal = after[field] ?? '';
           if (beforeVal !== afterVal) changes.push({ field: label, from: beforeVal || '(empty)', to: afterVal || '(empty)' });
         }
-        if ((before.statusText || '') !== (after.statusText || '')) {
-          changes.push({ field: 'Project Status', from: '', to: '(updated)' });
+        // Compare through the same HTML round-trip on both sides — statusText/pmNotes get
+        // re-read from the editor's innerHTML on every save regardless of whether the user
+        // touched that specific field, and the browser's serialization isn't guaranteed to
+        // come back byte-identical to what was originally stored (whitespace, attribute
+        // order, etc.), which was falsely flagging untouched fields as "updated".
+        if (normalizeHtmlForCompare(before.statusText) !== normalizeHtmlForCompare(after.statusText)) {
+          changes.push({ field: 'Project Status', from: '', to: '(updated)', content: after.statusText || '' });
+        }
+        if (normalizeHtmlForCompare(before.pmNotes) !== normalizeHtmlForCompare(after.pmNotes)) {
+          changes.push({ field: 'PM Personal Notes', from: '', to: '(updated)', content: after.pmNotes || '' });
         }
         if (!changes.length) return null;
         return { customer: after.customer, name: after.name || after.parentProjectName || after.label, jira: after.jira, changes };
@@ -1101,6 +1140,7 @@ const editPmStatus = document.getElementById('editPmStatus');
 const pmStatusLabel = document.getElementById('pmStatusLabel');
 const pmNotesLabel = document.getElementById('pmNotesLabel');
 const pmNotesEditor = document.getElementById('pmNotesEditor');
+const saveEditModalBtn = document.getElementById('saveEditModalBtn');
 const editRiskReason = document.getElementById('editRiskReason');
 const editRegion = document.getElementById('editRegion');
 const riskReasonLabel = document.getElementById('riskReasonLabel');
@@ -1138,10 +1178,6 @@ const settingsBtn = document.getElementById('settingsBtn');
 const settingsModal = document.getElementById('settingsModal');
 const closeSettingsBtn = document.getElementById('closeSettingsBtn');
 const openActivityLogBtn = document.getElementById('openActivityLogBtn');
-const activityLogModal = document.getElementById('activityLogModal');
-const closeActivityLogModalBtn = document.getElementById('closeActivityLogModalBtn');
-const activityLogRangeFilter = document.getElementById('activityLogRangeFilter');
-const refreshActivityLogBtn = document.getElementById('refreshActivityLogBtn');
 const cancelSettingsBtn = document.getElementById('cancelSettingsBtn');
 const saveSettingsBtn = document.getElementById('saveSettingsBtn');
 const deleteProjectModal = document.getElementById('deleteProjectModal');

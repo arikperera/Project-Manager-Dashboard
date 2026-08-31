@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Activity Log — PM Dashboard</title>
+  <link rel="icon" type="image/png" href="favicon1.png" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="main-content" style="max-width:1400px;margin:0 auto;">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Diagnostics</p>
+        <h1 style="font-size:1.4rem;">Activity Log</h1>
+      </div>
+    </header>
+    <div class="filter-row" style="max-width:420px;">
+      <select id="activityLogRangeFilter">
+        <option value="24">Last 24 hours</option>
+        <option value="48">Last 48 hours</option>
+        <option value="168">Last 7 days</option>
+      </select>
+      <button id="refreshActivityLogBtn" class="ghost-btn small-btn">↻ Refresh</button>
+    </div>
+    <div class="panel" style="padding:16px;margin-top:4px;">
+      <div id="activityLogMain"><!-- rendered by activity-log.js --></div>
+    </div>
+  </main>
+
+  <div id="activityContentPopover" class="activity-content-popover hidden"></div>
+
+  <script src="activity-log.js"></script>
+</body>
+</html>

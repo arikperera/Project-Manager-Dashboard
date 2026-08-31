@@ -146,6 +146,8 @@ th { color: #bfdbfe; font-weight:600; }
 .progress-wrap:hover .progress-tooltip { display: block; }
 .progress-fill-overrun { background: linear-gradient(90deg, #f97316, #fb923c); }
 @keyframes progress-blink { 0%,100%{opacity:1} 50%{opacity:0} }
+@keyframes btn-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.btn-spinner { display: inline-block; margin-right: 6px; animation: btn-spin 0.9s linear infinite; }
 .progress-blink { animation: progress-blink 1s step-start infinite; color:#ef4444; font-weight:700; }
 .progress-blink-dollar { color:#4ade80; }
 .progress-blink-wrap { position:relative; display:inline-block; margin-left:3px; }
@@ -174,6 +176,10 @@ th { color: #bfdbfe; font-weight:600; }
 .mention { background:rgba(56,189,248,0.15); color:#7dd3fc; border-radius:4px; padding:0 3px; }
 .mention-dropdown { position:fixed; z-index:1000; list-style:none; margin:0; padding:4px; min-width:220px; max-width:320px; max-height:220px; overflow-y:auto; background:#0f172a; border:1px solid #223249; border-radius:10px; box-shadow:0 12px 28px rgba(0,0,0,0.4); }
 .mention-dropdown.hidden { display:none; }
+.activity-content-toggle { background:none; border:none; padding:0; color:#7dd3fc; text-decoration:underline; cursor:pointer; font-size:inherit; font-family:inherit; }
+.activity-content-toggle:hover { color:#38bdf8; }
+.activity-content-popover { position:absolute; z-index:1000; max-width:420px; max-height:320px; overflow-y:auto; background:#0f172a; border:1px solid #223249; border-radius:12px; padding:12px 14px; box-shadow:0 12px 28px rgba(0,0,0,0.45); color:var(--text); line-height:1.5; }
+.activity-content-popover.hidden { display:none; }
 .mention-dropdown li { padding:6px 10px; border-radius:8px; cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .mention-dropdown li:hover, .mention-dropdown li.active { background:rgba(56,189,248,0.12); color:#7dd3fc; }
 .mention-dropdown-name { font-weight:600; color:#eff6ff; }

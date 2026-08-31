@@ -281,6 +281,32 @@ function showToast(message, type = 'error') {
   setTimeout(() => toast.remove(), 5000);
 }
 
+// Shows an hourglass + busy label on a button while an async action runs, so a save that
+// takes a moment (KV write, Jira sync, comment post/delete) doesn't look unresponsive.
+// Restores the button's exact original content/state afterward, success or failure.
+function setButtonBusy(btn, busy, busyText) {
+  if (!btn) return;
+  if (busy) {
+    if (btn.dataset.busyOriginalHtml === undefined) btn.dataset.busyOriginalHtml = btn.innerHTML;
+    const label = busyText === undefined ? 'Working...' : busyText;
+    // Spinner is its own element (not baked into a text string) so the rotation animation
+    // applies cleanly to just the icon, independent of whatever label text sits beside it.
+    btn.innerHTML = '';
+    const spinner = document.createElement('span');
+    spinner.className = 'btn-spinner';
+    spinner.textContent = '⏳';
+    btn.appendChild(spinner);
+    if (label) btn.appendChild(document.createTextNode(label));
+    btn.disabled = true;
+  } else {
+    if (btn.dataset.busyOriginalHtml !== undefined) {
+      btn.innerHTML = btn.dataset.busyOriginalHtml;
+      delete btn.dataset.busyOriginalHtml;
+    }
+    btn.disabled = false;
+  }
+}
+
 function showOfflineBanner() {
   const el = document.getElementById('offline-banner');
   if (el) el.style.display = 'block';
@@ -673,7 +699,7 @@ commentsList.addEventListener('click', async (event) => {
     confirmLabel: 'Delete',
   });
   if (!confirmed) return;
-  btn.disabled = true;
+  setButtonBusy(btn, true, '');
   const ok = await deleteJiraComment(issueKey, commentId);
   if (ok) {
     showToast('Comment deleted', 'success');
@@ -686,7 +712,7 @@ commentsList.addEventListener('click', async (event) => {
     }
   } else {
     showToast('Failed to delete comment (check Jira permissions)', 'error');
-    btn.disabled = false;
+    setButtonBusy(btn, false);
   }
 });
 
@@ -726,9 +752,9 @@ commentsModal.addEventListener('click', (event) => {
 saveCommentBtn.addEventListener('click', async () => {
   const issueKey = commentsModal.dataset.issueKey;
   if (!issueKey) return;
-  saveCommentBtn.disabled = true;
+  setButtonBusy(saveCommentBtn, true, 'Posting...');
   await postComposerComment(issueKey);
-  saveCommentBtn.disabled = false;
+  setButtonBusy(saveCommentBtn, false);
 });
 
 function renderRiskList() {
@@ -1076,114 +1102,6 @@ function closeClosedProjectsModal() {
   closedProjectsModal.setAttribute('aria-hidden', 'true');
 }
 
-const ACTIVITY_REASON_LABELS = {
-  'manual-delete': 'Manual delete',
-  'backup-and-delete': 'Backup & delete',
-  'restore-from-backup': 'Backup restore',
-  'restore-from-closed': 'Restore (Closed)',
-  'add-project': 'Project added',
-  'add-task': 'Task added',
-  'edit-save': 'Edited',
-  'import-from-jira': 'Imported (Jira)',
-  'auto-add-new-project': 'Auto-added (Jira)',
-  'jira-progress-sync': 'Jira field sync',
-  'jira-status-sync': 'Jira status sync',
-  'reconnect-sync': 'Reconnect sync',
-  'user-rename-propagation': 'User renamed',
-  'customer-rename-propagation': 'Customer renamed',
-  'migrate-projects': 'Data migration',
-  'create-backup': 'Backup created',
-  'restore-to-active': 'Restored to active',
-};
-function formatActivityReason(reason) {
-  return ACTIVITY_REASON_LABELS[reason] || reason || 'Unknown';
-}
-
-// Collapse near-duplicate entries for the same store/added/removed set that land within
-// a few seconds of each other — e.g. import-from-jira followed by a page-reload Jira
-// sync re-detecting the same new project due to KV read-after-write lag.
-function dedupeActivityEntries(entries) {
-  const kept = [];
-  for (const e of entries) {
-    const key = JSON.stringify({
-      store: e.store,
-      added: (e.added || []).map(p => p.jira || p.name).sort(),
-      removed: (e.removed || []).map(p => p.jira || p.name).sort(),
-      edited: (e.edited || []).map(p => p.jira || p.name).sort(),
-    });
-    const dup = kept.find(k => k._key === key && Math.abs(k.ts - e.ts) < 30000);
-    if (dup) {
-      const generic = ['jira-progress-sync', 'jira-status-sync'];
-      if (generic.includes(dup.reason) && !generic.includes(e.reason)) {
-        Object.assign(dup, e, { _key: key });
-      }
-      continue;
-    }
-    kept.push({ ...e, _key: key });
-  }
-  return kept;
-}
-
-async function renderActivityLogPanel() {
-  const el = document.getElementById('activityLogMain');
-  el.innerHTML = '<p class="muted">Loading…</p>';
-  const log = await getActivityLog();
-  const hours = Number(activityLogRangeFilter.value) || 24;
-  const cutoff = Date.now() - hours * 60 * 60 * 1000;
-  const entries = dedupeActivityEntries(
-    (Array.isArray(log) ? log : []).filter(e => e.ts >= cutoff).sort((a, b) => b.ts - a.ts)
-  );
-
-  if (!entries.length) {
-    el.innerHTML = `<p class="muted">No activity in the last ${hours} hours.</p>`;
-    return;
-  }
-
-  const jiraRef = (p) => p.jira ? ` (<a href="${escapeHtml(p.jira)}" target="_blank" rel="noreferrer">${escapeHtml(getJiraLabel(p.jira))}</a>)` : '';
-  const rows = entries.map(e => {
-    const time = new Date(e.ts).toLocaleString('default', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-    const countChange = e.beforeCount !== e.afterCount
-      ? `<span style="color:${e.afterCount > e.beforeCount ? '#4ade80' : '#f87171'};font-weight:600;">${e.beforeCount} → ${e.afterCount}</span>`
-      : `${e.beforeCount} → ${e.afterCount}`;
-    const addedList = (e.added || []).map(p => `<div style="color:#4ade80;">+ ${escapeHtml(p.customer ? p.customer + ' — ' : '')}${escapeHtml(p.name || '-')}${jiraRef(p)}</div>`).join('');
-    const removedList = (e.removed || []).map(p => `<div style="color:#f87171;">− ${escapeHtml(p.customer ? p.customer + ' — ' : '')}${escapeHtml(p.name || '-')}${jiraRef(p)}</div>`).join('');
-    const editedList = (e.edited || []).map(p => {
-      const changeLines = (p.changes || []).map(c => `<div style="color:#94a3b8;padding-left:14px;">${escapeHtml(c.field)}: ${escapeHtml(c.from)} → ${escapeHtml(c.to)}</div>`).join('');
-      return `<div style="color:#7dd3fc;">✎ ${escapeHtml(p.customer ? p.customer + ' — ' : '')}${escapeHtml(p.name || '-')}${jiraRef(p)}</div>${changeLines}`;
-    }).join('');
-    return `
-      <tr>
-        <td style="white-space:nowrap;">${escapeHtml(time)}</td>
-        <td style="white-space:nowrap;">${escapeHtml(e.user || '-')}</td>
-        <td style="white-space:nowrap;">${escapeHtml(e.store || '-')}</td>
-        <td style="white-space:nowrap;">${escapeHtml(formatActivityReason(e.reason))}</td>
-        <td style="white-space:nowrap;">${countChange}</td>
-        <td>${addedList}${removedList}${editedList}</td>
-      </tr>`;
-  }).join('');
-
-  el.innerHTML = `
-    <div style="overflow-x:auto;">
-      <table class="activity-log-table">
-        <thead><tr>
-          <th>When</th><th>By</th><th>Store</th><th>Reason</th><th>Count</th><th style="width:100%;">Added/Removed/Edited</th>
-        </tr></thead>
-        <tbody>${rows}</tbody>
-      </table>
-    </div>`;
-}
-
-function openActivityLogModal() {
-  activityLogModal.classList.remove('hidden');
-  activityLogModal.setAttribute('aria-hidden', 'false');
-  renderActivityLogPanel();
-}
-
-function closeActivityLogModal() {
-  activityLogModal.classList.add('hidden');
-  activityLogModal.setAttribute('aria-hidden', 'true');
-}
-
 function openBackupsModal() {
   selectedBackupId = backups.length ? backups[0].id : null;
   renderBackupsPanel();
@@ -1360,7 +1278,9 @@ editProjectForm.addEventListener('submit', async (event) => {
     selectedProject.pmNotes = isEmptyStatus(rawNotes) ? '' : rawNotes;
   }
 
+  setButtonBusy(saveEditModalBtn, true, 'Saving...');
   if (itemType === 'task') { await saveTasks('edit-save'); } else { await saveProjects('edit-save'); }
+  setButtonBusy(saveEditModalBtn, false);
   renderAll();
   closeEditProjectModal();
 
@@ -1487,12 +1407,8 @@ settingsModal.addEventListener('click', (e) => { if (e.target === settingsModal)
 
 openActivityLogBtn.addEventListener('click', () => {
   closeSettingsModal();
-  openActivityLogModal();
+  window.open('activity-log.html', '_blank');
 });
-closeActivityLogModalBtn.addEventListener('click', closeActivityLogModal);
-activityLogModal.addEventListener('click', (e) => { if (e.target === activityLogModal) closeActivityLogModal(); });
-activityLogRangeFilter.addEventListener('change', renderActivityLogPanel);
-refreshActivityLogBtn.addEventListener('click', renderActivityLogPanel);
 saveSettingsBtn.addEventListener('click', async () => {
   settings.jiraEmail = document.getElementById('settingsJiraEmail').value.trim();
   settings.jiraToken = document.getElementById('settingsJiraToken').value.trim();

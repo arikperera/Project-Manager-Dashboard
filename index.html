@@ -333,7 +333,7 @@
           </div>
           <div class="modal-actions">
             <button type="button" id="cancelEditModalBtn" class="ghost-btn">Cancel</button>
-            <button type="submit" class="primary-btn">Save changes</button>
+            <button type="submit" id="saveEditModalBtn" class="primary-btn">Save changes</button>
           </div>
         </form>
       </div>
@@ -707,29 +707,6 @@
             <button type="button" id="cancelSettingsBtn" class="ghost-btn">Cancel</button>
             <button type="button" id="saveSettingsBtn" class="primary-btn">Save &amp; sync</button>
           </div>
-        </div>
-      </div>
-    </div>
-
-    <div id="activityLogModal" class="modal hidden" aria-hidden="true">
-      <div class="backups-modal-card">
-        <div class="modal-header">
-          <div>
-            <p class="eyebrow">Diagnostics</p>
-            <h3>Activity Log</h3>
-          </div>
-          <button id="closeActivityLogModalBtn" class="ghost-btn" type="button" aria-label="Close">×</button>
-        </div>
-        <div class="filter-row" style="margin-bottom:12px;">
-          <select id="activityLogRangeFilter">
-            <option value="24">Last 24 hours</option>
-            <option value="48">Last 48 hours</option>
-            <option value="168">Last 7 days</option>
-          </select>
-          <button id="refreshActivityLogBtn" class="ghost-btn small-btn">↻ Refresh</button>
-        </div>
-        <div class="backup-main" id="activityLogMain">
-          <!-- rendered by renderActivityLogPanel() -->
         </div>
       </div>
     </div>
