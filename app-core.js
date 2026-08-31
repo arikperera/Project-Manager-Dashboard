@@ -785,9 +785,14 @@ async function logSaveDiff(storeKey, storeLabel, afterArray, reason) {
   } catch {}
 }
 
-async function saveTasks(reason) {
+async function saveTasks(reason, options = {}) {
   const deleteIds = await getCombinedDeleteIds(TASKS_KEY);
-  if (deleteIds.size) {
+  // See saveProjects for the reasoning — merge against fresh KV unless this is a deliberate
+  // full replacement (Restore from Backup).
+  const fresh = options.skipMerge ? null : await kvGet(TASKS_KEY);
+  if (Array.isArray(fresh)) {
+    tasks = mergeArrayForSave(_saveBaseline[TASKS_KEY], fresh, tasks, deleteIds, getItemDeleteKey);
+  } else if (deleteIds.size) {
     const cleaned = tasks.filter(t => !deleteIds.has(getItemDeleteKey(t)));
     if (cleaned.length !== tasks.length) tasks = cleaned;
   }
@@ -798,6 +803,7 @@ async function saveTasks(reason) {
     // Clear any pending deletes for tasks since KV is now up to date
     getPendingDeletes().filter(d => d.storeKey === TASKS_KEY)
       .forEach(d => removePendingDelete(d.id, TASKS_KEY));
+    _saveBaseline[TASKS_KEY] = JSON.parse(JSON.stringify(tasks));
   } else {
     _wasOffline = true;
   }

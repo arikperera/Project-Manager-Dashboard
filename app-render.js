@@ -65,6 +65,7 @@ async function refreshProjectsAndTasksFromKv() {
   if (freshTasks) {
     const pendingDelTaskIds = await getCombinedDeleteIds(TASKS_KEY);
     const kvFilteredTasks = freshTasks.filter(t => !pendingDelTaskIds.has(getItemDeleteKey(t)));
+    _saveBaseline[TASKS_KEY] = JSON.parse(JSON.stringify(kvFilteredTasks));
     const kvTaskIds = new Set(kvFilteredTasks.map(t => t.id).filter(Boolean));
     const localOnlyTasks = tasks.filter(t => t.id && !kvTaskIds.has(t.id) && !pendingDelTaskIds.has(t.id));
     const mergedTasks = localOnlyTasks.length > 0 ? [...kvFilteredTasks, ...localOnlyTasks] : kvFilteredTasks;
@@ -941,7 +942,7 @@ function renderBackupMain(backup) {
           await removeKvTombstone(t.id, TASKS_KEY);
         }
       }
-      await saveTasks('restore-from-backup');
+      await saveTasks('restore-from-backup', { skipMerge: true });
     }
     if (restoreUsersEl.checked) {
       users = JSON.parse(JSON.stringify(backup.users));
