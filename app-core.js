@@ -25,8 +25,15 @@ function emailToDisplayName(email) {
 async function getCurrentUserName() {
   return emailToDisplayName(await getCurrentUserEmail());
 }
-const APP_VERSION = '1.17.1';
+const APP_VERSION = '1.17.2';
 const CHANGELOG = [
+  {
+    version: '1.17.2',
+    date: '2026-08-31',
+    features: [
+      'Fix: a stale browser tab saving any change (even a single unrelated edit or delete) could silently wipe out projects, tasks, closed-project entries, or backups added or edited by other people in the meantime — confirmed real incidents where dozens of projects vanished from PMs\' lists after someone else made one small edit elsewhere. Every save now merges against the current shared state instead of overwriting it wholesale, so only what you actually changed is what gets applied — nothing you never touched can be dropped by your save.',
+    ]
+  },
   {
     version: '1.17.1',
     date: '2026-08-14',
