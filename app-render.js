@@ -44,6 +44,7 @@ async function refreshProjectsAndTasksFromKv() {
     const pendingDelIds = await getCombinedDeleteIds(STORAGE_KEY);
     // Strip any pending-deleted projects that KV still has (KV write may have failed on delete)
     const kvFiltered = freshProjects.filter(p => !pendingDelIds.has(getItemDeleteKey(p)));
+    _saveBaseline[STORAGE_KEY] = JSON.parse(JSON.stringify(kvFiltered));
     const kvJiraKeys = new Set(kvFiltered.map(p => p.jira).filter(Boolean));
     // Merge in local-only items for DISPLAY only (added moments ago, save still in flight) —
     // deliberately NOT written back to KV here. A stale tab can hold a local-only item
@@ -930,7 +931,7 @@ function renderBackupMain(backup) {
           await removeKvTombstone(p.jira, STORAGE_KEY);
         }
       }
-      await saveProjects('restore-from-backup');
+      await saveProjects('restore-from-backup', { skipMerge: true });
     }
     if (restoreTasksEl.checked && Array.isArray(backup.tasks)) {
       tasks = JSON.parse(JSON.stringify(backup.tasks));

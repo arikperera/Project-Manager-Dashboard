@@ -1287,12 +1287,19 @@ const importBackBtn = document.getElementById('importBackBtn');
 const importConfirmBtn = document.getElementById('importConfirmBtn');
 const importProgress = document.getElementById('importProgress');
 
-async function saveProjects(reason) {
+async function saveProjects(reason, options = {}) {
   // Strip anything tombstoned (by this browser or any other session) before persisting —
-  // guards every caller (delete handlers, Jira sync loops, etc.) against writing back a
-  // stale in-memory copy that still contains an item someone else already deleted.
+  // guards every caller against writing back a stale in-memory copy that still contains an
+  // item someone else already deleted.
   const deleteIds = await getCombinedDeleteIds(STORAGE_KEY);
-  if (deleteIds.size) {
+  // Merge against a fresh KV read so this tab's save can't silently drop projects added or
+  // edited by other sessions since this tab's baseline (see 2026-08-31 design doc). Bypassed
+  // for Restore from Backup (options.skipMerge), which is a deliberate full replacement, and
+  // falls back to the old tombstone-strip-only behavior if the fresh read fails.
+  const fresh = options.skipMerge ? null : await kvGet(STORAGE_KEY);
+  if (Array.isArray(fresh)) {
+    projects = mergeArrayForSave(_saveBaseline[STORAGE_KEY], fresh, projects, deleteIds, getItemDeleteKey);
+  } else if (deleteIds.size) {
     const cleaned = projects.filter(p => !deleteIds.has(getItemDeleteKey(p)));
     if (cleaned.length !== projects.length) projects = cleaned;
   }
@@ -1302,6 +1309,7 @@ async function saveProjects(reason) {
   if (ok) {
     getPendingDeletes().filter(d => d.storeKey === STORAGE_KEY)
       .forEach(d => removePendingDelete(d.id, STORAGE_KEY));
+    _saveBaseline[STORAGE_KEY] = JSON.parse(JSON.stringify(projects));
   } else {
     _wasOffline = true;
   }
