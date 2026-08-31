@@ -795,10 +795,11 @@ async function logSaveDiff(storeKey, storeLabel, afterArray, reason) {
 async function saveTasks(reason, options = {}) {
   const deleteIds = await getCombinedDeleteIds(TASKS_KEY);
   // See saveProjects for the reasoning — merge against fresh KV unless this is a deliberate
-  // full replacement (Restore from Backup).
-  const fresh = options.skipMerge ? null : await kvGet(TASKS_KEY);
+  // full replacement (Restore from Backup), or there's no baseline yet to compare against.
+  const baseline = _saveBaseline[TASKS_KEY];
+  const fresh = (options.skipMerge || !baseline) ? null : await kvGet(TASKS_KEY);
   if (Array.isArray(fresh)) {
-    tasks = mergeArrayForSave(_saveBaseline[TASKS_KEY], fresh, tasks, deleteIds, getItemDeleteKey);
+    tasks = mergeArrayForSave(baseline, fresh, tasks, deleteIds, getItemDeleteKey);
   } else if (deleteIds.size) {
     const cleaned = tasks.filter(t => !deleteIds.has(getItemDeleteKey(t)));
     if (cleaned.length !== tasks.length) tasks = cleaned;
@@ -828,9 +829,10 @@ async function saveClosedProjects(reason) {
   // way to tell the merge below "this was deliberately removed", and it would silently
   // reappear the next time this store is saved from a tab that still has it locally.
   const deleteIds = await getCombinedDeleteIds(CLOSED_PROJECTS_KEY);
-  const fresh = await kvGet(CLOSED_PROJECTS_KEY);
+  const baseline = _saveBaseline[CLOSED_PROJECTS_KEY];
+  const fresh = baseline ? await kvGet(CLOSED_PROJECTS_KEY) : null;
   if (Array.isArray(fresh)) {
-    closedProjects = mergeArrayForSave(_saveBaseline[CLOSED_PROJECTS_KEY], fresh, closedProjects, deleteIds, getItemDeleteKey);
+    closedProjects = mergeArrayForSave(baseline, fresh, closedProjects, deleteIds, getItemDeleteKey);
   } else if (deleteIds.size) {
     const cleaned = closedProjects.filter(p => !deleteIds.has(getItemDeleteKey(p)));
     if (cleaned.length !== closedProjects.length) closedProjects = cleaned;
@@ -1040,9 +1042,10 @@ async function initData() {
 
 async function saveBackups(reason) {
   const deleteIds = await getCombinedDeleteIds(BACKUPS_KEY);
-  const fresh = await kvGet(BACKUPS_KEY);
+  const baseline = _saveBaseline[BACKUPS_KEY];
+  const fresh = baseline ? await kvGet(BACKUPS_KEY) : null;
   if (Array.isArray(fresh)) {
-    backups = mergeArrayForSave(_saveBaseline[BACKUPS_KEY], fresh, backups, deleteIds, getItemDeleteKey);
+    backups = mergeArrayForSave(baseline, fresh, backups, deleteIds, getItemDeleteKey);
   } else if (deleteIds.size) {
     const cleaned = backups.filter(b => !deleteIds.has(getItemDeleteKey(b)));
     if (cleaned.length !== backups.length) backups = cleaned;
@@ -1328,11 +1331,13 @@ async function saveProjects(reason, options = {}) {
   const deleteIds = await getCombinedDeleteIds(STORAGE_KEY);
   // Merge against a fresh KV read so this tab's save can't silently drop projects added or
   // edited by other sessions since this tab's baseline (see 2026-08-31 design doc). Bypassed
-  // for Restore from Backup (options.skipMerge), which is a deliberate full replacement, and
-  // falls back to the old tombstone-strip-only behavior if the fresh read fails.
-  const fresh = options.skipMerge ? null : await kvGet(STORAGE_KEY);
+  // for Restore from Backup (options.skipMerge) — a deliberate full replacement — and falls
+  // back to the old tombstone-strip-only behavior if there's no baseline yet (e.g. this tab
+  // loaded while the proxy was briefly unreachable) or the fresh read itself fails.
+  const baseline = _saveBaseline[STORAGE_KEY];
+  const fresh = (options.skipMerge || !baseline) ? null : await kvGet(STORAGE_KEY);
   if (Array.isArray(fresh)) {
-    projects = mergeArrayForSave(_saveBaseline[STORAGE_KEY], fresh, projects, deleteIds, getItemDeleteKey);
+    projects = mergeArrayForSave(baseline, fresh, projects, deleteIds, getItemDeleteKey);
   } else if (deleteIds.size) {
     const cleaned = projects.filter(p => !deleteIds.has(getItemDeleteKey(p)));
     if (cleaned.length !== projects.length) projects = cleaned;

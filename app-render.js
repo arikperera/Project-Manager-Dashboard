@@ -1,30 +1,17 @@
 
 async function trySyncLocalToKV() {
-  // Strip anything tombstoned (deleted by this browser OR any other session while we
-  // were offline) before pushing our possibly-stale local copy back to KV — otherwise
-  // a reconnecting browser with an old in-memory list can resurrect someone else's delete.
-  const projectDeleteIds = await getCombinedDeleteIds(STORAGE_KEY);
-  const taskDeleteIds = await getCombinedDeleteIds(TASKS_KEY);
-  const cleanProjects = projectDeleteIds.size ? projects.filter(p => !projectDeleteIds.has(getItemDeleteKey(p))) : projects;
-  const cleanTasks = taskDeleteIds.size ? tasks.filter(t => !taskDeleteIds.has(getItemDeleteKey(t))) : tasks;
-  if (cleanProjects.length !== projects.length) { projects = cleanProjects; try { localStorage.setItem(STORAGE_KEY, JSON.stringify(projects)); } catch {} }
-  if (cleanTasks.length !== tasks.length) { tasks = cleanTasks; try { localStorage.setItem(TASKS_KEY, JSON.stringify(tasks)); } catch {} }
-
-  await logSaveDiff(STORAGE_KEY, 'projects', projects, 'reconnect-sync');
-  await logSaveDiff(TASKS_KEY, 'tasks', tasks, 'reconnect-sync');
-
-  // Push in-memory data (which has offline deletes/adds applied) to KV
-  const stores = [
-    [STORAGE_KEY, projects],
-    [USERS_KEY, users],
-    [CUSTOMERS_KEY, customers],
-    [BACKUPS_KEY, backups],
-    [TASKS_KEY, tasks],
-    [CLOSED_PROJECTS_KEY, closedProjects],
-  ];
-  for (const [key, data] of stores) {
-    await kvPut(key, data).catch(() => {});
-  }
+  // Delegate to the same four save functions every other write path uses — each already
+  // does its own tombstone stripping, merge-against-fresh-KV, logSaveDiff, and (where
+  // applicable) pending-delete cleanup. This function used to push projects/tasks/backups/
+  // closedProjects to KV directly via raw kvPut() calls, completely bypassing the merge fix
+  // and re-opening the exact stale-overwrite bug it exists to close, every time a normal
+  // reconnect-after-a-network-blip fired.
+  await saveProjects('reconnect-sync');
+  await saveTasks('reconnect-sync');
+  await saveClosedProjects('reconnect-sync');
+  await saveBackups('reconnect-sync');
+  await kvPut(USERS_KEY, users).catch(() => {});
+  await kvPut(CUSTOMERS_KEY, customers).catch(() => {});
   // Clear all pending deletes since KV is now in sync
   try { localStorage.setItem(PENDING_DELETES_KEY, '[]'); } catch {}
   const banner = document.getElementById('offline-banner');
