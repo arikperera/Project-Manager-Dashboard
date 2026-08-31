@@ -861,6 +861,7 @@ refreshClosedProjectsBtn.addEventListener('click', async () => {
     const fresh = await kvGet(CLOSED_PROJECTS_KEY);
     if (fresh) {
       closedProjects = fresh;
+      _saveBaseline[CLOSED_PROJECTS_KEY] = JSON.parse(JSON.stringify(fresh));
       try { localStorage.setItem(CLOSED_PROJECTS_KEY, JSON.stringify(closedProjects)); } catch {}
     }
     renderClosedProjectsPanel();
@@ -1133,7 +1134,10 @@ backupAndDeleteProjectBtn.addEventListener('click', async () => {
     // stale (missing closures added by other sessions since page load), and saving it
     // wholesale would silently wipe those out.
     const freshClosed = await kvGet(CLOSED_PROJECTS_KEY);
-    if (Array.isArray(freshClosed)) closedProjects = freshClosed;
+    if (Array.isArray(freshClosed)) {
+      closedProjects = freshClosed;
+      _saveBaseline[CLOSED_PROJECTS_KEY] = JSON.parse(JSON.stringify(freshClosed));
+    }
     closedProjects = closedProjects.filter(p => (p.jira || '') !== (closedCopy.jira || ''));
     closedProjects.push(closedCopy);
     await saveClosedProjects('backup-and-delete');

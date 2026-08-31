@@ -816,10 +816,26 @@ const CLOSED_PROJECTS_KEY = 'project-dashboard-closed-projects-v1';
 let closedProjects = JSON.parse(localStorage.getItem('project-dashboard-closed-projects-v1') || '[]');
 
 async function saveClosedProjects(reason) {
+  // Closed Projects never had tombstone protection before — everything else (projects,
+  // tasks, backups) already did. Without this, removing an entry (Restore to Active) has no
+  // way to tell the merge below "this was deliberately removed", and it would silently
+  // reappear the next time this store is saved from a tab that still has it locally.
+  const deleteIds = await getCombinedDeleteIds(CLOSED_PROJECTS_KEY);
+  const fresh = await kvGet(CLOSED_PROJECTS_KEY);
+  if (Array.isArray(fresh)) {
+    closedProjects = mergeArrayForSave(_saveBaseline[CLOSED_PROJECTS_KEY], fresh, closedProjects, deleteIds, getItemDeleteKey);
+  } else if (deleteIds.size) {
+    const cleaned = closedProjects.filter(p => !deleteIds.has(getItemDeleteKey(p)));
+    if (cleaned.length !== closedProjects.length) closedProjects = cleaned;
+  }
   await logSaveDiff(CLOSED_PROJECTS_KEY, 'closedProjects', closedProjects, reason);
   try { localStorage.setItem(CLOSED_PROJECTS_KEY, JSON.stringify(closedProjects)); } catch {}
   const ok = await kvPutWithRetry(CLOSED_PROJECTS_KEY, closedProjects);
-  if (!ok) _wasOffline = true;
+  if (ok) {
+    _saveBaseline[CLOSED_PROJECTS_KEY] = JSON.parse(JSON.stringify(closedProjects));
+  } else {
+    _wasOffline = true;
+  }
 }
 
 // This browser's own last-confirmed view of each KV key, timestamped — updated on every

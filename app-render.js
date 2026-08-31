@@ -1076,10 +1076,14 @@ function renderClosedProjectsPanel() {
       const jira = btn.dataset.jira;
       // Refresh from KV right before mutating — same reasoning as backupAndDeleteProjectBtn.
       const freshClosed = await kvGet(CLOSED_PROJECTS_KEY);
-      if (Array.isArray(freshClosed)) closedProjects = freshClosed;
+      if (Array.isArray(freshClosed)) {
+        closedProjects = freshClosed;
+        _saveBaseline[CLOSED_PROJECTS_KEY] = JSON.parse(JSON.stringify(freshClosed));
+      }
       const idx = closedProjects.findIndex(p => (p.jira || '') === jira);
       if (idx < 0) return;
       const [restored] = closedProjects.splice(idx, 1);
+      if (jira) await addKvTombstone(jira, CLOSED_PROJECTS_KEY);
       delete restored.closedAt;
       removePendingDelete(jira, STORAGE_KEY);
       await removeKvTombstone(jira, STORAGE_KEY);
