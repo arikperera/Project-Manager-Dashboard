@@ -1033,14 +1033,19 @@ async function initData() {
 
 async function saveBackups(reason) {
   const deleteIds = await getCombinedDeleteIds(BACKUPS_KEY);
-  if (deleteIds.size) {
+  const fresh = await kvGet(BACKUPS_KEY);
+  if (Array.isArray(fresh)) {
+    backups = mergeArrayForSave(_saveBaseline[BACKUPS_KEY], fresh, backups, deleteIds, getItemDeleteKey);
+  } else if (deleteIds.size) {
     const cleaned = backups.filter(b => !deleteIds.has(getItemDeleteKey(b)));
     if (cleaned.length !== backups.length) backups = cleaned;
   }
   await logSaveDiff(BACKUPS_KEY, 'backups', backups, reason);
   try { localStorage.setItem(BACKUPS_KEY, JSON.stringify(backups)); } catch {}
   const ok = await kvPutWithRetry(BACKUPS_KEY, backups);
-  if (!ok) {
+  if (ok) {
+    _saveBaseline[BACKUPS_KEY] = JSON.parse(JSON.stringify(backups));
+  } else {
     _wasOffline = true;
   }
 }
