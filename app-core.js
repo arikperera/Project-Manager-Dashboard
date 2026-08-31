@@ -829,6 +829,39 @@ async function saveClosedProjects(reason) {
 // before several real deletes happened, making EVERY later save from that tab misreport all
 // of them as "removed" again. Past _KV_CACHE_MAX_AGE_MS, a fresh network read is more likely
 // to be right than a very old local snapshot, so fall back to it.
+// Per-store baseline snapshots (deep clones) — what this browser tab last confirmed was
+// actually in KV. Captured at page load, on poll/refresh, and after every successful save
+// (see below). Deliberately separate from _lastKnownKvState below: that cache has a
+// 90-second cap and exists only for logSaveDiff's before/after comparison. This one has no
+// expiry, because detecting what a tab actually changed requires comparing against what it
+// knew when its editing session started — which can be minutes or hours before a save, not
+// seconds. See docs/superpowers/specs/2026-08-31-concurrent-save-merge-design.md.
+const _saveBaseline = {};
+
+// Merges this tab's in-memory array against the current KV truth. `baseline` is this tab's
+// last confirmed snapshot; `fresh` is a KV read taken moments ago at save time; `local` is
+// the tab's current in-memory array. Anything in `local` that matches its `baseline`
+// counterpart exactly is left as `fresh` already has it (untouched by this tab — any
+// addition/edit made by another session since baseline stays intact). Anything new or
+// changed relative to baseline uses the tab's own version. Tombstoned items are excluded
+// either way. `getKey` is the same key function every store already uses (getItemDeleteKey).
+function mergeArrayForSave(baseline, fresh, local, deleteIds, getKey) {
+  const baselineMap = new Map((baseline || []).map(item => [getKey(item), item]));
+  const result = new Map(fresh.map(item => [getKey(item), item]));
+
+  for (const item of local) {
+    const key = getKey(item);
+    if (!key || deleteIds.has(key)) continue;
+    const baselineItem = baselineMap.get(key);
+    const isNewOrChanged = !baselineItem || JSON.stringify(baselineItem) !== JSON.stringify(item);
+    if (isNewOrChanged) result.set(key, item);
+  }
+
+  for (const key of deleteIds) result.delete(key);
+
+  return [...result.values()];
+}
+
 const _lastKnownKvState = {};
 const _KV_CACHE_MAX_AGE_MS = 90 * 1000;
 
@@ -960,6 +993,11 @@ async function initData() {
   ]);
   // Always keep backups sorted newest first
   backups.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+
+  _saveBaseline[STORAGE_KEY] = JSON.parse(JSON.stringify(projects));
+  _saveBaseline[TASKS_KEY] = JSON.parse(JSON.stringify(tasks));
+  _saveBaseline[CLOSED_PROJECTS_KEY] = JSON.parse(JSON.stringify(closedProjects));
+  _saveBaseline[BACKUPS_KEY] = JSON.parse(JSON.stringify(backups));
 
   // Cache KV data to localStorage so next load renders instantly
   try { localStorage.setItem(STORAGE_KEY,   JSON.stringify(projects));  } catch {}
