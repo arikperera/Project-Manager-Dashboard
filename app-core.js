@@ -25,8 +25,15 @@ function emailToDisplayName(email) {
 async function getCurrentUserName() {
   return emailToDisplayName(await getCurrentUserEmail());
 }
-const APP_VERSION = '1.17.7';
+const APP_VERSION = '1.17.8';
 const CHANGELOG = [
+  {
+    version: '1.17.8',
+    date: '2026-09-03',
+    features: [
+      'Fix: background Jira syncs (pulling in progress %, hours, and description changes) were logged under whoever\'s browser tab happened to be open at the time, even though the actual change was made by someone else editing the Jira ticket directly. These now show as "Jira Sync" in the Activity Log\'s "By" column instead of crediting an uninvolved PM.',
+    ]
+  },
   {
     version: '1.17.7',
     date: '2026-09-03',
@@ -729,6 +736,14 @@ async function getCombinedDeleteIds(storeKey) {
   return ids;
 }
 
+// Reasons that mean "a background Jira poll saved this," not "a person clicked something."
+// These can run in ANY open tab (whoever's browser happened to be polling), and the actual
+// field changes they pull in were made by whoever edited the ticket in Jira — not by the
+// person whose tab happened to run the sync. Crediting the tab's own user was actively
+// misleading (e.g. a PM's own name showing up next to a colleague's project they never
+// touched), so these get a fixed, non-personal label instead of getCurrentUserName().
+const BACKGROUND_SYNC_REASONS = new Set(['jira-progress-sync', 'jira-status-sync']);
+
 // Shared activity log — records every add/remove to projects or tasks, with a reason
 // tag, so cross-session disappear/reappear mysteries can be traced. Each entry writes to
 // its own KV key server-side (see proxy-worker.js POST /activity-log) instead of a single
@@ -736,7 +751,7 @@ async function getCombinedDeleteIds(storeKey) {
 // other's entries. Cloudflare KV's native TTL prunes entries after 7 days automatically.
 async function logActivity(entry) {
   try {
-    const user = await getCurrentUserName();
+    const user = BACKGROUND_SYNC_REASONS.has(entry.reason) ? 'Jira Sync' : await getCurrentUserName();
     await fetch(`${PROXY_BASE}/activity-log`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-KV-Secret': KV_SECRET },
