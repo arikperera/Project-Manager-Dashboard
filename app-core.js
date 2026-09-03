@@ -25,8 +25,15 @@ function emailToDisplayName(email) {
 async function getCurrentUserName() {
   return emailToDisplayName(await getCurrentUserEmail());
 }
-const APP_VERSION = '1.17.5';
+const APP_VERSION = '1.17.6';
 const CHANGELOG = [
+  {
+    version: '1.17.6',
+    date: '2026-09-03',
+    features: [
+      'Fix: a save could silently revert a field on an unrelated project if that project\'s local copy in the saving tab was stale — e.g. a background Jira sync noticing a change on one project could carry along an old, empty value for a completely different project\'s AT Link, wiping out a colleague\'s real edit with no trace. Saves now merge field-by-field instead of whole-item, so only what a tab actually changed can ever overwrite what\'s already there. The Activity Log also now shows field-level changes for every kind of save, not just manual edits, so this class of issue is visible if it ever happens again.',
+    ]
+  },
   {
     version: '1.17.5',
     date: '2026-09-03',
