@@ -757,10 +757,18 @@ function normalizeHtmlForCompare(html) {
   return div.innerHTML;
 }
 
+// Fields excluded from generic field-level change logging: statusUpdatedAt is bookkeeping,
+// not a meaningful change to show; jira/id are each item's own key and can't meaningfully
+// "change" for an existing logged item; statusText/pmNotes are handled separately below
+// (shown as "(updated)", not a raw value diff — logging the full HTML would be unreadable).
+const LOG_EXCLUDED_FIELDS = new Set(['statusUpdatedAt', 'jira', 'id', 'statusText', 'pmNotes']);
+
 // Compares the KV state right before a save against what's about to be written, and logs
-// added/removed items, plus (for manual edits only) which fields changed on items that were
-// neither added nor removed — otherwise a pure field edit like a PM reassignment produces no
-// diff in the added/removed sets and silently logs nothing at all.
+// added/removed items, plus which fields changed on items that were neither added nor
+// removed — for EVERY save reason, not just manual edits, so a background sync silently
+// reverting a field (via a stale whole-array snapshot) leaves a visible trace instead of
+// none. Field comparison is generic (every own field on the item), not a fixed list, so
+// anything added to the schema later is automatically covered.
 async function logSaveDiff(storeKey, storeLabel, afterArray, reason) {
   try {
     const cached = _lastKnownKvState[storeKey];
@@ -771,34 +779,35 @@ async function logSaveDiff(storeKey, storeLabel, afterArray, reason) {
     const added = afterArray.filter(item => { const k = getItemDeleteKey(item); return k && !beforeKeys.has(k); });
     const removed = beforeArray.filter(item => { const k = getItemDeleteKey(item); return k && !afterKeys.has(k); });
 
-    let edited = [];
-    if (reason === 'edit-save') {
-      const beforeByKey = new Map(beforeArray.map(item => [getItemDeleteKey(item), item]));
-      edited = afterArray.map(after => {
-        const key = getItemDeleteKey(after);
-        const before = key ? beforeByKey.get(key) : null;
-        if (!before) return null;
-        const changes = [];
-        for (const [field, label] of Object.entries(EDIT_TRACKED_FIELDS)) {
-          const beforeVal = before[field] ?? '';
-          const afterVal = after[field] ?? '';
-          if (beforeVal !== afterVal) changes.push({ field: label, from: beforeVal || '(empty)', to: afterVal || '(empty)' });
+    const beforeByKey = new Map(beforeArray.map(item => [getItemDeleteKey(item), item]));
+    const edited = afterArray.map(after => {
+      const key = getItemDeleteKey(after);
+      const before = key ? beforeByKey.get(key) : null;
+      if (!before) return null;
+      const changes = [];
+      const fieldNames = new Set([...Object.keys(before), ...Object.keys(after)]);
+      for (const field of fieldNames) {
+        if (LOG_EXCLUDED_FIELDS.has(field)) continue;
+        const beforeVal = before[field] ?? '';
+        const afterVal = after[field] ?? '';
+        if (beforeVal !== afterVal) {
+          const label = EDIT_TRACKED_FIELDS[field] || field;
+          changes.push({ field: label, from: beforeVal || '(empty)', to: afterVal || '(empty)' });
         }
-        // Compare through the same HTML round-trip on both sides — statusText/pmNotes get
-        // re-read from the editor's innerHTML on every save regardless of whether the user
-        // touched that specific field, and the browser's serialization isn't guaranteed to
-        // come back byte-identical to what was originally stored (whitespace, attribute
-        // order, etc.), which was falsely flagging untouched fields as "updated".
-        if (normalizeHtmlForCompare(before.statusText) !== normalizeHtmlForCompare(after.statusText)) {
-          changes.push({ field: 'Project Status', from: '', to: '(updated)', content: after.statusText || '' });
-        }
-        if (normalizeHtmlForCompare(before.pmNotes) !== normalizeHtmlForCompare(after.pmNotes)) {
-          changes.push({ field: 'PM Personal Notes', from: '', to: '(updated)', content: after.pmNotes || '' });
-        }
-        if (!changes.length) return null;
-        return { customer: after.customer, name: after.name || after.parentProjectName || after.label, jira: after.jira, changes };
-      }).filter(Boolean);
-    }
+      }
+      // statusText/pmNotes are shown as "(updated)", not a raw value diff — the full HTML
+      // would be unreadable in the log. Compared through the same HTML round-trip on both
+      // sides — see isHtmlField's comment above mergeArrayForSave for why raw string
+      // equality falsely flags untouched fields as "updated".
+      if (normalizeHtmlForCompare(before.statusText) !== normalizeHtmlForCompare(after.statusText)) {
+        changes.push({ field: 'Project Status', from: '', to: '(updated)', content: after.statusText || '' });
+      }
+      if (normalizeHtmlForCompare(before.pmNotes) !== normalizeHtmlForCompare(after.pmNotes)) {
+        changes.push({ field: 'PM Personal Notes', from: '', to: '(updated)', content: after.pmNotes || '' });
+      }
+      if (!changes.length) return null;
+      return { customer: after.customer, name: after.name || after.parentProjectName || after.label, jira: after.jira, changes };
+    }).filter(Boolean);
 
     if (!added.length && !removed.length && !edited.length) return;
     await logActivity({
