@@ -890,13 +890,27 @@ async function saveClosedProjects(reason) {
 // seconds. See docs/superpowers/specs/2026-08-31-concurrent-save-merge-design.md.
 const _saveBaseline = {};
 
-// Merges this tab's in-memory array against the current KV truth. `baseline` is this tab's
-// last confirmed snapshot; `fresh` is a KV read taken moments ago at save time; `local` is
-// the tab's current in-memory array. Anything in `local` that matches its `baseline`
-// counterpart exactly is left as `fresh` already has it (untouched by this tab — any
-// addition/edit made by another session since baseline stays intact). Anything new or
-// changed relative to baseline uses the tab's own version. Tombstoned items are excluded
-// either way. `getKey` is the same key function every store already uses (getItemDeleteKey).
+// statusText/pmNotes are rich HTML that gets re-read from an editor's innerHTML on every
+// save regardless of whether the user touched that specific field — the browser's
+// serialization isn't guaranteed byte-identical to what was originally stored (whitespace,
+// attribute order), so these two fields need HTML-normalized comparison everywhere they're
+// diffed, not raw string equality. See normalizeHtmlForCompare above.
+function isHtmlField(field) {
+  return field === 'statusText' || field === 'pmNotes';
+}
+
+// Merges this tab's in-memory array against the current KV truth, field by field — not
+// whole-item. `baseline` is this tab's last confirmed snapshot; `fresh` is a KV read taken
+// moments ago at save time; `local` is the tab's current in-memory array. For an item this
+// tab never touched at all (identical to its own baseline), fresh's version is left exactly
+// as is. For an item this tab DID change something about, only the specific fields that
+// differ from this tab's OWN baseline get overlaid onto fresh's version — every other field
+// keeps whatever fresh already has. This is what stops a stale local copy of an unrelated
+// field (e.g. an AT Link someone else just added) from being silently carried backward just
+// because this tab happened to save something else about that same item. New items (no
+// baseline counterpart) use the tab's full version, same as before. Tombstoned items are
+// excluded either way. `getKey` is the same key function every store already uses
+// (getItemDeleteKey). See docs/superpowers/specs/2026-09-03-field-level-merge-design.md.
 function mergeArrayForSave(baseline, fresh, local, deleteIds, getKey) {
   const baselineMap = new Map((baseline || []).map(item => [getKey(item), item]));
   const result = new Map(fresh.map(item => [getKey(item), item]));
@@ -905,8 +919,33 @@ function mergeArrayForSave(baseline, fresh, local, deleteIds, getKey) {
     const key = getKey(item);
     if (!key || deleteIds.has(key)) continue;
     const baselineItem = baselineMap.get(key);
-    const isNewOrChanged = !baselineItem || JSON.stringify(baselineItem) !== JSON.stringify(item);
-    if (isNewOrChanged) result.set(key, item);
+    if (!baselineItem) {
+      // New to this tab (no baseline counterpart) — use the full local version, as before.
+      result.set(key, item);
+      continue;
+    }
+    if (JSON.stringify(baselineItem) === JSON.stringify(item)) {
+      // This tab never touched this item — leave fresh's version exactly as it is.
+      continue;
+    }
+    const freshItem = result.get(key);
+    if (!freshItem) {
+      // In this tab's baseline but gone from fresh — deleted by another session since this
+      // tab's baseline. Respect that; don't resurrect it just because this tab's stale copy
+      // still has it.
+      continue;
+    }
+    // This tab changed something about this item. Merge field by field: start from fresh's
+    // version, then overlay only the fields where local differs from THIS TAB'S OWN
+    // baseline — not the whole item.
+    const merged = { ...freshItem };
+    const fieldNames = new Set([...Object.keys(baselineItem), ...Object.keys(item)]);
+    for (const field of fieldNames) {
+      const beforeVal = isHtmlField(field) ? normalizeHtmlForCompare(baselineItem[field]) : baselineItem[field];
+      const localVal = isHtmlField(field) ? normalizeHtmlForCompare(item[field]) : item[field];
+      if (beforeVal !== localVal) merged[field] = item[field];
+    }
+    result.set(key, merged);
   }
 
   for (const key of deleteIds) result.delete(key);
