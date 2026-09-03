@@ -828,7 +828,7 @@ usersModalBody.addEventListener('click', (e) => {
 
 createBackupBtn.addEventListener('click', async () => {
   if (!(await checkActionPassword('create a backup'))) return;
-  createBackup(createBackupBtn);
+  await createBackup(createBackupBtn);
 });
 backupsPanelBtn.addEventListener('click', openBackupsModal);
 closeBackupsModalBtn.addEventListener('click', closeBackupsModal);
@@ -1074,6 +1074,7 @@ deleteProjectModal.addEventListener('click', (e) => { if (e.target === deletePro
 
 deleteProjectBtn.addEventListener('click', async () => {
   if (deleteProjectIndex < 0) return;
+  setButtonBusy(deleteProjectBtn, true, 'Deleting...');
   const itemType = deleteProjectModal.dataset.itemType || 'project';
   if (itemType === 'task') {
     const deletedId = tasks[deleteProjectIndex]?.id;
@@ -1092,6 +1093,7 @@ deleteProjectBtn.addEventListener('click', async () => {
     }
     await saveProjects('manual-delete');
   }
+  setButtonBusy(deleteProjectBtn, false);
   renderAll();
   closeDeleteProjectModal();
 });
@@ -1102,6 +1104,7 @@ backupAndDeleteProjectBtn.addEventListener('click', async () => {
     alert('No backup exists yet. Please create a backup first before deleting.');
     return;
   }
+  setButtonBusy(backupAndDeleteProjectBtn, true, 'Deleting...');
   const itemType = deleteProjectModal.dataset.itemType || 'project';
   const item = itemType === 'task' ? tasks[deleteProjectIndex] : projects[deleteProjectIndex];
   const latestBackup = backups[0];
@@ -1148,6 +1151,7 @@ backupAndDeleteProjectBtn.addEventListener('click', async () => {
     }
     await saveProjects('backup-and-delete');
   }
+  setButtonBusy(backupAndDeleteProjectBtn, false);
   renderAll();
   closeDeleteProjectModal();
 });
@@ -1518,8 +1522,17 @@ async function init() {
   renderAll();
   startKvPoll();
   startAutoProjectPoll();
-  syncStatusFromJira();
-  syncProjectProgressFromJira();
+  // Run sequentially, not concurrently — both start with refreshProjectsAndTasksFromKv(),
+  // which reassigns the shared `projects` variable to a fresh array of new objects. If they
+  // overlap, one's batched loop (100+ projects, 10 at a time — can take a while) keeps
+  // mutating objects from an old snapshot after the other has already swapped `projects` out
+  // from under it, silently discarding whatever it just pulled from Jira. Wrapped in an IIFE
+  // so init() itself still doesn't block on either (matching the previous fire-and-forget
+  // behavior) — only these two are ordered relative to each other.
+  (async () => {
+    await syncStatusFromJira();
+    await syncProjectProgressFromJira();
+  })();
   checkJiraConnectivity();
   fetchAndStoreAvatars();
 }

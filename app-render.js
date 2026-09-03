@@ -905,10 +905,12 @@ function renderBackupMain(backup) {
   });
 
   document.getElementById('confirmRestoreBtn').addEventListener('click', async () => {
+    const confirmBtn = document.getElementById('confirmRestoreBtn');
     const restoreProjectsEl = document.getElementById('restoreProjects');
     const restoreTasksEl = document.getElementById('restoreTasks');
     const restoreUsersEl = document.getElementById('restoreUsers');
     if (!restoreProjectsEl.checked && !restoreTasksEl.checked && !restoreUsersEl.checked) return;
+    setButtonBusy(confirmBtn, true, 'Restoring...');
     if (restoreProjectsEl.checked) {
       projects = JSON.parse(JSON.stringify(backup.projects));
       // Clear tombstones for everything in this snapshot — otherwise saveProjects would
@@ -935,14 +937,18 @@ function renderBackupMain(backup) {
       users = JSON.parse(JSON.stringify(backup.users));
       await saveUsers();
     }
+    setButtonBusy(confirmBtn, false);
     renderAll();
     closeBackupsModal();
   });
 
   document.getElementById('deleteBackupBtn').addEventListener('click', async () => {
+    const deleteBtn = document.getElementById('deleteBackupBtn');
+    setButtonBusy(deleteBtn, true, 'Deleting...');
     backups = backups.filter(b => b.id !== backup.id);
     await addKvTombstone(backup.id, BACKUPS_KEY);
     await saveBackups('manual-delete');
+    setButtonBusy(deleteBtn, false);
     selectedBackupId = backups.length ? backups[0].id : null;
     renderBackupsPanel();
   });
@@ -1061,6 +1067,7 @@ function renderClosedProjectsPanel() {
   el.querySelectorAll('.restore-closed-project-btn').forEach(btn => {
     btn.addEventListener('click', async () => {
       const jira = btn.dataset.jira;
+      setButtonBusy(btn, true, 'Restoring...');
       // Refresh from KV right before mutating — same reasoning as backupAndDeleteProjectBtn.
       const freshClosed = await kvGet(CLOSED_PROJECTS_KEY);
       if (Array.isArray(freshClosed)) {
@@ -1068,7 +1075,7 @@ function renderClosedProjectsPanel() {
         _saveBaseline[CLOSED_PROJECTS_KEY] = JSON.parse(JSON.stringify(freshClosed));
       }
       const idx = closedProjects.findIndex(p => (p.jira || '') === jira);
-      if (idx < 0) return;
+      if (idx < 0) { setButtonBusy(btn, false); return; }
       const [restored] = closedProjects.splice(idx, 1);
       if (jira) await addKvTombstone(jira, CLOSED_PROJECTS_KEY);
       delete restored.closedAt;
@@ -1295,6 +1302,7 @@ editProjectForm.addEventListener('submit', async (event) => {
 
 modalProjectForm.addEventListener('submit', async (event) => {
   event.preventDefault();
+  setButtonBusy(document.getElementById('saveProjectModalBtn'), true, 'Saving...');
 
   const pmName = document.getElementById('modalProjectPm').value.trim();
   const csmName = document.getElementById('modalProjectCsm').value.trim();
@@ -1334,6 +1342,7 @@ modalProjectForm.addEventListener('submit', async (event) => {
   const newProjectJiraKey = getJiraIssueKey(jiraValue);
   const newProjectDueDate = parseDateInput(document.getElementById('modalProjectDueDate').value);
   await saveProjects('add-project');
+  setButtonBusy(document.getElementById('saveProjectModalBtn'), false);
   renderAll();
   closeModal();
   syncProjectProgressFromJira();

@@ -25,8 +25,29 @@ function emailToDisplayName(email) {
 async function getCurrentUserName() {
   return emailToDisplayName(await getCurrentUserEmail());
 }
-const APP_VERSION = '1.17.2';
+const APP_VERSION = '1.17.5';
 const CHANGELOG = [
+  {
+    version: '1.17.5',
+    date: '2026-09-03',
+    features: [
+      'Fix: a Jira-side edit to a project\'s description (Project Status) could silently fail to appear on the dashboard, even after repeated hard refreshes. Two background sync routines both refreshed the shared project list independently on every page load without waiting for each other; if one finished while the other was still partway through its own update, the first one\'s change was silently discarded. They now run in sequence instead of racing.',
+    ]
+  },
+  {
+    version: '1.17.4',
+    date: '2026-08-31',
+    features: [
+      'Fix: a newly created backup could show up at the bottom of the Backups list instead of the top, and stay that way until a full page reload — the concurrent-save merge fix (which orders results by internal map keys, not by creation time) was silently overriding the newest-first sort on every save. Backups now keep the correct order after saving, without needing a reload.',
+    ]
+  },
+  {
+    version: '1.17.3',
+    date: '2026-08-31',
+    features: [
+      'The hourglass/"in progress" indicator (added earlier for Save/Post/Delete on Edit Project and Comments) now also covers Manual Delete, Backup & Delete, Create Backup, Restore from Backup, Delete Backup, Restore to Active, and Add Project — all of which now take a bit longer due to the concurrent-save merge fix, but previously gave no feedback while working. Also fixed Create Backup\'s confirmation, which used to show "Saved" before the save had actually finished.',
+    ]
+  },
   {
     version: '1.17.2',
     date: '2026-08-31',
@@ -1046,6 +1067,12 @@ async function saveBackups(reason) {
   const fresh = baseline ? await kvGet(BACKUPS_KEY) : null;
   if (Array.isArray(fresh)) {
     backups = mergeArrayForSave(baseline, fresh, backups, deleteIds, getItemDeleteKey);
+    // mergeArrayForSave builds its result from a Map keyed by id — Maps always append
+    // brand-new keys at the end of iteration order, discarding wherever the caller (e.g.
+    // createBackup's unshift+sort) actually placed them. Backups is the one store whose
+    // stored order matters (newest-first), so restore it here rather than relying on the
+    // page-load resort in initData() to paper over it every time.
+    backups.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
   } else if (deleteIds.size) {
     const cleaned = backups.filter(b => !deleteIds.has(getItemDeleteKey(b)));
     if (cleaned.length !== backups.length) backups = cleaned;
@@ -1070,7 +1097,8 @@ function formatBackupLabel(ts) {
   return `Backup ${dd}/${mm}/${yy} ${hh}:${min}`;
 }
 
-function createBackup(btn) {
+async function createBackup(btn) {
+  if (btn) setButtonBusy(btn, true, 'Saving...');
   const ts = Date.now();
   const backup = {
     id: `bk_${ts}`,
@@ -1082,7 +1110,7 @@ function createBackup(btn) {
   };
   backups.unshift(backup);
   backups.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-  saveBackups('create-backup');
+  await saveBackups('create-backup');
 
   const dd = String(new Date(ts).getDate()).padStart(2, '0');
   const mm = String(new Date(ts).getMonth() + 1).padStart(2, '0');
@@ -1099,6 +1127,7 @@ function createBackup(btn) {
   URL.revokeObjectURL(url);
 
   if (btn) {
+    setButtonBusy(btn, false);
     const original = btn.textContent;
     btn.textContent = '✓ Saved';
     setTimeout(() => { btn.textContent = original; }, 2000);
