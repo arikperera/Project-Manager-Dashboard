@@ -731,10 +731,10 @@ async function logActivity(entry) {
   } catch {}
 }
 
-// Fields worth calling out by name when a manual edit changes them. Deliberately excludes
-// anything the automatic Jira syncs touch (progress, hours, dueDate mirrored from Jira,
-// etc.) — those fire constantly and would flood the log, which is why field-diffing below
-// only runs for reason === 'edit-save' in the first place, not as a belt-and-suspenders here.
+// Label map for fields worth calling out by a friendly name in the generic diff below (used
+// via EDIT_TRACKED_FIELDS[field] || field). This is NOT a gate on which fields get logged or
+// which save reasons trigger logging — the generic loop in logSaveDiff runs for every own field
+// on the item and for every reason; any field not listed here just falls back to its raw name.
 const EDIT_TRACKED_FIELDS = {
   customer: 'Customer',
   name: 'Name',
@@ -759,8 +759,12 @@ function normalizeHtmlForCompare(html) {
 
 // Fields excluded from generic field-level change logging: statusUpdatedAt is bookkeeping,
 // not a meaningful change to show; jira/id are each item's own key and can't meaningfully
-// "change" for an existing logged item; statusText/pmNotes are handled separately below
-// (shown as "(updated)", not a raw value diff — logging the full HTML would be unreadable).
+// "change" for an existing logged item — true for projects/closedProjects, which are keyed
+// by jira; note that on a task, jira is keyed by id instead, and jira there is a reference to
+// the task's PARENT project's issue, not the task's own key, so this exclusion is riding along
+// on the assumption nothing reassigns task.jira — revisit if a "move task to another project"
+// feature ever changes it; statusText/pmNotes are handled separately below (shown as
+// "(updated)", not a raw value diff — logging the full HTML would be unreadable).
 const LOG_EXCLUDED_FIELDS = new Set(['statusUpdatedAt', 'jira', 'id', 'statusText', 'pmNotes']);
 
 // Compares the KV state right before a save against what's about to be written, and logs
@@ -790,6 +794,12 @@ async function logSaveDiff(storeKey, storeLabel, afterArray, reason) {
         if (LOG_EXCLUDED_FIELDS.has(field)) continue;
         const beforeVal = before[field] ?? '';
         const afterVal = after[field] ?? '';
+        // Skip non-primitive fields (e.g. backups' projects/users/tasks nested-array
+        // snapshots) entirely — before/after here always come from two separate reads, so
+        // even unchanged content would be a different array/object instance and falsely
+        // compare unequal by reference on every save.
+        if (typeof beforeVal === 'object' && beforeVal !== null) continue;
+        if (typeof afterVal === 'object' && afterVal !== null) continue;
         if (beforeVal !== afterVal) {
           const label = EDIT_TRACKED_FIELDS[field] || field;
           changes.push({ field: label, from: beforeVal || '(empty)', to: afterVal || '(empty)' });
