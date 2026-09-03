@@ -25,8 +25,15 @@ function emailToDisplayName(email) {
 async function getCurrentUserName() {
   return emailToDisplayName(await getCurrentUserEmail());
 }
-const APP_VERSION = '1.17.6';
+const APP_VERSION = '1.17.7';
 const CHANGELOG = [
+  {
+    version: '1.17.7',
+    date: '2026-09-03',
+    features: [
+      'Fix: deleting a project could very briefly reappear (for about a minute) if a background Jira sync happened to run at almost the same time — e.g. from clicking Refresh Dashboard right after deleting something. Two issues combined to cause this: the sync had no protection against overlapping runs (a second click, or two batches within one run, could each independently race the delete\'s write before it fully propagated), and one of its internal save calls wasn\'t being waited for before moving on. Both are now fixed — the sync can\'t overlap itself, and its saves complete in order.',
+    ]
+  },
   {
     version: '1.17.6',
     date: '2026-09-03',
@@ -2211,7 +2218,29 @@ async function resolveRiskRateOptions(fieldId) {
   } catch {}
 }
 
+// Reentrancy guards — syncProjectProgressFromJira/syncStatusFromJira are triggered from
+// several independent, fire-and-forget call sites (Refresh Dashboard, Add Project, Settings
+// save, page load). Without this, two overlapping runs (e.g. two quick Refresh Dashboard
+// clicks) each do their own independent refresh + KV read + save, and if one of those reads
+// lands in the few seconds before a concurrent delete's write has fully replicated, it can
+// briefly write the just-deleted item back in — confirmed real incident, 2026-09-03,
+// PSVAMB-147839 resurrected for about a minute after being deleted. A later run's read
+// eventually saw the correct state and it disappeared again, but this closes the window
+// instead of relying on that self-correction.
+let _progressSyncInFlight = false;
+let _statusSyncInFlight = false;
+
 async function syncProjectProgressFromJira() {
+  if (_progressSyncInFlight) return;
+  _progressSyncInFlight = true;
+  try {
+    await syncProjectProgressFromJiraInner();
+  } finally {
+    _progressSyncInFlight = false;
+  }
+}
+
+async function syncProjectProgressFromJiraInner() {
   // Pull the latest KV state first — otherwise a stale in-memory copy of `projects`
   // (e.g. a browser tab that's been open since before someone else's edit) would get
   // written back wholesale by saveProjects() below, clobbering that other change.
@@ -2310,11 +2339,25 @@ async function syncProjectProgressFromJira() {
         console.warn(`Jira sync failed for ${key}`, error);
       }
     }));
-    if (changed) { saveProjects('jira-progress-sync'); renderAll(); changed = false; }
+    // Awaited (not fire-and-forget) — otherwise two batches with changes each start their own
+    // saveProjects() call without waiting for the previous one's KV write to finish, which is
+    // exactly the kind of overlap that let the resurrection incident above happen twice back
+    // to back (~400ms apart) in the real log.
+    if (changed) { await saveProjects('jira-progress-sync'); renderAll(); changed = false; }
   }
 }
 
 async function syncStatusFromJira() {
+  if (_statusSyncInFlight) return;
+  _statusSyncInFlight = true;
+  try {
+    await syncStatusFromJiraInner();
+  } finally {
+    _statusSyncInFlight = false;
+  }
+}
+
+async function syncStatusFromJiraInner() {
   // Same reasoning as syncProjectProgressFromJira — refresh before mutating so we don't
   // write back a stale copy that clobbers someone else's concurrent change.
   await refreshProjectsAndTasksFromKv().catch(() => {});
@@ -2365,7 +2408,7 @@ async function syncStatusFromJira() {
   }
 
   if (changed) {
-    saveProjects('jira-status-sync');
+    await saveProjects('jira-status-sync');
     renderAll();
   }
 }
