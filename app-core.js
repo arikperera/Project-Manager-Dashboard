@@ -25,8 +25,15 @@ function emailToDisplayName(email) {
 async function getCurrentUserName() {
   return emailToDisplayName(await getCurrentUserEmail());
 }
-const APP_VERSION = '1.17.9';
+const APP_VERSION = '1.17.10';
 const CHANGELOG = [
+  {
+    version: '1.17.10',
+    date: '2026-09-03',
+    features: [
+      'The hourglass/busy indicator now also covers "Import selected" (Jira import) and the "Refresh" button next to Reset filters, which previously gave little or no feedback while working.',
+    ]
+  },
   {
     version: '1.17.9',
     date: '2026-09-03',

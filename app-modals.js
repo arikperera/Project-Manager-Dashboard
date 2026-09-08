@@ -1368,7 +1368,7 @@ importConfirmBtn.addEventListener('click', async () => {
     .map(cb => cb.value);
   if (!checked.length) { importProgress.textContent = 'No new projects selected.'; return; }
 
-  importConfirmBtn.disabled = true;
+  setButtonBusy(importConfirmBtn, true, 'Importing...');
   importBackBtn.disabled = true;
   const toImport = importFetchedIssues.filter(i => checked.includes(i.key));
   let done = 0;

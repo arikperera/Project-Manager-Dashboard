@@ -1730,16 +1730,16 @@ searchInput.addEventListener('input', saveFilters);
 
 document.getElementById('refreshDashboardBtn').addEventListener('click', async () => {
   const btn = document.getElementById('refreshDashboardBtn');
-  const orig = btn.textContent;
-  btn.textContent = '↻ Syncing...';
-  btn.disabled = true;
+  setButtonBusy(btn, true, 'Syncing...');
   try {
     await refreshProjectsAndTasksFromKv();
-    syncProjectProgressFromJira();
+    // Awaited (was fire-and-forget) — otherwise the button would show "done" while the Jira
+    // sync was still running in the background, which no longer matches what it's doing now
+    // that this sync also covers tasks and can take a bit longer.
+    await syncProjectProgressFromJira();
     renderAll();
   } finally {
-    btn.textContent = orig;
-    btn.disabled = false;
+    setButtonBusy(btn, false);
   }
 });
 document.getElementById('resetFiltersBtn').addEventListener('click', resetFilters);
