@@ -25,8 +25,15 @@ function emailToDisplayName(email) {
 async function getCurrentUserName() {
   return emailToDisplayName(await getCurrentUserEmail());
 }
-const APP_VERSION = '1.17.11';
+const APP_VERSION = '1.17.12';
 const CHANGELOG = [
+  {
+    version: '1.17.12',
+    date: '2026-09-08',
+    features: [
+      'Fix: creating a backup and then immediately deleting it (or similar quick create-then-delete/edit sequences on any store) could produce no Activity Log entry for the second action, even though it happened correctly — a save\'s own KV read (needed to merge against concurrent changes) could occasionally overwrite the very "before" snapshot the log compares against, moments before comparing it. The log now uses a snapshot captured before that read, so quick follow-up actions are logged reliably.',
+    ]
+  },
   {
     version: '1.17.11',
     date: '2026-09-08',
@@ -823,9 +830,22 @@ const LOG_EXCLUDED_FIELDS = new Set(['statusUpdatedAt', 'jira', 'id', 'statusTex
 // reverting a field (via a stale whole-array snapshot) leaves a visible trace instead of
 // none. Field comparison is generic (every own field on the item), not a fixed list, so
 // anything added to the schema later is automatically covered.
-async function logSaveDiff(storeKey, storeLabel, afterArray, reason) {
+//
+// `preSaveSnapshot` — pass whatever _lastKnownKvState[storeKey] held BEFORE this save called
+// its own kvGet() for the merge (every save* function captures this as its very first line).
+// Without it, this function falls back to _lastKnownKvState[storeKey] as it stands NOW — but
+// by the time a save function gets here, its own merge-read has already overwritten that
+// cache entry with whatever it just fetched. If that fetch landed just before an earlier
+// write (this tab's own, moments before) had fully replicated across Cloudflare KV's regions,
+// it can be identical to `afterArray` purely by coincidence (both "missing" the same in-flight
+// item), making a real add/remove/edit look like no change at all. Confirmed real incident,
+// 2026-09-08: a create-backup followed by an immediate manual-delete of that same backup
+// produced no log entry for the delete, even though the delete itself was correct. Passing the
+// OLDER, locally-known-good snapshot instead avoids re-fetching a value that might race the
+// save's own just-issued read.
+async function logSaveDiff(storeKey, storeLabel, afterArray, reason, preSaveSnapshot) {
   try {
-    const cached = _lastKnownKvState[storeKey];
+    const cached = preSaveSnapshot !== undefined ? preSaveSnapshot : _lastKnownKvState[storeKey];
     const beforeArray = (cached && Date.now() - cached.ts < _KV_CACHE_MAX_AGE_MS) ? cached.value : await kvGet(storeKey);
     if (!Array.isArray(beforeArray)) return;
     const beforeKeys = new Set(beforeArray.map(getItemDeleteKey).filter(Boolean));
@@ -883,6 +903,8 @@ async function logSaveDiff(storeKey, storeLabel, afterArray, reason) {
 }
 
 async function saveTasks(reason, options = {}) {
+  // Captured before anything below touches KV — see logSaveDiff's preSaveSnapshot comment.
+  const preSaveSnapshot = _lastKnownKvState[TASKS_KEY];
   const deleteIds = await getCombinedDeleteIds(TASKS_KEY);
   // See saveProjects for the reasoning — merge against fresh KV unless this is a deliberate
   // full replacement (Restore from Backup), or there's no baseline yet to compare against.
@@ -894,7 +916,7 @@ async function saveTasks(reason, options = {}) {
     const cleaned = tasks.filter(t => !deleteIds.has(getItemDeleteKey(t)));
     if (cleaned.length !== tasks.length) tasks = cleaned;
   }
-  await logSaveDiff(TASKS_KEY, 'tasks', tasks, reason);
+  await logSaveDiff(TASKS_KEY, 'tasks', tasks, reason, preSaveSnapshot);
   try { localStorage.setItem(TASKS_KEY, JSON.stringify(tasks)); } catch {}
   const ok = await kvPutWithRetry(TASKS_KEY, tasks);
   if (ok) {
@@ -914,6 +936,8 @@ const CLOSED_PROJECTS_KEY = 'project-dashboard-closed-projects-v1';
 let closedProjects = JSON.parse(localStorage.getItem('project-dashboard-closed-projects-v1') || '[]');
 
 async function saveClosedProjects(reason) {
+  // Captured before anything below touches KV — see logSaveDiff's preSaveSnapshot comment.
+  const preSaveSnapshot = _lastKnownKvState[CLOSED_PROJECTS_KEY];
   // Closed Projects never had tombstone protection before — everything else (projects,
   // tasks, backups) already did. Without this, removing an entry (Restore to Active) has no
   // way to tell the merge below "this was deliberately removed", and it would silently
@@ -927,7 +951,7 @@ async function saveClosedProjects(reason) {
     const cleaned = closedProjects.filter(p => !deleteIds.has(getItemDeleteKey(p)));
     if (cleaned.length !== closedProjects.length) closedProjects = cleaned;
   }
-  await logSaveDiff(CLOSED_PROJECTS_KEY, 'closedProjects', closedProjects, reason);
+  await logSaveDiff(CLOSED_PROJECTS_KEY, 'closedProjects', closedProjects, reason, preSaveSnapshot);
   try { localStorage.setItem(CLOSED_PROJECTS_KEY, JSON.stringify(closedProjects)); } catch {}
   const ok = await kvPutWithRetry(CLOSED_PROJECTS_KEY, closedProjects);
   if (ok) {
@@ -1170,6 +1194,8 @@ async function initData() {
 }
 
 async function saveBackups(reason) {
+  // Captured before anything below touches KV — see logSaveDiff's preSaveSnapshot comment.
+  const preSaveSnapshot = _lastKnownKvState[BACKUPS_KEY];
   const deleteIds = await getCombinedDeleteIds(BACKUPS_KEY);
   const baseline = _saveBaseline[BACKUPS_KEY];
   const fresh = baseline ? await kvGet(BACKUPS_KEY) : null;
@@ -1185,7 +1211,7 @@ async function saveBackups(reason) {
     const cleaned = backups.filter(b => !deleteIds.has(getItemDeleteKey(b)));
     if (cleaned.length !== backups.length) backups = cleaned;
   }
-  await logSaveDiff(BACKUPS_KEY, 'backups', backups, reason);
+  await logSaveDiff(BACKUPS_KEY, 'backups', backups, reason, preSaveSnapshot);
   try { localStorage.setItem(BACKUPS_KEY, JSON.stringify(backups)); } catch {}
   const ok = await kvPutWithRetry(BACKUPS_KEY, backups);
   if (ok) {
@@ -1462,6 +1488,8 @@ const importConfirmBtn = document.getElementById('importConfirmBtn');
 const importProgress = document.getElementById('importProgress');
 
 async function saveProjects(reason, options = {}) {
+  // Captured before anything below touches KV — see logSaveDiff's preSaveSnapshot comment.
+  const preSaveSnapshot = _lastKnownKvState[STORAGE_KEY];
   // Strip anything tombstoned (by this browser or any other session) before persisting —
   // guards every caller against writing back a stale in-memory copy that still contains an
   // item someone else already deleted.
@@ -1479,7 +1507,7 @@ async function saveProjects(reason, options = {}) {
     const cleaned = projects.filter(p => !deleteIds.has(getItemDeleteKey(p)));
     if (cleaned.length !== projects.length) projects = cleaned;
   }
-  await logSaveDiff(STORAGE_KEY, 'projects', projects, reason);
+  await logSaveDiff(STORAGE_KEY, 'projects', projects, reason, preSaveSnapshot);
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(projects)); } catch {}
   const ok = await kvPutWithRetry(STORAGE_KEY, projects);
   if (ok) {
