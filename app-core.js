@@ -25,8 +25,15 @@ function emailToDisplayName(email) {
 async function getCurrentUserName() {
   return emailToDisplayName(await getCurrentUserEmail());
 }
-const APP_VERSION = '1.17.10';
+const APP_VERSION = '1.17.11';
 const CHANGELOG = [
+  {
+    version: '1.17.11',
+    date: '2026-09-08',
+    features: [
+      'Fix: yesterday\'s task Jira-sync fix (1.17.9) incorrectly overwrote each task\'s owner (which PM it belongs to on the dashboard) with the Jira issue\'s assignee (usually whoever\'s actually doing the work, not the owning PM) — silently reassigning every one of a PM\'s tasks and making them vanish from their section in the main panel. Owner is no longer touched by the Jira sync; progress/hours/health/links/status still sync correctly.',
+    ]
+  },
   {
     version: '1.17.10',
     date: '2026-09-03',
@@ -2386,8 +2393,13 @@ async function syncProjectProgressFromJiraInner() {
         tasks.forEach((task) => {
           if (getJiraIssueKey(task.jira) !== key) return;
           if (applyCommonFields(task)) changedTasks = true;
-          // Tasks use `owner`, not `manager`.
-          if (f.assignee?.displayName) { task.owner = f.assignee.displayName; changedTasks = true; }
+          // Do NOT sync `owner` from Jira's assignee — `owner` is which PM this task belongs to
+          // in the dashboard, unrelated to who's assigned to the underlying Jira issue (usually
+          // whoever's actually doing the work, e.g. a PS engineer). Confirmed real incident,
+          // 2026-09-08: this line previously overwrote it, silently reassigning every one of
+          // Adi Barak's tasks to whatever name Jira had as assignee, making them vanish from
+          // his section in the main panel. Unlike `project.manager` (which genuinely is the
+          // Jira assignee for projects), tasks have no Jira-sourced equivalent to sync here.
         });
       } catch (error) {
         console.warn(`Jira sync failed for ${key}`, error);
