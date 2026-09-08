@@ -25,8 +25,15 @@ function emailToDisplayName(email) {
 async function getCurrentUserName() {
   return emailToDisplayName(await getCurrentUserEmail());
 }
-const APP_VERSION = '1.17.8';
+const APP_VERSION = '1.17.9';
 const CHANGELOG = [
+  {
+    version: '1.17.9',
+    date: '2026-09-03',
+    features: [
+      'Fix: tasks never had their Account URL, Opportunity URL, progress %, hours, health, or Project Status pulled from Jira — only projects were ever synced, so a task\'s Customer/Opportunity columns almost never showed as clickable links even when Jira had real values for them. Both Jira sync routines (Refresh Dashboard) now cover tasks the same way they cover projects, using each task\'s own Jira issue. A new task also pulls its real fields immediately on creation instead of waiting for the next sync.',
+    ]
+  },
   {
     version: '1.17.8',
     date: '2026-09-03',
@@ -2261,8 +2268,15 @@ async function syncProjectProgressFromJiraInner() {
   // written back wholesale by saveProjects() below, clobbering that other change.
   await refreshProjectsAndTasksFromKv().catch(() => {});
 
-  const issueKeys = projects
-    .map((project) => getJiraIssueKey(project.jira))
+  // Tasks have their own Jira issue (not necessarily their parent project's) — before this,
+  // tasks were never covered by this sync at all, so fields like progress/hours/Account URL/
+  // Opportunity URL only ever got a one-time copy from a "matching project" at task-creation
+  // time (app-modals.js taskModalForm handler) — which almost never actually matched, since a
+  // task's issue is normally a different ticket than any project's. Confirmed real gap,
+  // 2026-09-03: PSVAMB-142983/PSVAMB-139870 had real Account/Opportunity URLs in Jira that
+  // never made it into the dashboard because nothing ever fetched them for a task.
+  const issueKeys = [...projects, ...tasks]
+    .map((item) => getJiraIssueKey(item.jira))
     .filter(Boolean);
 
   if (!issueKeys.length) return;
@@ -2277,7 +2291,8 @@ async function syncProjectProgressFromJiraInner() {
 
   const uniqueKeys = [...new Set(issueKeys)];
   const BATCH_SIZE = 10;
-  let changed = false;
+  let changedProjects = false;
+  let changedTasks = false;
 
   for (let i = 0; i < uniqueKeys.length; i += BATCH_SIZE) {
     const batch = uniqueKeys.slice(i, i + BATCH_SIZE);
@@ -2323,42 +2338,63 @@ async function syncProjectProgressFromJiraInner() {
         const oppUrl = cachedOppUrlFieldId ? (validSfUrl(f[cachedOppUrlFieldId]) || null) : null;
         const accountUrl = cachedAccountUrlFieldId ? (validSfUrl(f[cachedAccountUrlFieldId]) || null) : null;
 
-        projects.forEach((project) => {
-          if (getJiraIssueKey(project.jira) !== key) return;
-          if (percent !== null) { project.progress = percent; changed = true; }
-          if (estimatedHours !== null) { project.estimatedHours = estimatedHours; changed = true; }
-          if (remainingHours !== null) { project.remainingHours = remainingHours; changed = true; }
-          if (actualHours !== null) { project.actualHours = actualHours; changed = true; }
-          if (healthVal) { project.health = healthVal; changed = true; }
-          if (cachedVMForecastFieldId && f[cachedVMForecastFieldId]) { project.dueDate = f[cachedVMForecastFieldId]; changed = true; }
-          if (f.assignee?.displayName) { project.manager = f.assignee.displayName; changed = true; }
+        // Fields that exist identically on both projects and tasks. Returns whether it changed
+        // anything, so each caller can track its own store's dirty flag.
+        const applyCommonFields = (item) => {
+          let itemChanged = false;
+          if (percent !== null) { item.progress = percent; itemChanged = true; }
+          if (estimatedHours !== null) { item.estimatedHours = estimatedHours; itemChanged = true; }
+          if (remainingHours !== null) { item.remainingHours = remainingHours; itemChanged = true; }
+          if (actualHours !== null) { item.actualHours = actualHours; itemChanged = true; }
+          if (healthVal) { item.health = healthVal; itemChanged = true; }
+          if (cachedVMForecastFieldId && f[cachedVMForecastFieldId]) { item.dueDate = f[cachedVMForecastFieldId]; itemChanged = true; }
           if (cachedRegionFieldId) {
             const rawRegion = f[cachedRegionFieldId];
             const regionVal = typeof rawRegion === 'object' && rawRegion !== null ? (rawRegion.value || '') : (rawRegion || '');
-            if (regionVal && !project.region) { project.region = regionVal; changed = true; }
+            if (regionVal && !item.region) { item.region = regionVal; itemChanged = true; }
           }
+          if (oppUrl) { item.oppLink = oppUrl; itemChanged = true; }
+          if (accountUrl) { item.accountUrl = accountUrl; itemChanged = true; }
+          return itemChanged;
+        };
+
+        projects.forEach((project) => {
+          if (getJiraIssueKey(project.jira) !== key) return;
+          if (applyCommonFields(project)) changedProjects = true;
+          if (f.assignee?.displayName) { project.manager = f.assignee.displayName; changedProjects = true; }
+          // Sales/CSM have no equivalent field on a task (tasks carry a "PM - {owner}" comments
+          // string, not the "NRR/MRR/CSM/Sales" format projects use) — projects only.
           if (accountOwnerName) {
             project.sales = accountOwnerName;
             project.comments = (project.comments || '').replace(/Sales:\s*[^,\n]*/i, `Sales: ${accountOwnerName}`);
-            changed = true;
+            changedProjects = true;
           }
           if (accountCsmName) {
             project.csm = accountCsmName;
             project.comments = (project.comments || '').replace(/CSM:\s*[^,\n]*/i, `CSM: ${accountCsmName}`);
-            changed = true;
+            changedProjects = true;
           }
-          if (oppUrl) { project.oppLink = oppUrl; changed = true; }
-          if (accountUrl) { project.accountUrl = accountUrl; changed = true; }
+        });
+
+        tasks.forEach((task) => {
+          if (getJiraIssueKey(task.jira) !== key) return;
+          if (applyCommonFields(task)) changedTasks = true;
+          // Tasks use `owner`, not `manager`.
+          if (f.assignee?.displayName) { task.owner = f.assignee.displayName; changedTasks = true; }
         });
       } catch (error) {
         console.warn(`Jira sync failed for ${key}`, error);
       }
     }));
     // Awaited (not fire-and-forget) — otherwise two batches with changes each start their own
-    // saveProjects() call without waiting for the previous one's KV write to finish, which is
-    // exactly the kind of overlap that let the resurrection incident above happen twice back
-    // to back (~400ms apart) in the real log.
-    if (changed) { await saveProjects('jira-progress-sync'); renderAll(); changed = false; }
+    // save call without waiting for the previous one's KV write to finish, which is exactly the
+    // kind of overlap that let the resurrection incident above happen twice back to back
+    // (~400ms apart) in the real log.
+    if (changedProjects) await saveProjects('jira-progress-sync');
+    if (changedTasks) await saveTasks('jira-progress-sync');
+    if (changedProjects || changedTasks) renderAll();
+    changedProjects = false;
+    changedTasks = false;
   }
 }
 
@@ -2379,15 +2415,18 @@ async function syncStatusFromJiraInner() {
 
   const useProxy = true;
   const BATCH_SIZE = 10;
-  let changed = false;
+  let changedProjects = false;
+  let changedTasks = false;
 
-  const projectsWithKeys = projects
-    .map(p => ({ project: p, issueKey: getJiraIssueKey(p.jira) }))
+  // Tasks carry the same statusText/statusUpdatedAt fields as projects and were previously
+  // never covered by this sync — same gap as syncProjectProgressFromJira above.
+  const itemsWithKeys = [...projects, ...tasks]
+    .map(item => ({ item, issueKey: getJiraIssueKey(item.jira) }))
     .filter(({ issueKey }) => !!issueKey);
 
-  for (let i = 0; i < projectsWithKeys.length; i += BATCH_SIZE) {
-    const batch = projectsWithKeys.slice(i, i + BATCH_SIZE);
-    await Promise.all(batch.map(async ({ project, issueKey }) => {
+  for (let i = 0; i < itemsWithKeys.length; i += BATCH_SIZE) {
+    const batch = itemsWithKeys.slice(i, i + BATCH_SIZE);
+    await Promise.all(batch.map(async ({ item, issueKey }) => {
       try {
         const url = useProxy
           ? `https://pm-proxy.demo.qa.kaltura.ai/jira/issue/${issueKey}?fields=description,updated`
@@ -2399,20 +2438,20 @@ async function syncStatusFromJiraInner() {
         if (!res.ok) return;
         const data = await res.json();
         const jiraUpdated = data.fields?.updated || '';
-        const localUpdated = project.statusUpdatedAt || '';
+        const localUpdated = item.statusUpdatedAt || '';
         const jiraTime = jiraUpdated ? new Date(jiraUpdated).getTime() : 0;
         const localTime = localUpdated ? new Date(localUpdated).getTime() : 0;
 
         const recentlySaved = localTime && (Date.now() - localTime) < 10 * 60 * 1000;
-        const localIsEmpty = !project.statusText || isEmptyStatus(project.statusText);
+        const localIsEmpty = !item.statusText || isEmptyStatus(item.statusText);
         if (localIsEmpty || (!recentlySaved && (!localTime || jiraTime > localTime))) {
           // Jira is newer and local wasn't recently edited — pull from Jira
           const adf = data.fields?.description;
           const html = adf ? adfToHtml(adf) : '';
-          if (html !== project.statusText) {
-            project.statusText = html;
-            project.statusUpdatedAt = jiraUpdated;
-            changed = true;
+          if (html !== item.statusText) {
+            item.statusText = html;
+            item.statusUpdatedAt = jiraUpdated;
+            if (item.type === 'task') changedTasks = true; else changedProjects = true;
           }
         }
         // Note: push-on-load disabled — Jira's issue-level `updated` tracks all field changes,
@@ -2422,10 +2461,9 @@ async function syncStatusFromJiraInner() {
     }));
   }
 
-  if (changed) {
-    await saveProjects('jira-status-sync');
-    renderAll();
-  }
+  if (changedProjects) await saveProjects('jira-status-sync');
+  if (changedTasks) await saveTasks('jira-status-sync');
+  if (changedProjects || changedTasks) renderAll();
 }
 
 function adfToHtml(adf) {

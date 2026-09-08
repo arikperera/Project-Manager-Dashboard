@@ -1506,6 +1506,11 @@ taskModalForm.addEventListener('submit', async (e) => {
   await saveTasks('add-task');
   renderAll();
   closeTaskModal();
+  // The accountUrl/oppLink copied above from a "matching project" almost never actually
+  // matches (a task's issue is normally a different ticket than any project's) — this pulls
+  // this task's own real fields from Jira right away instead of leaving them blank until the
+  // next background sync.
+  syncProjectProgressFromJira();
 });
 
 // Render immediately from localStorage cache so the page is never blank
