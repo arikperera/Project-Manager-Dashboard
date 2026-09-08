@@ -467,7 +467,11 @@ function goPage(btn, dir) {
   renderPager(section);
 }
 function changePageSize(sel) {
-  const section = sel.closest('section').querySelector('.paginated-section');
+  // NOT sel.closest('section').querySelector('.paginated-section') — "Over Budget Projects"
+  // and "Project Health" share one enclosing <section>, so that always found the FIRST
+  // .paginated-section in it (Over Budget's) regardless of which dropdown was changed.
+  // Each select's own header div is immediately followed by its own .paginated-section.
+  const section = sel.closest('div').nextElementSibling;
   section.dataset.pageSize = sel.value;
   section.dataset.page = 0;
   renderPager(section);

@@ -25,8 +25,15 @@ function emailToDisplayName(email) {
 async function getCurrentUserName() {
   return emailToDisplayName(await getCurrentUserEmail());
 }
-const APP_VERSION = '1.17.12';
+const APP_VERSION = '1.17.13';
 const CHANGELOG = [
+  {
+    version: '1.17.13',
+    date: '2026-09-08',
+    features: [
+      'Fix: in the HTML report, changing "Show 5/10" on the Project Health table actually resized the Over Budget Projects table instead (they share one section, and the page-size dropdown always found the first table in it). Each dropdown now correctly resizes its own table.',
+    ]
+  },
   {
     version: '1.17.12',
     date: '2026-09-08',
