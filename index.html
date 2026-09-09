@@ -116,6 +116,11 @@
                 <option value="Internal">Internal</option>
                 <option value="ROW">"ROW"</option>
               </select>
+              <select id="accountTypeFilter">
+                <option value="">All Account Types</option>
+                <option value="OVP">OVP</option>
+                <option value="OTT">OTT</option>
+              </select>
               <button id="refreshDashboardBtn" class="ghost-btn small-btn" title="Refresh dashboard">↻ Refresh</button>
               <button id="resetFiltersBtn" class="ghost-btn small-btn" title="Reset all filters">✕ Reset</button>
             </div>
@@ -169,6 +174,18 @@
           <label>
             Project Name
             <input id="editProjectName" type="text" />
+          </label>
+          <label id="verticalLabel">
+            Vertical
+            <input id="editVertical" type="text" readonly placeholder="— not set in Jira yet —" style="opacity:0.7;" />
+          </label>
+          <label id="accountTypeLabel">
+            Account Type
+            <select id="editAccountType">
+              <option value="">— not determined —</option>
+              <option value="OVP">OVP</option>
+              <option value="OTT">OTT</option>
+            </select>
           </label>
           <label>
             PM

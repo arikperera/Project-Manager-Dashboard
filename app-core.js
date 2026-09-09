@@ -25,8 +25,15 @@ function emailToDisplayName(email) {
 async function getCurrentUserName() {
   return emailToDisplayName(await getCurrentUserEmail());
 }
-const APP_VERSION = '1.17.13';
+const APP_VERSION = '1.18.0';
 const CHANGELOG = [
+  {
+    version: '1.18.0',
+    date: '2026-09-08',
+    features: [
+      'New "Vertical" and "Account Type" fields on projects. Vertical is always pulled from Jira (import, new-assignment auto-add, and every Refresh Dashboard sync) and shown read-only in the Edit modal. Account Type (OVP or OTT) is derived automatically from Vertical, but PMs can override it in the Edit modal — once overridden, future Jira syncs leave it alone. A new "All Account Types" filter is available in the main panel; tasks filter by their parent project\'s Account Type.',
+    ]
+  },
   {
     version: '1.17.13',
     date: '2026-09-08',
@@ -672,6 +679,7 @@ let cachedRiskReasonFieldId = null;
 let cachedProgressPctFieldId = null;
 let cachedEstHoursFieldId = null;
 let cachedRemEffortFieldId = null;
+let cachedVerticalFieldId = null;
 let cachedActEffortFieldId = null;
 let cachedRiskRateFieldId = null;
 let cachedRiskRateOptions = null;
@@ -811,6 +819,8 @@ const EDIT_TRACKED_FIELDS = {
   csm: 'CSM',
   sales: 'Sales',
   dueDate: 'End Date',
+  vertical: 'Vertical',
+  accountType: 'Account Type',
 };
 
 // Round-trips an HTML string through a detached element so two strings that differ only
@@ -1378,6 +1388,10 @@ const cancelEditModalBtn = document.getElementById('cancelEditModalBtn');
 const editProjectForm = document.getElementById('editProjectForm');
 const editCustomerName = document.getElementById('editCustomerName');
 const editProjectName = document.getElementById('editProjectName');
+const editVertical = document.getElementById('editVertical');
+const verticalLabel = document.getElementById('verticalLabel');
+const editAccountType = document.getElementById('editAccountType');
+const accountTypeLabel = document.getElementById('accountTypeLabel');
 const editProjectManager = document.getElementById('editProjectManager');
 const editStatusEditor = document.getElementById('editStatusEditor');
 const editHealth = document.getElementById('editHealth');
@@ -1478,6 +1492,7 @@ const progressFilter = document.getElementById('progressFilter');
 const duemonthFilter = document.getElementById('duemonthFilter');
 const addedMonthFilter = document.getElementById('addedMonthFilter');
 const regionFilter = document.getElementById('regionFilter');
+const accountTypeFilter = document.getElementById('accountTypeFilter');
 const importFromJiraBtn = document.getElementById('importFromJiraBtn');
 const importModal = document.getElementById('importModal');
 const closeImportModalBtn = document.getElementById('closeImportModalBtn');
@@ -2221,7 +2236,16 @@ function applyFieldNames(names) {
     if (name === 'MRR (USD)') cachedMrrFieldId = id;
     if (name === 'NRR(USD)') cachedNrrFieldId = id;
     if (name === 'Region') cachedRegionFieldId = id;
+    if (name === 'Vertical') cachedVerticalFieldId = id;
   }
+}
+
+// Vertical -> Account Type derivation, shared by import, ongoing Jira sync, and the auto-add-
+// new-assignments poll — the single place this mapping is defined.
+function deriveAccountType(vertical) {
+  if (['Education', 'Enterprise', 'OVP', 'Self Serve', 'VPaaS'].includes(vertical)) return 'OVP';
+  if (vertical === 'Media') return 'OTT';
+  return '';
 }
 
 async function resolveJiraFieldIds() {
@@ -2335,7 +2359,7 @@ async function syncProjectProgressFromJiraInner() {
   await resolveJiraFieldIds();
 
   // Build fields param from cached IDs — only request what we need
-  const fieldIds = ['progress', 'assignee', cachedProgressPctFieldId, cachedEstHoursFieldId, cachedRemEffortFieldId, cachedActEffortFieldId, cachedRegionFieldId, cachedRiskRateFieldId, cachedVMForecastFieldId, cachedAccountOwnerFieldId, cachedAccountCsmFieldId, cachedOppUrlFieldId, cachedAccountUrlFieldId].filter(Boolean);
+  const fieldIds = ['progress', 'assignee', cachedProgressPctFieldId, cachedEstHoursFieldId, cachedRemEffortFieldId, cachedActEffortFieldId, cachedRegionFieldId, cachedRiskRateFieldId, cachedVMForecastFieldId, cachedAccountOwnerFieldId, cachedAccountCsmFieldId, cachedOppUrlFieldId, cachedAccountUrlFieldId, cachedVerticalFieldId].filter(Boolean);
   const fieldsParam = fieldIds.join(',');
 
   const uniqueKeys = [...new Set(issueKeys)];
@@ -2387,6 +2411,9 @@ async function syncProjectProgressFromJiraInner() {
         const oppUrl = cachedOppUrlFieldId ? (validSfUrl(f[cachedOppUrlFieldId]) || null) : null;
         const accountUrl = cachedAccountUrlFieldId ? (validSfUrl(f[cachedAccountUrlFieldId]) || null) : null;
 
+        const rawVertical = cachedVerticalFieldId ? f[cachedVerticalFieldId] : null;
+        const verticalVal = rawVertical ? (typeof rawVertical === 'string' ? rawVertical : (rawVertical.value || '')) : '';
+
         // Fields that exist identically on both projects and tasks. Returns whether it changed
         // anything, so each caller can track its own store's dirty flag.
         const applyCommonFields = (item) => {
@@ -2404,6 +2431,17 @@ async function syncProjectProgressFromJiraInner() {
           }
           if (oppUrl) { item.oppLink = oppUrl; itemChanged = true; }
           if (accountUrl) { item.accountUrl = accountUrl; itemChanged = true; }
+          // Vertical always comes from Jira, so it's fine to keep re-checking every sync even
+          // once set — unlike Region above, which only fills in a blank once. Account Type is
+          // re-derived alongside it UNLESS a PM has manually overridden it (accountTypeManual),
+          // in which case only Vertical itself updates and the PM's choice is left alone.
+          if (verticalVal && verticalVal !== item.vertical) {
+            item.vertical = verticalVal;
+            itemChanged = true;
+            if (!item.accountTypeManual) {
+              item.accountType = deriveAccountType(verticalVal);
+            }
+          }
           return itemChanged;
         };
 
@@ -2799,6 +2837,8 @@ function buildProjectFromEnrichment(issue, sfData) {
     region:      issue.region || '',
     csm:         csmName,
     sales:       salesName,
+    vertical:    issue.vertical || '',
+    accountType: deriveAccountType(issue.vertical || ''),
   };
 }
 
@@ -2824,7 +2864,7 @@ async function pollForNewProjects() {
   const addedKeys = [];
   for (const issue of toAdd) {
     // Enrich issue with extra Jira fields (account name, hours, MRR/NRR, due date)
-    const extraFieldIds = [cachedAccountNameFieldId, cachedMrrFieldId, cachedNrrFieldId, cachedEstHoursFieldId, cachedVMForecastFieldId, cachedRegionFieldId, cachedAccountOwnerFieldId, cachedOppUrlFieldId, cachedAccountUrlFieldId, cachedAccountCsmFieldId].filter(Boolean);
+    const extraFieldIds = [cachedAccountNameFieldId, cachedMrrFieldId, cachedNrrFieldId, cachedEstHoursFieldId, cachedVMForecastFieldId, cachedRegionFieldId, cachedAccountOwnerFieldId, cachedOppUrlFieldId, cachedAccountUrlFieldId, cachedAccountCsmFieldId, cachedVerticalFieldId].filter(Boolean);
     if (extraFieldIds.length) {
       try {
         const useProxy = true;
@@ -2855,6 +2895,10 @@ async function pollForNewProjects() {
           if (cachedAccountCsmFieldId) {
             const rawCsm = f[cachedAccountCsmFieldId];
             issue.accountCsmName = typeof rawCsm === 'string' ? rawCsm : (rawCsm?.displayName || rawCsm?.name || '');
+          }
+          if (cachedVerticalFieldId) {
+            const rawVertical = f[cachedVerticalFieldId];
+            issue.vertical = typeof rawVertical === 'string' ? rawVertical : (rawVertical?.value || '');
           }
         }
       } catch {}

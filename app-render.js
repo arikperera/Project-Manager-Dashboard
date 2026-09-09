@@ -313,6 +313,19 @@ function showEditModalWarning(message) {
   setTimeout(() => banner.remove(), 4000);
 }
 
+// A task has no Account Type of its own (Vertical, and therefore Account Type, is a
+// project-level concept sourced from Jira — see openEditProjectModal). For filtering, a task
+// is treated as belonging to whatever Account Type its PARENT project has. Matches by shared
+// Jira issue first (a task normally has its own issue, distinct from its parent project's, so
+// this only helps when they happen to coincide); falls back to customer+project-name, which is
+// how a task actually records which project it belongs to (see taskModalForm in app-modals.js).
+function getItemAccountType(item) {
+  if (item.type !== 'task') return item.accountType || '';
+  const parent = projects.find(p => p.jira === item.jira)
+    || projects.find(p => p.name === item.parentProjectName && p.customer === item.customer);
+  return parent?.accountType || '';
+}
+
 function getFilteredProjects() {
   const term = searchInput.value.toLowerCase().trim();
   const selectedPm = pmFilter.value;
@@ -321,6 +334,7 @@ function getFilteredProjects() {
   const selectedDueMonth = duemonthFilter.value;
   const selectedAddedMonth = addedMonthFilter.value;
   const selectedRegion = regionFilter.value;
+  const selectedAccountType = accountTypeFilter.value;
 
   function matchItem(item) {
     const owner = item.manager || item.owner || '';
@@ -336,7 +350,8 @@ function getFilteredProjects() {
     if (selectedProgress === '70-100') matchesProgress = item.progress >= 70;
     if (selectedProgress === '100+') matchesProgress = Number(item.progress) >= 100;
     const matchesRegion = !selectedRegion || item.region === selectedRegion;
-    return matchesPm && matchesHealth && matchesDueMonth && matchesAddedMonth && matchesSearch && matchesProgress && matchesRegion;
+    const matchesAccountType = !selectedAccountType || getItemAccountType(item) === selectedAccountType;
+    return matchesPm && matchesHealth && matchesDueMonth && matchesAddedMonth && matchesSearch && matchesProgress && matchesRegion && matchesAccountType;
   }
 
   const filteredProjects = projects.filter(matchItem);
@@ -532,6 +547,15 @@ function openEditProjectModal(itemType, itemIndex) {
   editCustomerName.readOnly = itemType === 'task';
   editProjectName.value = item.name || item.parentProjectName || '';
   editProjectName.readOnly = itemType === 'task';
+  // Vertical/Account Type are project-level concepts sourced from the project's own Jira
+  // issue — a task has no Vertical of its own (see app-render.js getItemAccountType, which
+  // resolves a task's Account Type from its PARENT project for filtering purposes instead).
+  verticalLabel.style.display = itemType === 'task' ? 'none' : '';
+  accountTypeLabel.style.display = itemType === 'task' ? 'none' : '';
+  if (itemType !== 'task') {
+    editVertical.value = item.vertical || '';
+    editAccountType.value = item.accountType || '';
+  }
   const pmNames = itemType === 'task'
     ? users.map(u => getUserDisplayName(u)).filter(Boolean).sort()
     : getUsersByRole('PM');
@@ -593,6 +617,8 @@ function closeEditProjectModal() {
   editRiskReason.value = '';
   editRegion.value = '';
   riskReasonLabel.style.display = '';
+  editVertical.value = '';
+  editAccountType.value = '';
 }
 
 const commentComposerToolbar = setupRichEditorToolbar(
@@ -1267,6 +1293,14 @@ editProjectForm.addEventListener('submit', async (event) => {
   const riskOptionLabel = riskOptionId ? editRiskReason.options[editRiskReason.selectedIndex].text : '';
   selectedProject.riskReason = riskOptionLabel;
   selectedProject.region = editRegion.value;
+  // Vertical itself is never written here — it's always sourced from Jira (see
+  // syncProjectProgressFromJiraInner), never edited by hand. Account Type IS editable: if the
+  // PM's selection differs from what was loaded, mark it manually overridden so future Jira
+  // syncs re-deriving Account Type from Vertical leave this project's value alone from now on.
+  if (itemType !== 'task' && editAccountType.value !== (selectedProject.accountType || '')) {
+    selectedProject.accountType = editAccountType.value;
+    selectedProject.accountTypeManual = true;
+  }
   selectedProject.atLink = document.getElementById('editAtLink').value.trim();
   const newDueDate = parseDateInput(document.getElementById('editDueDateText').value);
   if (newDueDate) selectedProject.dueDate = newDueDate;
@@ -1663,6 +1697,7 @@ function saveFilters() {
       duemonth: duemonthFilter.value,
       addedmonth: addedMonthFilter.value,
       region: regionFilter.value,
+      accountType: accountTypeFilter.value,
       search: searchInput.value,
     }));
   } catch {}
@@ -1675,15 +1710,17 @@ function restoreFilters() {
     const urlPm = params.get('pm');
     const urlHealth = params.get('health');
     const urlRegion = params.get('region');
+    const urlAccountType = params.get('accountType');
     const urlProgress = params.get('progress');
     const urlAddedMonth = params.get('addedmonth');
     const urlSearch = params.get('search');
 
-    if (urlPm || urlHealth || urlRegion || urlProgress || urlAddedMonth || urlSearch) {
+    if (urlPm || urlHealth || urlRegion || urlAccountType || urlProgress || urlAddedMonth || urlSearch) {
       // URL params present — use them and save to localStorage
       if (urlPm) pmFilter.value = urlPm;
       if (urlHealth) healthFilter.value = urlHealth;
       if (urlRegion) regionFilter.value = urlRegion;
+      if (urlAccountType) accountTypeFilter.value = urlAccountType;
       if (urlProgress) progressFilter.value = urlProgress;
       if (urlAddedMonth) addedMonthFilter.value = urlAddedMonth;
       if (urlSearch) searchInput.value = urlSearch;
@@ -1703,6 +1740,7 @@ function restoreFilters() {
     if (saved.duemonth) duemonthFilter.value = saved.duemonth;
     if (saved.addedmonth) addedMonthFilter.value = saved.addedmonth;
     if (saved.region) regionFilter.value = saved.region;
+    if (saved.accountType) accountTypeFilter.value = saved.accountType;
     if (saved.search) searchInput.value = saved.search;
   } catch {}
 }
@@ -1715,6 +1753,7 @@ function resetFilters() {
   duemonthFilter.selectedIndex = 0;
   addedMonthFilter.selectedIndex = 0;
   regionFilter.selectedIndex = 0;
+  accountTypeFilter.selectedIndex = 0;
   searchInput.value = '';
   localStorage.removeItem(FILTER_STORAGE_KEY);
   renderAll();
@@ -1726,6 +1765,7 @@ progressFilter.addEventListener('change', () => { saveFilters(); renderTable(); 
 duemonthFilter.addEventListener('change', () => { saveFilters(); renderTable(); });
 addedMonthFilter.addEventListener('change', () => { saveFilters(); renderTable(); });
 regionFilter.addEventListener('change', () => { saveFilters(); renderAll(); });
+accountTypeFilter.addEventListener('change', () => { saveFilters(); renderAll(); });
 searchInput.addEventListener('input', saveFilters);
 
 document.getElementById('refreshDashboardBtn').addEventListener('click', async () => {
