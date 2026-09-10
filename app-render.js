@@ -572,6 +572,16 @@ function openEditProjectModal(itemType, itemIndex) {
   editRiskReason.value = matchingOption ? matchingOption.value : '';
   editRegion.value = item.region || '';
   riskReasonLabel.style.display = '';
+  // CSM/Sales, like Vertical/Account Type, are project-level-only fields — tasks never carry
+  // them at all. These two inputs previously existed in the modal's HTML but were never wired
+  // to anything: never populated on open, never read on save. Confirmed real gap, 2026-09-10 —
+  // the values ARE correctly imported and shown on the dashboard row, just never surfaced (or
+  // preserved) in the Edit modal, which silently risked wiping them on the next edit-save
+  // (an unrelated field's edit would save whatever stale value happened to be in the input).
+  editCsm.value = itemType === 'task' ? '' : (item.csm || '');
+  editSales.value = itemType === 'task' ? '' : (item.sales || '');
+  editCsm.closest('label').style.display = itemType === 'task' ? 'none' : '';
+  editSales.closest('label').style.display = itemType === 'task' ? 'none' : '';
   const editDueDateText = document.getElementById('editDueDateText');
   editDueDateText.value = item.dueDate ? formatDateDMY(item.dueDate) : '';
   document.getElementById('editAtLink').value = item.atLink || '';
@@ -619,6 +629,8 @@ function closeEditProjectModal() {
   riskReasonLabel.style.display = '';
   editVertical.value = '';
   editAccountType.value = '';
+  editCsm.value = '';
+  editSales.value = '';
 }
 
 const commentComposerToolbar = setupRichEditorToolbar(
@@ -1316,6 +1328,19 @@ editProjectForm.addEventListener('submit', async (event) => {
   if (itemType !== 'task' && editAccountType.value !== (selectedProject.accountType || '')) {
     selectedProject.accountType = editAccountType.value;
     selectedProject.accountTypeManual = true;
+  }
+  // CSM/Sales — project-only, same as Vertical/Account Type above. Keep the display-only
+  // `comments` string in sync too, the same way the Jira sync already does when it updates
+  // these fields (app-core.js syncProjectProgressFromJiraInner) — otherwise the "Manager
+  // Notes" column would keep showing a stale CSM/Sales name after this save.
+  if (itemType !== 'task') {
+    const newCsm = editCsm.value.trim();
+    const newSales = editSales.value.trim();
+    selectedProject.csm = newCsm;
+    selectedProject.sales = newSales;
+    selectedProject.comments = (selectedProject.comments || '')
+      .replace(/CSM:\s*[^,\n]*/i, `CSM: ${newCsm || '-'}`)
+      .replace(/Sales:\s*[^,\n]*/i, `Sales: ${newSales || '-'}`);
   }
   selectedProject.atLink = document.getElementById('editAtLink').value.trim();
   const newDueDate = parseDateInput(document.getElementById('editDueDateText').value);

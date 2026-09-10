@@ -1330,10 +1330,13 @@ async function loadImportStep2(pm) {
   importProgress.textContent = '';
 
   // Ensure custom field IDs are resolved before building search URL
-  if (!cachedAccountNameFieldId || !cachedVMForecastFieldId || !cachedNrrFieldId || !cachedMrrFieldId || !cachedEstHoursFieldId || !cachedRiskReasonFieldId || !cachedRiskRateFieldId || !cachedVerticalFieldId) await resolveJiraFieldIds();
+  if (!cachedAccountNameFieldId || !cachedVMForecastFieldId || !cachedNrrFieldId || !cachedMrrFieldId || !cachedEstHoursFieldId || !cachedRiskReasonFieldId || !cachedRiskRateFieldId || !cachedVerticalFieldId || !cachedRegionFieldId) await resolveJiraFieldIds();
 
   const jql = `issuetype = Initiative AND assignee = "${pm.accountId}" AND (status = Open OR status = "in progress") ORDER BY created ASC`;
-  const extraFields = [cachedAccountNameFieldId, cachedMrrFieldId, cachedNrrFieldId, cachedEstHoursFieldId, cachedVMForecastFieldId, cachedRiskReasonFieldId, cachedRiskRateFieldId, cachedAccountOwnerFieldId, cachedOppUrlFieldId, cachedAccountUrlFieldId, cachedAccountCsmFieldId, cachedVerticalFieldId].filter(Boolean).join(',');
+  // cachedRegionFieldId was missing here — Region was correctly picked up by the ongoing Jira
+  // sync (syncProjectProgressFromJiraInner) but never requested at import time, so every
+  // newly imported project started with an empty Region despite Jira having a real value.
+  const extraFields = [cachedAccountNameFieldId, cachedMrrFieldId, cachedNrrFieldId, cachedEstHoursFieldId, cachedVMForecastFieldId, cachedRiskReasonFieldId, cachedRiskRateFieldId, cachedAccountOwnerFieldId, cachedOppUrlFieldId, cachedAccountUrlFieldId, cachedAccountCsmFieldId, cachedVerticalFieldId, cachedRegionFieldId].filter(Boolean).join(',');
   const useProxy = true;
   const url = useProxy
     ? `https://pm-proxy.demo.qa.kaltura.ai/jira/search/jql?jql=${encodeURIComponent(jql)}&fields=summary,status,assignee,created${extraFields ? ',' + extraFields : ''}&maxResults=200`
@@ -1373,6 +1376,7 @@ async function loadImportStep2(pm) {
       accountUrl: cachedAccountUrlFieldId ? (validSfUrl(i.fields[cachedAccountUrlFieldId]) || '') : '',
       accountCsmName: cachedAccountCsmFieldId ? (typeof i.fields[cachedAccountCsmFieldId] === 'string' ? i.fields[cachedAccountCsmFieldId] : (i.fields[cachedAccountCsmFieldId]?.displayName || i.fields[cachedAccountCsmFieldId]?.name || '')) : '',
       vertical: cachedVerticalFieldId ? (typeof i.fields[cachedVerticalFieldId] === 'string' ? i.fields[cachedVerticalFieldId] : (i.fields[cachedVerticalFieldId]?.value || '')) : '',
+      region: cachedRegionFieldId ? (typeof i.fields[cachedRegionFieldId] === 'string' ? i.fields[cachedRegionFieldId] : (i.fields[cachedRegionFieldId]?.value || '')) : '',
     }));
 
     const existing = getExistingJiraKeys();

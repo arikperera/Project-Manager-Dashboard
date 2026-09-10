@@ -25,8 +25,16 @@ function emailToDisplayName(email) {
 async function getCurrentUserName() {
   return emailToDisplayName(await getCurrentUserEmail());
 }
-const APP_VERSION = '1.18.5';
+const APP_VERSION = '1.18.6';
 const CHANGELOG = [
+  {
+    version: '1.18.6',
+    date: '2026-09-10',
+    features: [
+      'Fix: importing a project never pulled its Region from Jira, even though Jira had a real value — the ongoing sync picked it up correctly, but import itself never requested that field. New imports now get Region right away.',
+      'Fix: the Edit modal\'s CSM and Sales fields existed but were never actually wired to anything — never shown when opening a project (even though the value was correct on the dashboard row), and never saved back, meaning any edit-save could silently revert them to whatever stale text happened to be sitting in the input. Both now show and save correctly.',
+    ]
+  },
   {
     version: '1.18.5',
     date: '2026-09-10',
@@ -1460,6 +1468,8 @@ const pmNotesEditor = document.getElementById('pmNotesEditor');
 const saveEditModalBtn = document.getElementById('saveEditModalBtn');
 const editRiskReason = document.getElementById('editRiskReason');
 const editRegion = document.getElementById('editRegion');
+const editCsm = document.getElementById('editCsm');
+const editSales = document.getElementById('editSales');
 const riskReasonLabel = document.getElementById('riskReasonLabel');
 const riskList = document.getElementById('riskList');
 const commentsModal = document.getElementById('commentsModal');
