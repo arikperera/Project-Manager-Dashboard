@@ -1,4 +1,10 @@
-function generateHTMLReport() {
+function generateHTMLReport(accountTypeChoice) {
+  const typeChoice = accountTypeChoice || 'Both';
+  // getItemAccountType (app-render.js) resolves a task's Account Type from its parent
+  // project, same as the main dashboard's own Account Type filter — keeps this report
+  // consistent with what the live dashboard would show for the same filter choice.
+  const reportProjects = typeChoice === 'Both' ? projects : projects.filter(p => (p.accountType || '') === typeChoice);
+  const reportTasks = typeChoice === 'Both' ? tasks : tasks.filter(t => getItemAccountType(t) === typeChoice);
   const now = new Date();
   const dd = String(now.getDate()).padStart(2,'0');
   const mm = String(now.getMonth()+1).padStart(2,'0');
@@ -17,19 +23,19 @@ function generateHTMLReport() {
     });
   }
 
-  const atRisk = projects.filter(p => Number(p.progress) >= 100)
+  const atRisk = reportProjects.filter(p => Number(p.progress) >= 100)
     .sort((a, b) => Number(b.progress) - Number(a.progress));
 
-  const healthAtRisk = projects.filter(p => p.health === 'Red' || p.health === 'Yellow')
+  const healthAtRisk = reportProjects.filter(p => p.health === 'Red' || p.health === 'Yellow')
     .sort((a, b) => {
       if (a.health === b.health) return 0;
       return a.health === 'Red' ? -1 : 1;
     });
 
   const backupNames = new Set((backups[0]?.projects || []).map(p => p.name));
-  const newProjects = backups.length >= 1 ? projects.filter(p => !backupNames.has(p.name)) : [];
+  const newProjects = backups.length >= 1 ? reportProjects.filter(p => !backupNames.has(p.name)) : [];
 
-  const uniquePMs = [...new Set([...projects.map(p => p.manager), ...tasks.map(t => t.owner)].filter(Boolean))].sort();
+  const uniquePMs = [...new Set([...reportProjects.map(p => p.manager), ...reportTasks.map(t => t.owner)].filter(Boolean))].sort();
 
   function healthPill(health, pmStatus) {
     const colors = {
@@ -102,7 +108,7 @@ function generateHTMLReport() {
   }
 
   const atRiskRows = atRisk.length
-    ? atRisk.map(p => `<tr data-region="${esc(p.region||'')}">
+    ? atRisk.map(p => `<tr data-region="${esc(p.region||'')}" data-type="${esc(p.accountType||'')}">
         <td>${custCell(p)}</td>
         <td>${oppCell(p)}</td>
         <td>${jiraCell(p)}</td>
@@ -113,7 +119,7 @@ function generateHTMLReport() {
     : `<tr><td colspan="6" style="color:#94a3b8;font-style:italic;">No over-budget projects.</td></tr>`;
 
   const healthRows = healthAtRisk.length
-    ? healthAtRisk.map(p => `<tr data-region="${esc(p.region||'')}">
+    ? healthAtRisk.map(p => `<tr data-region="${esc(p.region||'')}" data-type="${esc(p.accountType||'')}">
         <td>${custCell(p)}</td>
         <td>${oppCell(p)}</td>
         <td>${jiraCell(p)}</td>
@@ -124,7 +130,7 @@ function generateHTMLReport() {
     : `<tr><td colspan="6" style="color:#94a3b8;font-style:italic;">No projects with Yellow or Red health.</td></tr>`;
 
   const newRows = newProjects.length
-    ? newProjects.map(p => `<tr data-region="${esc(p.region||'')}">
+    ? newProjects.map(p => `<tr data-region="${esc(p.region||'')}" data-type="${esc(p.accountType||'')}">
         <td>${custCell(p)}</td>
         <td>${oppCell(p)}</td>
         <td>${jiraCell(p)}</td>
@@ -140,8 +146,8 @@ function generateHTMLReport() {
     : '';
 
   const allItems = [
-    ...projects,
-    ...tasks.map(t => ({ ...t, manager: t.owner, name: t.name || t.parentProjectName })),
+    ...reportProjects,
+    ...reportTasks.map(t => ({ ...t, manager: t.owner, name: t.name || t.parentProjectName })),
   ];
   const allProjCount = allItems.filter(p => p.type !== 'task').length;
   const allTaskCount = allItems.filter(p => p.type === 'task').length;
@@ -160,7 +166,7 @@ function generateHTMLReport() {
       const cb = (b.customer || '').toLowerCase();
       if (ca !== cb) return ca.localeCompare(cb);
       return projects.indexOf(b) - projects.indexOf(a);
-    }).map(p => `<tr data-pm="${esc(p.manager||'')}" data-health="${esc(p.health||'Green')}" data-progress="${Math.round(Number(p.progress)||0)}" data-region="${esc(p.region||'')}">
+    }).map(p => `<tr data-pm="${esc(p.manager||'')}" data-health="${esc(p.health||'Green')}" data-progress="${Math.round(Number(p.progress)||0)}" data-region="${esc(p.region||'')}" data-type="${esc(getItemAccountType(p)||'')}">
       <td>${custCell(p)}</td>
       <td>${oppCell(p)}</td>
       <td>${jiraCell(p)}</td>
@@ -288,7 +294,7 @@ th{color:#bfdbfe;font-weight:600}
 <h1>Project Manager Dashboard — Status Report</h1>
 <div style="display:flex;align-items:center;gap:16px;margin:4px 0 24px">
   <p style="color:#94a3b8;margin:0">Generated: ${dateLabel}</p>
-  <select id="rRegionFilter" onchange="applyRegionFilter()" style="background:#0b1220;color:#eff6ff;border:1px solid #223249;border-radius:10px;padding:7px 12px;font-family:inherit;font-size:0.9rem">
+  <select id="rRegionFilter" onchange="applyReportFilters()" style="background:#0b1220;color:#eff6ff;border:1px solid #223249;border-radius:10px;padding:7px 12px;font-family:inherit;font-size:0.9rem">
     <option value="">All Regions</option>
     <option value="APAC">APAC</option>
     <option value="EMEA">EMEA</option>
@@ -297,45 +303,57 @@ th{color:#bfdbfe;font-weight:600}
     <option value="Internal">Internal</option>
     <option value="ROW">"ROW"</option>
   </select>
+  ${typeChoice === 'Both' ? `<select id="rTypeFilter" onchange="applyReportFilters()" style="background:#0b1220;color:#eff6ff;border:1px solid #223249;border-radius:10px;padding:7px 12px;font-family:inherit;font-size:0.9rem">
+    <option value="">All Types</option>
+    <option value="OVP">OVP</option>
+    <option value="OTT">OTT</option>
+  </select>` : ''}
 </div>
 
 ${(() => {
-  const totalNrr = projects.reduce((s, p) => s + (Number(p.nrrUsd) || 0), 0);
-  const totalMrr = projects.reduce((s, p) => s + (Number(p.mrrUsd) || 0), 0);
+  const totalNrr = reportProjects.reduce((s, p) => s + (Number(p.nrrUsd) || 0), 0);
+  const totalMrr = reportProjects.reduce((s, p) => s + (Number(p.mrrUsd) || 0), 0);
   const newNrr = newProjects.reduce((s, p) => s + (Number(p.nrrUsd) || 0), 0);
   const newMrr = newProjects.reduce((s, p) => s + (Number(p.mrrUsd) || 0), 0);
-  const hGreen  = projects.filter(p => (p.health || 'Green') === 'Green').length;
-  const hYellow = projects.filter(p => p.health === 'Yellow').length;
-  const hRed    = projects.filter(p => p.health === 'Red').length;
+  const hGreen  = reportProjects.filter(p => (p.health || 'Green') === 'Green').length;
+  const hYellow = reportProjects.filter(p => p.health === 'Yellow').length;
+  const hRed    = reportProjects.filter(p => p.health === 'Red').length;
   const REGIONS = ['APAC','EMEA','North America','LatAm','Internal','ROW'];
-  const regionStats = {};
-  REGIONS.forEach(r => {
-    const rp = projects.filter(p => p.region === r);
-    const rt = tasks.filter(t => t.region === r);
-    const rAtRisk = rp.filter(p => Number(p.progress) >= 100);
-    const rHealthAtRisk = rp.filter(p => p.health === 'Red' || p.health === 'Yellow');
-    const rNew = backups.length >= 1 ? rp.filter(p => !backupNames.has(p.name)) : [];
-    regionStats[r] = {
-      total: rp.length,
-      totalNrr: rp.reduce((s,p) => s + (Number(p.nrrUsd)||0), 0),
-      totalMrr: rp.reduce((s,p) => s + (Number(p.mrrUsd)||0), 0),
-      hGreen: rp.filter(p => (p.health||'Green')==='Green').length,
-      hYellow: rp.filter(p => p.health==='Yellow').length,
-      hRed: rp.filter(p => p.health==='Red').length,
-      atRisk: rAtRisk.length,
-      healthAtRisk: rHealthAtRisk.length,
-      allProjCount: rp.length,
-      allTaskCount: rt.length,
-      newCount: rNew.length,
-      newNrr: rNew.reduce((s,p) => s + (Number(p.nrrUsd)||0), 0),
-      newMrr: rNew.reduce((s,p) => s + (Number(p.mrrUsd)||0), 0),
-    };
+  // Type filter only exists in the report when typeChoice === 'Both' (a single-type report
+  // has nothing left to filter by type). Combined lookup, keyed by "region|type" (either half
+  // blank means "all" for that dimension) so Region and Type filters compose correctly
+  // together instead of each only knowing how to filter on its own.
+  const TYPES = typeChoice === 'Both' ? ['', 'OVP', 'OTT'] : [''];
+  const combinedStats = {};
+  [''].concat(REGIONS).forEach(r => {
+    TYPES.forEach(t => {
+      const rp = reportProjects.filter(p => (!r || p.region === r) && (!t || p.accountType === t));
+      const rt = reportTasks.filter(item => (!r || item.region === r) && (!t || getItemAccountType(item) === t));
+      const rAtRisk = rp.filter(p => Number(p.progress) >= 100);
+      const rHealthAtRisk = rp.filter(p => p.health === 'Red' || p.health === 'Yellow');
+      const rNew = backups.length >= 1 ? rp.filter(p => !backupNames.has(p.name)) : [];
+      combinedStats[`${r}|${t}`] = {
+        total: rp.length,
+        totalNrr: rp.reduce((s,p) => s + (Number(p.nrrUsd)||0), 0),
+        totalMrr: rp.reduce((s,p) => s + (Number(p.mrrUsd)||0), 0),
+        hGreen: rp.filter(p => (p.health||'Green')==='Green').length,
+        hYellow: rp.filter(p => p.health==='Yellow').length,
+        hRed: rp.filter(p => p.health==='Red').length,
+        atRisk: rAtRisk.length,
+        healthAtRisk: rHealthAtRisk.length,
+        allProjCount: rp.length,
+        allTaskCount: rt.length,
+        newCount: rNew.length,
+        newNrr: rNew.reduce((s,p) => s + (Number(p.nrrUsd)||0), 0),
+        newMrr: rNew.reduce((s,p) => s + (Number(p.mrrUsd)||0), 0),
+      };
+    });
   });
-  const regionDataAttr = `data-region-stats='${JSON.stringify(regionStats)}'`;
-  return `<div class="stats" id="rptStats" ${regionDataAttr}>
+  const combinedDataAttr = `data-combined-stats='${JSON.stringify(combinedStats)}'`;
+  return `<div class="stats" id="rptStats" ${combinedDataAttr}>
   <div class="stat" style="border-top:4px solid #38bdf8">
     <p>Total Projects</p>
-    <h3 id="rptTotal" data-orig="${projects.length}">${projects.length}</h3>
+    <h3 id="rptTotal" data-orig="${reportProjects.length}">${reportProjects.length}</h3>
   </div>
   <div class="stat" style="border-top:4px solid #a78bfa">
     <p>Total MRR/NRR</p>
@@ -431,7 +449,7 @@ ${newSection}
       <option value="70-100">70–100%</option>
     </select>
   </div>
-  <button class="toggle-btn" onclick="toggleAll(this)">▶ Show all projects (${projects.length})</button>
+  <button class="toggle-btn" onclick="toggleAll(this)">▶ Show all projects (${reportProjects.length})</button>
   <div id="allTable">
     ${allProjectsRows}
   </div>
@@ -442,11 +460,11 @@ function toggleAll(btn){
   const t=document.getElementById('allTable');
   const open=t.style.display==='block';
   t.style.display=open?'none':'block';
-  btn.textContent=open?'▶ Show all projects (${projects.length})':'▼ Hide all projects';
+  btn.textContent=open?'▶ Show all projects (${reportProjects.length})':'▼ Hide all projects';
 }
 function renderPager(section) {
-  // Only paginate rows not hidden by the region filter (class region-hidden)
-  const rows = Array.from(section.querySelectorAll('tbody tr')).filter(r => !r.classList.contains('region-hidden'));
+  // Only paginate rows not hidden by the region/type filter (class filter-hidden)
+  const rows = Array.from(section.querySelectorAll('tbody tr')).filter(r => !r.classList.contains('filter-hidden'));
   const pageSize = parseInt(section.dataset.pageSize) || 5;
   const page = parseInt(section.dataset.page) || 0;
   const total = rows.length;
@@ -461,7 +479,7 @@ function renderPager(section) {
 }
 function goPage(btn, dir) {
   const section = btn.closest('.paginated-section');
-  const eligibleRows = Array.from(section.querySelectorAll('tbody tr')).filter(r => !r.classList.contains('region-hidden'));
+  const eligibleRows = Array.from(section.querySelectorAll('tbody tr')).filter(r => !r.classList.contains('filter-hidden'));
   const pages = Math.ceil(eligibleRows.length / (parseInt(section.dataset.pageSize)||5));
   section.dataset.page = Math.max(0, Math.min(pages-1, (parseInt(section.dataset.page)||0) + dir));
   renderPager(section);
@@ -507,7 +525,7 @@ function applyFilters(){
       if(prog==='40-69' && (rProg<40||rProg>=70)) show=false;
       if(prog==='70-100' && rProg<70) show=false;
       if(region && row.dataset.region!==region) show=false;
-      if(row.classList.contains('region-hidden')) show=false;
+      if(row.classList.contains('filter-hidden')) show=false;
       row.style.display=show?'':'none';
       if(show) anyVisible=true;
     });
@@ -516,15 +534,25 @@ function applyFilters(){
     if(groupDiv) groupDiv.style.display=anyVisible?'':'none';
   });
 }
-function applyRegionFilter() {
+// Generalizes what used to be applyRegionFilter — Region and (when present) Type now combine
+// via one lookup keyed "region|type" (either half blank means "all" for that dimension), so
+// changing either filter (or both) recomputes every stat number and hides/shows rows in the
+// Over Budget/Health/Newly Added sections consistently. The rTypeFilter select only exists in
+// the report when it was generated with "Both" project types — a single-type report has
+// nothing left to filter by type, so this reads '' (all) when the element is absent.
+function applyReportFilters() {
   const region = document.getElementById('rRegionFilter').value;
-  // Mark non-matching rows with region-hidden class (not inline style) so
-  // renderPager can distinguish region filtering from pagination hiding.
+  const typeEl = document.getElementById('rTypeFilter');
+  const type = typeEl ? typeEl.value : '';
+  // Mark non-matching rows with filter-hidden class (not inline style) so
+  // renderPager can distinguish this filtering from pagination hiding.
   document.querySelectorAll('tr[data-region]').forEach(row => {
-    if (!region || row.dataset.region === region) {
-      row.classList.remove('region-hidden');
+    const matchesRegion = !region || row.dataset.region === region;
+    const matchesType = !type || row.dataset.type === type;
+    if (matchesRegion && matchesType) {
+      row.classList.remove('filter-hidden');
     } else {
-      row.classList.add('region-hidden');
+      row.classList.add('filter-hidden');
       row.style.display = 'none';
     }
   });
@@ -532,8 +560,8 @@ function applyRegionFilter() {
   const statsDiv = document.getElementById('rptStats');
   if (!statsDiv) return;
   let stats;
-  try { stats = JSON.parse(statsDiv.dataset.regionStats); } catch { return; }
-  const s = region ? stats[region] : null;
+  try { stats = JSON.parse(statsDiv.dataset.combinedStats); } catch { return; }
+  const s = (region || type) ? stats[region + '|' + type] : null;
   const el = id => document.getElementById(id);
   if (s) {
     if (el('rptTotal')) el('rptTotal').textContent = s.total;
@@ -568,7 +596,7 @@ function applyRegionFilter() {
     }
   }
   // Reset pagination so page windows respect the new filter, then re-apply
-  // PM/health/progress filters on top of the region selection.
+  // PM/health/progress filters on top of the region/type selection.
   initPaginators();
   applyFilters();
 }
@@ -618,15 +646,19 @@ exportChoiceModal.addEventListener('click', (e) => {
     exportChoiceModal.setAttribute('aria-hidden', 'true');
   }
 });
+function getReportAccountTypeChoice() {
+  const checked = document.querySelector('input[name="reportAccountType"]:checked');
+  return checked ? checked.value : 'Both';
+}
 exportOnlyBtn.addEventListener('click', () => {
   exportChoiceModal.classList.add('hidden');
   exportChoiceModal.setAttribute('aria-hidden', 'true');
-  generateHTMLReport();
+  generateHTMLReport(getReportAccountTypeChoice());
 });
 exportAndBackupBtn.addEventListener('click', () => {
   exportChoiceModal.classList.add('hidden');
   exportChoiceModal.setAttribute('aria-hidden', 'true');
-  generateHTMLReport();
+  generateHTMLReport(getReportAccountTypeChoice());
   createBackup(createBackupBtn);
 });
 exportCancelBtn.addEventListener('click', () => {

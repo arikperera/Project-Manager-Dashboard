@@ -746,14 +746,26 @@
     </div>
 
     <div id="exportChoiceModal" class="modal hidden" aria-hidden="true">
-      <div class="modal-card" style="max-width:420px;">
+      <div class="modal-card" style="max-width:520px;">
         <div class="modal-header">
           <div>
             <p class="eyebrow">Export report</p>
             <h3>What would you like to do?</h3>
           </div>
         </div>
-        <p class="muted" style="margin-bottom:16px;">Choose whether to export only, or export and create a backup snapshot at the same time.</p>
+        <p class="muted" style="margin-bottom:10px;">Choose whether to export only, or export and create a backup snapshot at the same time.</p>
+        <p class="muted" style="margin-bottom:12px;">Which projects would you like on the report? OVP, OTT, or Both?</p>
+        <div style="display:flex;gap:18px;margin-bottom:18px;">
+          <label style="display:flex;align-items:center;gap:6px;font-weight:normal;">
+            <input type="radio" name="reportAccountType" value="Both" checked> Both
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;font-weight:normal;">
+            <input type="radio" name="reportAccountType" value="OVP"> OVP
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;font-weight:normal;">
+            <input type="radio" name="reportAccountType" value="OTT"> OTT
+          </label>
+        </div>
         <div class="modal-actions">
           <button type="button" id="exportCancelBtn" class="secondary-btn">Cancel</button>
           <button type="button" id="exportOnlyBtn" class="ghost-btn">Report only</button>

@@ -25,8 +25,15 @@ function emailToDisplayName(email) {
 async function getCurrentUserName() {
   return emailToDisplayName(await getCurrentUserEmail());
 }
-const APP_VERSION = '1.18.1';
+const APP_VERSION = '1.18.2';
 const CHANGELOG = [
+  {
+    version: '1.18.2',
+    date: '2026-09-10',
+    features: [
+      'Export report can now be scoped to OVP projects, OTT projects, or Both. Choosing a single type produces a report with just that type — no Type filter shown, since there\'s nothing left to filter. Choosing Both adds a "All Types" filter next to "All Regions" in the report, and the two combine together (e.g. EMEA + OVP), updating every stat number and table row consistently.',
+    ]
+  },
   {
     version: '1.18.1',
     date: '2026-09-10',
