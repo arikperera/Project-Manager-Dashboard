@@ -974,6 +974,15 @@ function renderBackupMain(backup) {
     const deleteBtn = document.getElementById('deleteBackupBtn');
     setButtonBusy(deleteBtn, true, 'Deleting...');
     backups = backups.filter(b => b.id !== backup.id);
+    // addPendingDelete (this browser's own local, always-available record) was missing here —
+    // every other delete flow (projects/tasks) calls both this AND addKvTombstone (the shared
+    // remote one), but this one only ever called the remote half. getCombinedDeleteIds checks
+    // BOTH; without the local half, a delete depended entirely on the tombstone fetch
+    // succeeding on every subsequent save. Confirmed real incident, 2026-09-10: a backup
+    // created and deleted seconds apart kept reappearing in the panel for several minutes
+    // before finally disappearing — consistent with a later save's merge occasionally
+    // resurrecting it from `fresh` whenever that fetch was slow, stale, or briefly failed.
+    addPendingDelete(backup.id, BACKUPS_KEY);
     await addKvTombstone(backup.id, BACKUPS_KEY);
     await saveBackups('manual-delete');
     setButtonBusy(deleteBtn, false);
@@ -1105,6 +1114,11 @@ function renderClosedProjectsPanel() {
       const idx = closedProjects.findIndex(p => (p.jira || '') === jira);
       if (idx < 0) { setButtonBusy(btn, false); return; }
       const [restored] = closedProjects.splice(idx, 1);
+      // addPendingDelete (this browser's own local, always-available record) was missing here
+      // — same gap as backup deletion (see deleteBackupBtn), and the same fix: getCombinedDeleteIds
+      // checks both this and the remote tombstone, so a delete depended entirely on the
+      // remote tombstone fetch succeeding on every subsequent save without it.
+      if (jira) addPendingDelete(jira, CLOSED_PROJECTS_KEY);
       if (jira) await addKvTombstone(jira, CLOSED_PROJECTS_KEY);
       delete restored.closedAt;
       removePendingDelete(jira, STORAGE_KEY);

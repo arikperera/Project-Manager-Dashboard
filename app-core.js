@@ -25,8 +25,15 @@ function emailToDisplayName(email) {
 async function getCurrentUserName() {
   return emailToDisplayName(await getCurrentUserEmail());
 }
-const APP_VERSION = '1.18.4';
+const APP_VERSION = '1.18.5';
 const CHANGELOG = [
+  {
+    version: '1.18.5',
+    date: '2026-09-10',
+    features: [
+      'Fix: a deleted backup (or a project restored from Closed Projects) could briefly reappear before finally disappearing on its own a few minutes later — deleting a backup, or restoring a closed project, only recorded the deletion remotely, unlike every other delete in the app which also records it locally as a fast, reliable backstop. A save landing while that remote record was still catching up could resurrect the item. Both now record the deletion both ways, like everywhere else already did.',
+    ]
+  },
   {
     version: '1.18.4',
     date: '2026-09-10',
@@ -1013,6 +1020,11 @@ async function saveClosedProjects(reason) {
   try { localStorage.setItem(CLOSED_PROJECTS_KEY, JSON.stringify(closedProjects)); } catch {}
   const ok = await kvPutWithRetry(CLOSED_PROJECTS_KEY, closedProjects);
   if (ok) {
+    // Clear any pending deletes for closedProjects since KV is now up to date — same cleanup
+    // saveProjects/saveTasks already do; missing here only meant a resolved pending-delete
+    // record could linger in localStorage indefinitely (harmless, just unbounded growth).
+    getPendingDeletes().filter(d => d.storeKey === CLOSED_PROJECTS_KEY)
+      .forEach(d => removePendingDelete(d.id, CLOSED_PROJECTS_KEY));
     _saveBaseline[CLOSED_PROJECTS_KEY] = JSON.parse(JSON.stringify(closedProjects));
   } else {
     _wasOffline = true;
@@ -1273,6 +1285,11 @@ async function saveBackups(reason) {
   try { localStorage.setItem(BACKUPS_KEY, JSON.stringify(backups)); } catch {}
   const ok = await kvPutWithRetry(BACKUPS_KEY, backups);
   if (ok) {
+    // Clear any pending deletes for backups since KV is now up to date — same cleanup
+    // saveProjects/saveTasks already do; missing here only meant a resolved pending-delete
+    // record could linger in localStorage indefinitely (harmless, just unbounded growth).
+    getPendingDeletes().filter(d => d.storeKey === BACKUPS_KEY)
+      .forEach(d => removePendingDelete(d.id, BACKUPS_KEY));
     _saveBaseline[BACKUPS_KEY] = JSON.parse(JSON.stringify(backups));
   } else {
     _wasOffline = true;
