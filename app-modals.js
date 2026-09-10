@@ -12,7 +12,9 @@ function generateHTMLReport(accountTypeChoice) {
   const hh = String(now.getHours()).padStart(2,'0');
   const min = String(now.getMinutes()).padStart(2,'0');
   const dateLabel = `${dd}/${mm}/${yy} ${hh}:${min}`;
-  const filename = `dashboard-report-${dd}-${mm}-${yy}-${hh}-${min}.html`;
+  const typeTitleSuffix = typeChoice === 'Both' ? ' for OVP and OTT Projects' : ` - ${typeChoice} Projects`;
+  const typeFilenameSuffix = typeChoice === 'Both' ? '' : `-${typeChoice.toLowerCase()}`;
+  const filename = `dashboard-report${typeFilenameSuffix}-${dd}-${mm}-${yy}-${hh}-${min}.html`;
 
   // Strip inline color from <a> tags so report CSS controls link colors
   function cleanStatusHtml(html) {
@@ -257,7 +259,7 @@ function generateHTMLReport(accountTypeChoice) {
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <base target="_blank">
-<title>Project Manager Dashboard — Status Report</title>
+<title>Project Manager Dashboard — Status Report${typeTitleSuffix}</title>
 <style>
 *{box-sizing:border-box}
 body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Inter',Arial,sans-serif;background:#07111f;color:#eff6ff;padding:32px}
@@ -291,7 +293,7 @@ th{color:#bfdbfe;font-weight:600}
 </head>
 <body>
 <p class="eyebrow">Executive View</p>
-<h1>Project Manager Dashboard — Status Report</h1>
+<h1>Project Manager Dashboard — Status Report${typeTitleSuffix}</h1>
 <div style="display:flex;align-items:center;gap:16px;margin:4px 0 24px">
   <p style="color:#94a3b8;margin:0">Generated: ${dateLabel}</p>
   <select id="rRegionFilter" onchange="applyReportFilters()" style="background:#0b1220;color:#eff6ff;border:1px solid #223249;border-radius:10px;padding:7px 12px;font-family:inherit;font-size:0.9rem">

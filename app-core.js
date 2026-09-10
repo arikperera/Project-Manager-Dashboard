@@ -25,8 +25,16 @@ function emailToDisplayName(email) {
 async function getCurrentUserName() {
   return emailToDisplayName(await getCurrentUserEmail());
 }
-const APP_VERSION = '1.18.3';
+const APP_VERSION = '1.18.4';
 const CHANGELOG = [
+  {
+    version: '1.18.4',
+    date: '2026-09-10',
+    features: [
+      'Fix: a correct add/remove/edit could leave no trace at all in the Activity Log if the log entry\'s own network request failed — the underlying data save already retried on failure, but the log write didn\'t. It now retries once too.',
+      'Export Report\'s title and downloaded filename now reflect the chosen scope — "for OVP and OTT Projects" when exporting Both, "- OVP Projects" or "- OTT Projects" for a single type.',
+    ]
+  },
   {
     version: '1.18.3',
     date: '2026-09-10',
@@ -814,14 +822,26 @@ const BACKGROUND_SYNC_REASONS = new Set(['jira-progress-sync', 'jira-status-sync
 // shared JSON array, so concurrent writers from different browsers never clobber each
 // other's entries. Cloudflare KV's native TTL prunes entries after 7 days automatically.
 async function logActivity(entry) {
-  try {
-    const user = BACKGROUND_SYNC_REASONS.has(entry.reason) ? 'Jira Sync' : await getCurrentUserName();
-    await fetch(`${PROXY_BASE}/activity-log`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-KV-Secret': KV_SECRET },
-      body: JSON.stringify({ ts: Date.now(), user, ...entry }),
-    });
-  } catch {}
+  const user = BACKGROUND_SYNC_REASONS.has(entry.reason) ? 'Jira Sync' : await getCurrentUserName();
+  const body = JSON.stringify({ ts: Date.now(), user, ...entry });
+  // One retry after a transient failure — same reasoning as kvPutWithRetry. The underlying
+  // data write already retries, but this POST previously didn't: a dropped request here means
+  // a real, correct add/remove/edit leaves NO trace at all in the Activity Log, with nothing
+  // to show even that something went wrong. Confirmed real incident, 2026-09-10: a backup
+  // delete produced no log entry whatsoever, unlike prior similar reports which were traceable
+  // to a since-fixed race — this one had no matching KV-timing evidence, pointing instead at
+  // the POST itself simply failing silently.
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const res = await fetch(`${PROXY_BASE}/activity-log`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-KV-Secret': KV_SECRET },
+        body,
+      });
+      if (res.ok) return;
+    } catch {}
+    if (attempt === 0) await new Promise(r => setTimeout(r, 800));
+  }
 }
 
 // Label map for fields worth calling out by a friendly name in the generic diff below (used
