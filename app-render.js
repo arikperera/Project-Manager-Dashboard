@@ -922,7 +922,8 @@ function renderBackupMain(backup) {
     </div>
   `;
 
-  document.getElementById('restoreBackupBtn').addEventListener('click', () => {
+  document.getElementById('restoreBackupBtn').addEventListener('click', async () => {
+    if (!(await checkActionPassword('restore this backup'))) return;
     document.getElementById('restoreConfirm').style.display = 'flex';
   });
 
@@ -969,6 +970,7 @@ function renderBackupMain(backup) {
   });
 
   document.getElementById('deleteBackupBtn').addEventListener('click', async () => {
+    if (!(await checkActionPassword('delete this backup'))) return;
     const deleteBtn = document.getElementById('deleteBackupBtn');
     setButtonBusy(deleteBtn, true, 'Deleting...');
     backups = backups.filter(b => b.id !== backup.id);

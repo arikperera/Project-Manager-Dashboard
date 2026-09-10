@@ -25,8 +25,15 @@ function emailToDisplayName(email) {
 async function getCurrentUserName() {
   return emailToDisplayName(await getCurrentUserEmail());
 }
-const APP_VERSION = '1.18.0';
+const APP_VERSION = '1.18.1';
 const CHANGELOG = [
+  {
+    version: '1.18.1',
+    date: '2026-09-10',
+    features: [
+      'Restore and Delete in the Backups panel now require the same password prompt already used for Export and Create Backup. Viewing the Backups panel itself stays open to anyone.',
+    ]
+  },
   {
     version: '1.18.0',
     date: '2026-09-08',
