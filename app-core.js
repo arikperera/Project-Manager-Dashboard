@@ -25,8 +25,15 @@ function emailToDisplayName(email) {
 async function getCurrentUserName() {
   return emailToDisplayName(await getCurrentUserEmail());
 }
-const APP_VERSION = '1.18.2';
+const APP_VERSION = '1.18.3';
 const CHANGELOG = [
+  {
+    version: '1.18.3',
+    date: '2026-09-10',
+    features: [
+      'Fix: in the exported report, filtering by Region or Type correctly updated the "All Projects (N)" header count, but the "Show all projects (N)" button below it kept showing the unfiltered total until clicked. Both now stay in sync.',
+    ]
+  },
   {
     version: '1.18.2',
     date: '2026-09-10',

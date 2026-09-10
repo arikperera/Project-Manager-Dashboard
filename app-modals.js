@@ -449,7 +449,7 @@ ${newSection}
       <option value="70-100">70–100%</option>
     </select>
   </div>
-  <button class="toggle-btn" onclick="toggleAll(this)">▶ Show all projects (${reportProjects.length})</button>
+  <button class="toggle-btn" id="showAllProjectsBtn" data-count="${reportProjects.length}" onclick="toggleAll(this)">▶ Show all projects (${reportProjects.length})</button>
   <div id="allTable">
     ${allProjectsRows}
   </div>
@@ -460,7 +460,10 @@ function toggleAll(btn){
   const t=document.getElementById('allTable');
   const open=t.style.display==='block';
   t.style.display=open?'none':'block';
-  btn.textContent=open?'▶ Show all projects (${reportProjects.length})':'▼ Hide all projects';
+  // data-count is kept in sync with the current Region/Type filter by applyReportFilters —
+  // was previously baked in at generation time and never updated, so this label stayed at the
+  // unfiltered total even after the header count above it correctly reflected the filter.
+  btn.textContent=open?('▶ Show all projects (' + btn.dataset.count + ')'):'▼ Hide all projects';
 }
 function renderPager(section) {
   // Only paginate rows not hidden by the region/type filter (class filter-hidden)
@@ -593,6 +596,19 @@ function applyReportFilters() {
     if (allEl && allEl.dataset.origProj !== undefined) {
       const pc = Number(allEl.dataset.origProj), tc = Number(allEl.dataset.origTask);
       allEl.textContent = pc + ' project' + (pc === 1 ? '' : 's') + (tc ? (' · ' + tc + ' task' + (tc === 1 ? '' : 's')) : '');
+    }
+  }
+  // Keep the "Show all projects (N)" toggle button's count in sync with the same
+  // project-only count the header above it just used — this button previously kept whatever
+  // count was baked in at report-generation time regardless of the Region/Type filter.
+  const showAllBtn = el('showAllProjectsBtn');
+  if (showAllBtn) {
+    const showAllProjCount = s ? s.allProjCount : Number(el('allProjectsSectionCount')?.dataset.origProj ?? showAllBtn.dataset.count);
+    showAllBtn.dataset.count = showAllProjCount;
+    // Only rewrite the visible label while collapsed (▶) — leave it alone while expanded (▼
+    // Hide all projects), since that label carries no count to begin with.
+    if (showAllBtn.textContent.charAt(0) === '▶') {
+      showAllBtn.textContent = '▶ Show all projects (' + showAllProjCount + ')';
     }
   }
   // Reset pagination so page windows respect the new filter, then re-apply
