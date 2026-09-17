@@ -25,8 +25,15 @@ function emailToDisplayName(email) {
 async function getCurrentUserName() {
   return emailToDisplayName(await getCurrentUserEmail());
 }
-const APP_VERSION = '1.18.6';
+const APP_VERSION = '1.18.7';
 const CHANGELOG = [
+  {
+    version: '1.18.7',
+    date: '2026-09-17',
+    features: [
+      'Fix: a task\'s Project Status could get silently overwritten with its sibling project\'s description — many tasks share a Jira issue with an existing project, and Jira only has one description field per issue. If a task\'s own status ever went empty (e.g. an editing accident), the Jira status sync would fill it back in from Jira\'s description, which was really the project\'s own note, not the task\'s. A task\'s Project Status is now never read from or written to Jira, matching how it already worked for other Jira-writeback fields — it stays fully local and PM-owned. 5 of Adi Barak\'s tasks that were affected by this have been restored from a recent backup.',
+    ]
+  },
   {
     version: '1.18.6',
     date: '2026-09-10',
@@ -2576,11 +2583,17 @@ async function syncStatusFromJiraInner() {
   const useProxy = true;
   const BATCH_SIZE = 10;
   let changedProjects = false;
-  let changedTasks = false;
 
-  // Tasks carry the same statusText/statusUpdatedAt fields as projects and were previously
-  // never covered by this sync — same gap as syncProjectProgressFromJira above.
-  const itemsWithKeys = [...projects, ...tasks]
+  // Tasks are deliberately excluded here — a task's Project Status is local/PM-owned and
+  // never written TO Jira either (see writeStatusToJira's `itemType !== 'task'` guard in
+  // app-render.js), specifically because a task very often shares its Jira issue with an
+  // existing project — Jira has only one description field per issue, so pulling it into a
+  // task would just be copying the PROJECT's note over the task's own. Confirmed real
+  // incident, 2026-09-16: PSVAMB-148673's task (owner Adi Barak) had its own status cleared
+  // by an editing accident, and this sync then filled the resulting empty field with the
+  // shared issue's description — which was really the project's note (owner Janina Pomme) —
+  // silently overwriting Adi's independent, task-specific status with someone else's text.
+  const itemsWithKeys = projects
     .map(item => ({ item, issueKey: getJiraIssueKey(item.jira) }))
     .filter(({ issueKey }) => !!issueKey);
 
@@ -2611,7 +2624,7 @@ async function syncStatusFromJiraInner() {
           if (html !== item.statusText) {
             item.statusText = html;
             item.statusUpdatedAt = jiraUpdated;
-            if (item.type === 'task') changedTasks = true; else changedProjects = true;
+            changedProjects = true;
           }
         }
         // Note: push-on-load disabled — Jira's issue-level `updated` tracks all field changes,
@@ -2621,9 +2634,10 @@ async function syncStatusFromJiraInner() {
     }));
   }
 
-  if (changedProjects) await saveProjects('jira-status-sync');
-  if (changedTasks) await saveTasks('jira-status-sync');
-  if (changedProjects || changedTasks) renderAll();
+  if (changedProjects) {
+    await saveProjects('jira-status-sync');
+    renderAll();
+  }
 }
 
 function adfToHtml(adf) {
