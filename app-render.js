@@ -1616,6 +1616,7 @@ customersModalBody.addEventListener('click', (e) => {
   if (deleteBtn) {
     const id = deleteBtn.dataset.deleteCustomer;
     customers = customers.filter(c => c.id !== id);
+    addKvTombstone(id, CUSTOMERS_KEY);
     saveCustomers();
     renderCustomersModal();
     return;

@@ -818,6 +818,7 @@ usersModalBody.addEventListener('click', (e) => {
   if (deleteBtn) {
     const userId = deleteBtn.dataset.deleteUser;
     users = users.filter(u => u.id !== userId);
+    addKvTombstone(userId, USERS_KEY);
     saveUsers();
     renderUsersModal();
     return;

@@ -25,8 +25,15 @@ function emailToDisplayName(email) {
 async function getCurrentUserName() {
   return emailToDisplayName(await getCurrentUserEmail());
 }
-const APP_VERSION = '1.18.9';
+const APP_VERSION = '1.18.10';
 const CHANGELOG = [
+  {
+    version: '1.18.10',
+    date: '2026-09-18',
+    features: [
+      'Fix: deleting or editing a user or customer could silently get undone by another open tab saving its own, older, unrelated copy of the list — the same class of bug fixed for projects/tasks/backups/closed-projects back in August, but Users and Customers had never gotten the same protection. Confirmed real incident: yesterday\'s duplicate-user cleanup got silently reverted this way within minutes. Deletes now use the same tombstone protection as every other store, and saves now merge instead of overwriting wholesale.',
+    ]
+  },
   {
     version: '1.18.9',
     date: '2026-09-18',
@@ -715,9 +722,31 @@ const USERS_KEY = 'project-dashboard-users-v1';
 let users = JSON.parse(localStorage.getItem('project-dashboard-users-v1') || '[]');
 
 async function saveUsers() {
+  // Users had none of the concurrent-save protection projects/tasks/backups/closedProjects
+  // got on 2026-08-31 — a raw kvPut() overwrite, no baseline, no merge. Confirmed real
+  // incident, 2026-09-18: a duplicate "Irena Shlimak" record was deleted, then silently
+  // reappeared minutes later because some other open tab still held the old, un-deduped
+  // `users` array in memory and its own next saveUsers() call overwrote the fix wholesale.
+  const preSaveSnapshot = _lastKnownKvState[USERS_KEY];
+  const deleteIds = await getCombinedDeleteIds(USERS_KEY);
+  const baseline = _saveBaseline[USERS_KEY];
+  const fresh = baseline ? await kvGet(USERS_KEY) : null;
+  if (Array.isArray(fresh)) {
+    users = mergeArrayForSave(baseline, fresh, users, deleteIds, getItemDeleteKey);
+  } else if (deleteIds.size) {
+    const cleaned = users.filter(u => !deleteIds.has(getItemDeleteKey(u)));
+    if (cleaned.length !== users.length) users = cleaned;
+  }
+  await logSaveDiff(USERS_KEY, 'users', users, 'edit-save', preSaveSnapshot);
   try { localStorage.setItem(USERS_KEY, JSON.stringify(users)); } catch {}
-  const ok = await kvPut(USERS_KEY, users);
-  if (!ok) _wasOffline = true;
+  const ok = await kvPutWithRetry(USERS_KEY, users);
+  if (ok) {
+    getPendingDeletes().filter(d => d.storeKey === USERS_KEY)
+      .forEach(d => removePendingDelete(d.id, USERS_KEY));
+    _saveBaseline[USERS_KEY] = JSON.parse(JSON.stringify(users));
+  } else {
+    _wasOffline = true;
+  }
 }
 
 const SETTINGS_KEY = 'project-dashboard-settings-v1';
@@ -732,9 +761,27 @@ const CUSTOMERS_KEY = 'project-dashboard-customers-v1';
 let customers = JSON.parse(localStorage.getItem('project-dashboard-customers-v1') || '[]');
 
 async function saveCustomers() {
+  // Same gap and same fix as saveUsers above — see its comment.
+  const preSaveSnapshot = _lastKnownKvState[CUSTOMERS_KEY];
+  const deleteIds = await getCombinedDeleteIds(CUSTOMERS_KEY);
+  const baseline = _saveBaseline[CUSTOMERS_KEY];
+  const fresh = baseline ? await kvGet(CUSTOMERS_KEY) : null;
+  if (Array.isArray(fresh)) {
+    customers = mergeArrayForSave(baseline, fresh, customers, deleteIds, getItemDeleteKey);
+  } else if (deleteIds.size) {
+    const cleaned = customers.filter(c => !deleteIds.has(getItemDeleteKey(c)));
+    if (cleaned.length !== customers.length) customers = cleaned;
+  }
+  await logSaveDiff(CUSTOMERS_KEY, 'customers', customers, 'edit-save', preSaveSnapshot);
   try { localStorage.setItem(CUSTOMERS_KEY, JSON.stringify(customers)); } catch {}
-  const ok = await kvPut(CUSTOMERS_KEY, customers);
-  if (!ok) _wasOffline = true;
+  const ok = await kvPutWithRetry(CUSTOMERS_KEY, customers);
+  if (ok) {
+    getPendingDeletes().filter(d => d.storeKey === CUSTOMERS_KEY)
+      .forEach(d => removePendingDelete(d.id, CUSTOMERS_KEY));
+    _saveBaseline[CUSTOMERS_KEY] = JSON.parse(JSON.stringify(customers));
+  } else {
+    _wasOffline = true;
+  }
 }
 
 function getCustomerNames() {
@@ -1282,6 +1329,8 @@ async function initData() {
   _saveBaseline[TASKS_KEY] = JSON.parse(JSON.stringify(tasks));
   _saveBaseline[CLOSED_PROJECTS_KEY] = JSON.parse(JSON.stringify(closedProjects));
   _saveBaseline[BACKUPS_KEY] = JSON.parse(JSON.stringify(backups));
+  _saveBaseline[USERS_KEY] = JSON.parse(JSON.stringify(users));
+  _saveBaseline[CUSTOMERS_KEY] = JSON.parse(JSON.stringify(customers));
 
   // Cache KV data to localStorage so next load renders instantly
   try { localStorage.setItem(STORAGE_KEY,   JSON.stringify(projects));  } catch {}
