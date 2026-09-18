@@ -25,8 +25,16 @@ function emailToDisplayName(email) {
 async function getCurrentUserName() {
   return emailToDisplayName(await getCurrentUserEmail());
 }
-const APP_VERSION = '1.18.8';
+const APP_VERSION = '1.18.9';
 const CHANGELOG = [
+  {
+    version: '1.18.9',
+    date: '2026-09-18',
+    features: [
+      'Removed a duplicate "Irena Shlimak" user record (created before Jira ID syncing existed, before a second one was auto-created with her Jira Account ID attached) from the Manage Users list.',
+      'The hourglass/busy indicator now also covers "Sync Jira IDs" in Manage Users.',
+    ]
+  },
   {
     version: '1.18.8',
     date: '2026-09-18',

@@ -743,8 +743,7 @@ document.getElementById('newUserJiraResults').addEventListener('mousedown', (e) 
 // Sync Jira Account IDs for all existing users
 document.getElementById('syncUsersFromJiraBtn').addEventListener('click', async () => {
   const btn = document.getElementById('syncUsersFromJiraBtn');
-  btn.textContent = '↻ Syncing...';
-  btn.disabled = true;
+  setButtonBusy(btn, true, 'Syncing...');
   let updated = 0;
   for (const user of users) {
     if (user.jiraAccountId) continue;
@@ -754,8 +753,7 @@ document.getElementById('syncUsersFromJiraBtn').addEventListener('click', async 
   }
   await fetchAndStoreAvatars();
   await saveUsers();
-  btn.textContent = '↻ Sync Jira IDs';
-  btn.disabled = false;
+  setButtonBusy(btn, false);
   renderUsersModal();
   showToast(`Synced Jira IDs for ${updated} user${updated !== 1 ? 's' : ''}`, 'success');
 });
