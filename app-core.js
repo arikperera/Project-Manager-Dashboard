@@ -25,8 +25,15 @@ function emailToDisplayName(email) {
 async function getCurrentUserName() {
   return emailToDisplayName(await getCurrentUserEmail());
 }
-const APP_VERSION = '1.18.7';
+const APP_VERSION = '1.18.8';
 const CHANGELOG = [
+  {
+    version: '1.18.8',
+    date: '2026-09-18',
+    features: [
+      'The PM dropdown (Edit Project and Add Project) is now sorted alphabetically instead of by whatever order PMs happen to have been added in.',
+    ]
+  },
   {
     version: '1.18.7',
     date: '2026-09-17',
@@ -1379,7 +1386,7 @@ function getUserRoles(user) {
 }
 
 function getUsersByRole(role) {
-  return users.filter(u => getUserRoles(u).includes(role)).map(getUserDisplayName);
+  return users.filter(u => getUserRoles(u).includes(role)).map(getUserDisplayName).sort();
 }
 
 const STATUS_PLACEHOLDER = '<span style="font-style:italic;opacity:0.5;">No Status Entered</span>';
