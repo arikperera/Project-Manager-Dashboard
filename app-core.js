@@ -25,8 +25,15 @@ function emailToDisplayName(email) {
 async function getCurrentUserName() {
   return emailToDisplayName(await getCurrentUserEmail());
 }
-const APP_VERSION = '1.18.10';
+const APP_VERSION = '1.18.11';
 const CHANGELOG = [
+  {
+    version: '1.18.11',
+    date: '2026-09-18',
+    features: [
+      'Faster saves: Save/Edit on projects, tasks, backups, closed projects, users, and customers now runs its independent network steps (the delete-check and the concurrency-merge read, and separately the Activity Log write alongside the actual data write) in parallel instead of one after another. Should noticeably cut the wait after clicking Save.',
+    ]
+  },
   {
     version: '1.18.10',
     date: '2026-09-18',
@@ -728,18 +735,28 @@ async function saveUsers() {
   // reappeared minutes later because some other open tab still held the old, un-deduped
   // `users` array in memory and its own next saveUsers() call overwrote the fix wholesale.
   const preSaveSnapshot = _lastKnownKvState[USERS_KEY];
-  const deleteIds = await getCombinedDeleteIds(USERS_KEY);
   const baseline = _saveBaseline[USERS_KEY];
-  const fresh = baseline ? await kvGet(USERS_KEY) : null;
+  // Two independent reads — tombstones and the current KV state — fetched in parallel
+  // instead of one after another; neither depends on the other's result.
+  const [deleteIds, fresh] = await Promise.all([
+    getCombinedDeleteIds(USERS_KEY),
+    baseline ? kvGet(USERS_KEY) : Promise.resolve(null),
+  ]);
   if (Array.isArray(fresh)) {
     users = mergeArrayForSave(baseline, fresh, users, deleteIds, getItemDeleteKey);
   } else if (deleteIds.size) {
     const cleaned = users.filter(u => !deleteIds.has(getItemDeleteKey(u)));
     if (cleaned.length !== users.length) users = cleaned;
   }
-  await logSaveDiff(USERS_KEY, 'users', users, 'edit-save', preSaveSnapshot);
   try { localStorage.setItem(USERS_KEY, JSON.stringify(users)); } catch {}
-  const ok = await kvPutWithRetry(USERS_KEY, users);
+  // The diff's own read must finish before the write below starts (racing both on the same
+  // key is exactly the 2026-09-08 bug — see buildSaveDiffEntry's comment); only the resulting
+  // log POST (reads nothing) can safely overlap with the real write.
+  const diffEntry = await buildSaveDiffEntry(USERS_KEY, 'users', users, 'edit-save', preSaveSnapshot);
+  const [, ok] = await Promise.all([
+    diffEntry ? logActivity(diffEntry) : Promise.resolve(),
+    kvPutWithRetry(USERS_KEY, users),
+  ]);
   if (ok) {
     getPendingDeletes().filter(d => d.storeKey === USERS_KEY)
       .forEach(d => removePendingDelete(d.id, USERS_KEY));
@@ -763,18 +780,26 @@ let customers = JSON.parse(localStorage.getItem('project-dashboard-customers-v1'
 async function saveCustomers() {
   // Same gap and same fix as saveUsers above — see its comment.
   const preSaveSnapshot = _lastKnownKvState[CUSTOMERS_KEY];
-  const deleteIds = await getCombinedDeleteIds(CUSTOMERS_KEY);
   const baseline = _saveBaseline[CUSTOMERS_KEY];
-  const fresh = baseline ? await kvGet(CUSTOMERS_KEY) : null;
+  // See saveUsers above for why these two independent reads run in parallel.
+  const [deleteIds, fresh] = await Promise.all([
+    getCombinedDeleteIds(CUSTOMERS_KEY),
+    baseline ? kvGet(CUSTOMERS_KEY) : Promise.resolve(null),
+  ]);
   if (Array.isArray(fresh)) {
     customers = mergeArrayForSave(baseline, fresh, customers, deleteIds, getItemDeleteKey);
   } else if (deleteIds.size) {
     const cleaned = customers.filter(c => !deleteIds.has(getItemDeleteKey(c)));
     if (cleaned.length !== customers.length) customers = cleaned;
   }
-  await logSaveDiff(CUSTOMERS_KEY, 'customers', customers, 'edit-save', preSaveSnapshot);
   try { localStorage.setItem(CUSTOMERS_KEY, JSON.stringify(customers)); } catch {}
-  const ok = await kvPutWithRetry(CUSTOMERS_KEY, customers);
+  // See saveUsers above for why the diff's read must finish before the write starts, and
+  // only the resulting log POST can run concurrently with it.
+  const diffEntry = await buildSaveDiffEntry(CUSTOMERS_KEY, 'customers', customers, 'edit-save', preSaveSnapshot);
+  const [, ok] = await Promise.all([
+    diffEntry ? logActivity(diffEntry) : Promise.resolve(),
+    kvPutWithRetry(CUSTOMERS_KEY, customers),
+  ]);
   if (ok) {
     getPendingDeletes().filter(d => d.storeKey === CUSTOMERS_KEY)
       .forEach(d => removePendingDelete(d.id, CUSTOMERS_KEY));
@@ -985,11 +1010,19 @@ const LOG_EXCLUDED_FIELDS = new Set(['statusUpdatedAt', 'jira', 'id', 'statusTex
 // produced no log entry for the delete, even though the delete itself was correct. Passing the
 // OLDER, locally-known-good snapshot instead avoids re-fetching a value that might race the
 // save's own just-issued read.
-async function logSaveDiff(storeKey, storeLabel, afterArray, reason, preSaveSnapshot) {
+//
+// Split into two phases so callers can overlap the second phase with their own data write
+// (see saveProjects etc.): buildSaveDiffEntry does the read this needs — either instant from
+// a fresh cache, or (only when that cache has gone stale, e.g. an edit modal left open past
+// _KV_CACHE_MAX_AGE_MS) a real kvGet(storeKey) — and MUST complete before the save's own write
+// to that same key starts, or the two would race on that key exactly like the 2026-09-08
+// incident this comment describes. The actual log write (logActivity) reads nothing and is
+// safe to run concurrently with the save's data write.
+async function buildSaveDiffEntry(storeKey, storeLabel, afterArray, reason, preSaveSnapshot) {
   try {
     const cached = preSaveSnapshot !== undefined ? preSaveSnapshot : _lastKnownKvState[storeKey];
     const beforeArray = (cached && Date.now() - cached.ts < _KV_CACHE_MAX_AGE_MS) ? cached.value : await kvGet(storeKey);
-    if (!Array.isArray(beforeArray)) return;
+    if (!Array.isArray(beforeArray)) return null;
     const beforeKeys = new Set(beforeArray.map(getItemDeleteKey).filter(Boolean));
     const afterKeys = new Set(afterArray.map(getItemDeleteKey).filter(Boolean));
     const added = afterArray.filter(item => { const k = getItemDeleteKey(item); return k && !beforeKeys.has(k); });
@@ -1031,8 +1064,8 @@ async function logSaveDiff(storeKey, storeLabel, afterArray, reason, preSaveSnap
       return { customer: after.customer, name: after.name || after.parentProjectName || after.label, jira: after.jira, changes };
     }).filter(Boolean);
 
-    if (!added.length && !removed.length && !edited.length) return;
-    await logActivity({
+    if (!added.length && !removed.length && !edited.length) return null;
+    return {
       store: storeLabel,
       reason: reason || 'unknown',
       beforeCount: beforeArray.length,
@@ -1040,27 +1073,46 @@ async function logSaveDiff(storeKey, storeLabel, afterArray, reason, preSaveSnap
       added: added.map(item => ({ customer: item.customer, name: item.name || item.parentProjectName || item.label, jira: item.jira })),
       removed: removed.map(item => ({ customer: item.customer, name: item.name || item.parentProjectName || item.label, jira: item.jira })),
       edited,
-    });
-  } catch {}
+    };
+  } catch {
+    return null;
+  }
+}
+
+// Convenience wrapper for callers that don't need to overlap the log write with anything
+// else — computes the entry and posts it in one sequential call.
+async function logSaveDiff(storeKey, storeLabel, afterArray, reason, preSaveSnapshot) {
+  const entry = await buildSaveDiffEntry(storeKey, storeLabel, afterArray, reason, preSaveSnapshot);
+  if (entry) await logActivity(entry);
 }
 
 async function saveTasks(reason, options = {}) {
   // Captured before anything below touches KV — see logSaveDiff's preSaveSnapshot comment.
   const preSaveSnapshot = _lastKnownKvState[TASKS_KEY];
-  const deleteIds = await getCombinedDeleteIds(TASKS_KEY);
   // See saveProjects for the reasoning — merge against fresh KV unless this is a deliberate
   // full replacement (Restore from Backup), or there's no baseline yet to compare against.
   const baseline = _saveBaseline[TASKS_KEY];
-  const fresh = (options.skipMerge || !baseline) ? null : await kvGet(TASKS_KEY);
+  // Two independent reads — tombstones and the current KV state — fetched in parallel
+  // instead of one after another; neither depends on the other's result.
+  const [deleteIds, fresh] = await Promise.all([
+    getCombinedDeleteIds(TASKS_KEY),
+    (options.skipMerge || !baseline) ? Promise.resolve(null) : kvGet(TASKS_KEY),
+  ]);
   if (Array.isArray(fresh)) {
     tasks = mergeArrayForSave(baseline, fresh, tasks, deleteIds, getItemDeleteKey);
   } else if (deleteIds.size) {
     const cleaned = tasks.filter(t => !deleteIds.has(getItemDeleteKey(t)));
     if (cleaned.length !== tasks.length) tasks = cleaned;
   }
-  await logSaveDiff(TASKS_KEY, 'tasks', tasks, reason, preSaveSnapshot);
   try { localStorage.setItem(TASKS_KEY, JSON.stringify(tasks)); } catch {}
-  const ok = await kvPutWithRetry(TASKS_KEY, tasks);
+  // The diff's own read must finish before the write below starts (racing both on the same
+  // key is exactly the 2026-09-08 bug — see buildSaveDiffEntry's comment); only the resulting
+  // log POST (reads nothing) can safely overlap with the real write.
+  const diffEntry = await buildSaveDiffEntry(TASKS_KEY, 'tasks', tasks, reason, preSaveSnapshot);
+  const [, ok] = await Promise.all([
+    diffEntry ? logActivity(diffEntry) : Promise.resolve(),
+    kvPutWithRetry(TASKS_KEY, tasks),
+  ]);
   if (ok) {
     // Clear any pending deletes for tasks since KV is now up to date
     getPendingDeletes().filter(d => d.storeKey === TASKS_KEY)
@@ -1084,18 +1136,26 @@ async function saveClosedProjects(reason) {
   // tasks, backups) already did. Without this, removing an entry (Restore to Active) has no
   // way to tell the merge below "this was deliberately removed", and it would silently
   // reappear the next time this store is saved from a tab that still has it locally.
-  const deleteIds = await getCombinedDeleteIds(CLOSED_PROJECTS_KEY);
   const baseline = _saveBaseline[CLOSED_PROJECTS_KEY];
-  const fresh = baseline ? await kvGet(CLOSED_PROJECTS_KEY) : null;
+  // See saveUsers above for why these two independent reads run in parallel.
+  const [deleteIds, fresh] = await Promise.all([
+    getCombinedDeleteIds(CLOSED_PROJECTS_KEY),
+    baseline ? kvGet(CLOSED_PROJECTS_KEY) : Promise.resolve(null),
+  ]);
   if (Array.isArray(fresh)) {
     closedProjects = mergeArrayForSave(baseline, fresh, closedProjects, deleteIds, getItemDeleteKey);
   } else if (deleteIds.size) {
     const cleaned = closedProjects.filter(p => !deleteIds.has(getItemDeleteKey(p)));
     if (cleaned.length !== closedProjects.length) closedProjects = cleaned;
   }
-  await logSaveDiff(CLOSED_PROJECTS_KEY, 'closedProjects', closedProjects, reason, preSaveSnapshot);
   try { localStorage.setItem(CLOSED_PROJECTS_KEY, JSON.stringify(closedProjects)); } catch {}
-  const ok = await kvPutWithRetry(CLOSED_PROJECTS_KEY, closedProjects);
+  // See saveUsers above for why the diff's read must finish before the write starts, and
+  // only the resulting log POST can run concurrently with it.
+  const diffEntry = await buildSaveDiffEntry(CLOSED_PROJECTS_KEY, 'closedProjects', closedProjects, reason, preSaveSnapshot);
+  const [, ok] = await Promise.all([
+    diffEntry ? logActivity(diffEntry) : Promise.resolve(),
+    kvPutWithRetry(CLOSED_PROJECTS_KEY, closedProjects),
+  ]);
   if (ok) {
     // Clear any pending deletes for closedProjects since KV is now up to date — same cleanup
     // saveProjects/saveTasks already do; missing here only meant a resolved pending-delete
@@ -1345,9 +1405,12 @@ async function initData() {
 async function saveBackups(reason) {
   // Captured before anything below touches KV — see logSaveDiff's preSaveSnapshot comment.
   const preSaveSnapshot = _lastKnownKvState[BACKUPS_KEY];
-  const deleteIds = await getCombinedDeleteIds(BACKUPS_KEY);
   const baseline = _saveBaseline[BACKUPS_KEY];
-  const fresh = baseline ? await kvGet(BACKUPS_KEY) : null;
+  // See saveUsers above for why these two independent reads run in parallel.
+  const [deleteIds, fresh] = await Promise.all([
+    getCombinedDeleteIds(BACKUPS_KEY),
+    baseline ? kvGet(BACKUPS_KEY) : Promise.resolve(null),
+  ]);
   if (Array.isArray(fresh)) {
     backups = mergeArrayForSave(baseline, fresh, backups, deleteIds, getItemDeleteKey);
     // mergeArrayForSave builds its result from a Map keyed by id — Maps always append
@@ -1360,9 +1423,14 @@ async function saveBackups(reason) {
     const cleaned = backups.filter(b => !deleteIds.has(getItemDeleteKey(b)));
     if (cleaned.length !== backups.length) backups = cleaned;
   }
-  await logSaveDiff(BACKUPS_KEY, 'backups', backups, reason, preSaveSnapshot);
   try { localStorage.setItem(BACKUPS_KEY, JSON.stringify(backups)); } catch {}
-  const ok = await kvPutWithRetry(BACKUPS_KEY, backups);
+  // See saveUsers above for why the diff's read must finish before the write starts, and
+  // only the resulting log POST can run concurrently with it.
+  const diffEntry = await buildSaveDiffEntry(BACKUPS_KEY, 'backups', backups, reason, preSaveSnapshot);
+  const [, ok] = await Promise.all([
+    diffEntry ? logActivity(diffEntry) : Promise.resolve(),
+    kvPutWithRetry(BACKUPS_KEY, backups),
+  ]);
   if (ok) {
     // Clear any pending deletes for backups since KV is now up to date — same cleanup
     // saveProjects/saveTasks already do; missing here only meant a resolved pending-delete
@@ -1651,26 +1719,34 @@ const importProgress = document.getElementById('importProgress');
 async function saveProjects(reason, options = {}) {
   // Captured before anything below touches KV — see logSaveDiff's preSaveSnapshot comment.
   const preSaveSnapshot = _lastKnownKvState[STORAGE_KEY];
-  // Strip anything tombstoned (by this browser or any other session) before persisting —
-  // guards every caller against writing back a stale in-memory copy that still contains an
-  // item someone else already deleted.
-  const deleteIds = await getCombinedDeleteIds(STORAGE_KEY);
   // Merge against a fresh KV read so this tab's save can't silently drop projects added or
   // edited by other sessions since this tab's baseline (see 2026-08-31 design doc). Bypassed
   // for Restore from Backup (options.skipMerge) — a deliberate full replacement — and falls
   // back to the old tombstone-strip-only behavior if there's no baseline yet (e.g. this tab
   // loaded while the proxy was briefly unreachable) or the fresh read itself fails.
   const baseline = _saveBaseline[STORAGE_KEY];
-  const fresh = (options.skipMerge || !baseline) ? null : await kvGet(STORAGE_KEY);
+  // Two independent reads — tombstones (strips anything deleted by this browser or any other
+  // session before persisting) and the current KV state for the merge — fetched in parallel
+  // instead of one after another; neither depends on the other's result.
+  const [deleteIds, fresh] = await Promise.all([
+    getCombinedDeleteIds(STORAGE_KEY),
+    (options.skipMerge || !baseline) ? Promise.resolve(null) : kvGet(STORAGE_KEY),
+  ]);
   if (Array.isArray(fresh)) {
     projects = mergeArrayForSave(baseline, fresh, projects, deleteIds, getItemDeleteKey);
   } else if (deleteIds.size) {
     const cleaned = projects.filter(p => !deleteIds.has(getItemDeleteKey(p)));
     if (cleaned.length !== projects.length) projects = cleaned;
   }
-  await logSaveDiff(STORAGE_KEY, 'projects', projects, reason, preSaveSnapshot);
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(projects)); } catch {}
-  const ok = await kvPutWithRetry(STORAGE_KEY, projects);
+  // The diff's own read must finish before the write below starts (racing both on the same
+  // key is exactly the 2026-09-08 bug — see buildSaveDiffEntry's comment); only the resulting
+  // log POST (reads nothing) can safely overlap with the real write.
+  const diffEntry = await buildSaveDiffEntry(STORAGE_KEY, 'projects', projects, reason, preSaveSnapshot);
+  const [, ok] = await Promise.all([
+    diffEntry ? logActivity(diffEntry) : Promise.resolve(),
+    kvPutWithRetry(STORAGE_KEY, projects),
+  ]);
   if (ok) {
     getPendingDeletes().filter(d => d.storeKey === STORAGE_KEY)
       .forEach(d => removePendingDelete(d.id, STORAGE_KEY));
