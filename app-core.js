@@ -25,8 +25,15 @@ function emailToDisplayName(email) {
 async function getCurrentUserName() {
   return emailToDisplayName(await getCurrentUserEmail());
 }
-const APP_VERSION = '1.18.11';
+const APP_VERSION = '1.18.12';
 const CHANGELOG = [
+  {
+    version: '1.18.12',
+    date: '2026-10-14',
+    features: [
+      'Fix: the "Projects due completion" email table looked double-height when pasted into Outlook (each row appeared split into two lines). The table now carries its font/line-height on every cell, uses non-breaking spaces in the empty comment columns, and has no stray whitespace between tags, so rows paste as single lines.',
+    ]
+  },
   {
     version: '1.18.11',
     date: '2026-09-18',

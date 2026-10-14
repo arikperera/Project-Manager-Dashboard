@@ -1075,26 +1075,34 @@ function getDueThisMonthProjects() {
 
 function buildDueMonthHtml() {
   const due = getDueThisMonthProjects().slice().sort((a, b) => (a.manager || '').localeCompare(b.manager || ''));
-  const thStyle = 'padding:8px 12px;border:1px solid #ccc;background:#f0f0f0;font-weight:600;text-align:left;';
-  const tdStyle = 'padding:8px 12px;border:1px solid #ccc;';
+  // Outlook (Word's HTML engine) does NOT inherit font-family/font-size from <table> down to
+  // its cells — each cell falls back to the default paragraph style, with extra spacing —
+  // and an empty <td> still holds a default-height paragraph. Together that made every row
+  // render roughly double-height ("each line split into two") when pasted into email. So the
+  // font is repeated on every cell, empty cells get a &nbsp; in that same font, margins are
+  // zeroed, and there is no whitespace/newline between tags for the clipboard to turn into
+  // stray line breaks.
+  const font = 'font-family:Arial,sans-serif;font-size:14px;line-height:18px;mso-line-height-rule:exactly;margin:0;';
+  const thStyle = `${font}padding:6px 10px;border:1px solid #ccc;background:#f0f0f0;font-weight:bold;text-align:left;white-space:nowrap;`;
+  const tdStyle = `${font}padding:6px 10px;border:1px solid #ccc;vertical-align:top;`;
   const headers = ['#', 'PM', 'Customer', 'Jira', 'PM Comments', 'Manager Comments'];
   const headerRow = headers.map(h => `<th style="${thStyle}">${h}</th>`).join('');
   const dataRows = due.map((p, i) => {
     const jiraKey = getJiraLabel(p.jira);
-    const jiraCell = p.jira ? `<a href="${escapeHtml(p.jira)}">${escapeHtml(jiraKey)}</a>` : '-';
-    return `<tr>
-      <td style="${tdStyle};color:#888;text-align:center;width:30px;">${i + 1}</td>
-      <td style="${tdStyle}">${escapeHtml(p.manager || '-')}</td>
-      <td style="${tdStyle}">${escapeHtml(p.customer || '-')}</td>
-      <td style="${tdStyle}">${jiraCell}</td>
-      <td style="${tdStyle}"></td>
-      <td style="${tdStyle}"></td>
-    </tr>`;
+    const jiraCell = p.jira ? `<a href="${escapeHtml(p.jira)}" style="${font}">${escapeHtml(jiraKey)}</a>` : '-';
+    return `<tr>`
+      + `<td style="${tdStyle}color:#888;text-align:center;width:30px;">${i + 1}</td>`
+      + `<td style="${tdStyle}white-space:nowrap;">${escapeHtml(p.manager || '-')}</td>`
+      + `<td style="${tdStyle}">${escapeHtml(p.customer || '-')}</td>`
+      + `<td style="${tdStyle}white-space:nowrap;">${jiraCell}</td>`
+      + `<td style="${tdStyle}min-width:160px;">&nbsp;</td>`
+      + `<td style="${tdStyle}min-width:160px;">&nbsp;</td>`
+      + `</tr>`;
   }).join('');
-  return `<table style="border-collapse:collapse;font-family:Arial,sans-serif;font-size:14px;">
-  <thead><tr>${headerRow}</tr></thead>
-  <tbody>${dataRows}</tbody>
-</table>`;
+  return `<table cellspacing="0" cellpadding="0" style="border-collapse:collapse;${font}">`
+    + `<thead><tr>${headerRow}</tr></thead>`
+    + `<tbody>${dataRows}</tbody>`
+    + `</table>`;
 }
 
 function buildDueMonthPlainText() {
