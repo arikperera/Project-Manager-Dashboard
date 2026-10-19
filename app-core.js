@@ -25,8 +25,15 @@ function emailToDisplayName(email) {
 async function getCurrentUserName() {
   return emailToDisplayName(await getCurrentUserEmail());
 }
-const APP_VERSION = '1.18.12';
+const APP_VERSION = '1.18.13';
 const CHANGELOG = [
+  {
+    version: '1.18.13',
+    date: '2026-10-19',
+    features: [
+      'Fix: dashboard startup now reconciles cached projects by Jira URL instead of a missing id, so projects omitted from a stale shared-store read are recovered from the browser cache. Save merges also preserve items missing from a single KV read unless an explicit deletion tombstone exists.',
+    ]
+  },
   {
     version: '1.18.12',
     date: '2026-10-14',
@@ -1215,8 +1222,10 @@ function isHtmlField(field) {
 // keeps whatever fresh already has. This is what stops a stale local copy of an unrelated
 // field (e.g. an AT Link someone else just added) from being silently carried backward just
 // because this tab happened to save something else about that same item. New items (no
-// baseline counterpart) use the tab's full version, same as before. Tombstoned items are
-// excluded either way. `getKey` is the same key function every store already uses
+// baseline counterpart) use the tab's full version, same as before. Items missing from
+// `fresh` are kept unless explicitly tombstoned: a KV read can be stale, and treating
+// absence alone as a delete lets a background sync permanently drop valid items. `getKey`
+// is the same key function every store already uses
 // (getItemDeleteKey). See docs/superpowers/specs/2026-09-03-field-level-merge-design.md.
 function mergeArrayForSave(baseline, fresh, local, deleteIds, getKey) {
   const baselineMap = new Map((baseline || []).map(item => [getKey(item), item]));
@@ -1232,14 +1241,16 @@ function mergeArrayForSave(baseline, fresh, local, deleteIds, getKey) {
       continue;
     }
     if (JSON.stringify(baselineItem) === JSON.stringify(item)) {
-      // This tab never touched this item — leave fresh's version exactly as it is.
+      // This tab never touched this item — keep fresh's version, or preserve the baseline
+      // copy if this KV read is stale and temporarily omits it.
+      if (!result.has(key)) result.set(key, item);
       continue;
     }
     const freshItem = result.get(key);
     if (!freshItem) {
-      // In this tab's baseline but gone from fresh — deleted by another session since this
-      // tab's baseline. Respect that; don't resurrect it just because this tab's stale copy
-      // still has it.
+      // A real delete is represented by a tombstone and was filtered above. Without one,
+      // absence from a possibly stale KV read is not enough evidence to discard this item.
+      result.set(key, item);
       continue;
     }
     // This tab changed something about this item. Merge field by field: start from fresh's
@@ -1349,11 +1360,15 @@ async function initData() {
         value = deleteIds.size ? value.filter(item => !deleteIds.has(getItemDeleteKey(item))) : value;
         const hadDeletes = value.length < beforeDeletes;
 
-        // Step 2: merge offline adds — items in localStorage not present in KV (by id)
+        // Step 2: merge offline adds — projects use Jira URLs as their stable key; tasks and
+        // other records use their id. Using id alone silently skipped cached projects.
         const lsValue = JSON.parse(localStorage.getItem(lsKey) || 'null');
         if (Array.isArray(lsValue) && lsValue.length > 0) {
-          const kvIds = new Set(value.map(item => item.id).filter(Boolean));
-          const offlineAdds = lsValue.filter(item => item.id && !kvIds.has(item.id) && !deleteIds.has(item.id));
+          const kvKeys = new Set(value.map(getItemDeleteKey).filter(Boolean));
+          const offlineAdds = lsValue.filter(item => {
+            const key = getItemDeleteKey(item);
+            return key && !kvKeys.has(key) && !deleteIds.has(key);
+          });
           if (offlineAdds.length > 0) {
             value = [...value, ...offlineAdds];
           }
