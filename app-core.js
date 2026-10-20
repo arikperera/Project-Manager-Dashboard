@@ -25,8 +25,15 @@ function emailToDisplayName(email) {
 async function getCurrentUserName() {
   return emailToDisplayName(await getCurrentUserEmail());
 }
-const APP_VERSION = '1.18.14';
+const APP_VERSION = '1.18.15';
 const CHANGELOG = [
+  {
+    version: '1.18.15',
+    date: '2026-10-20',
+    features: [
+      'Fix: explicitly edited fields in the project Edit modal now win during a cross-tab merge even when a user intentionally changes a field back to the value in their stale tab baseline. Untouched fields still preserve newer values from other tabs.',
+    ]
+  },
   {
     version: '1.18.14',
     date: '2026-10-20',
@@ -1120,7 +1127,9 @@ async function saveTasks(reason, options = {}) {
     (options.skipMerge || !baseline) ? Promise.resolve(null) : kvGet(TASKS_KEY),
   ]);
   if (Array.isArray(fresh)) {
-    tasks = mergeArrayForSave(baseline, fresh, tasks, deleteIds, getItemDeleteKey);
+    tasks = mergeArrayForSave(
+      baseline, fresh, tasks, deleteIds, getItemDeleteKey, options.explicitFieldsByKey
+    );
   } else if (deleteIds.size) {
     const cleaned = tasks.filter(t => !deleteIds.has(getItemDeleteKey(t)));
     if (cleaned.length !== tasks.length) tasks = cleaned;
@@ -1234,7 +1243,7 @@ function isHtmlField(field) {
 // absence alone as a delete lets a background sync permanently drop valid items. `getKey`
 // is the same key function every store already uses
 // (getItemDeleteKey). See docs/superpowers/specs/2026-09-03-field-level-merge-design.md.
-function mergeArrayForSave(baseline, fresh, local, deleteIds, getKey) {
+function mergeArrayForSave(baseline, fresh, local, deleteIds, getKey, explicitFieldsByKey = null) {
   const baselineMap = new Map((baseline || []).map(item => [getKey(item), item]));
   const result = new Map(fresh.map(item => [getKey(item), item]));
 
@@ -1242,12 +1251,13 @@ function mergeArrayForSave(baseline, fresh, local, deleteIds, getKey) {
     const key = getKey(item);
     if (!key || deleteIds.has(key)) continue;
     const baselineItem = baselineMap.get(key);
+    const explicitFields = explicitFieldsByKey?.get(key);
     if (!baselineItem) {
       // New to this tab (no baseline counterpart) — use the full local version, as before.
       result.set(key, item);
       continue;
     }
-    if (JSON.stringify(baselineItem) === JSON.stringify(item)) {
+    if (JSON.stringify(baselineItem) === JSON.stringify(item) && !explicitFields?.size) {
       // This tab never touched this item — keep fresh's version, or preserve the baseline
       // copy if this KV read is stale and temporarily omits it.
       if (!result.has(key)) result.set(key, item);
@@ -1268,7 +1278,7 @@ function mergeArrayForSave(baseline, fresh, local, deleteIds, getKey) {
     for (const field of fieldNames) {
       const beforeVal = isHtmlField(field) ? normalizeHtmlForCompare(baselineItem[field]) : baselineItem[field];
       const localVal = isHtmlField(field) ? normalizeHtmlForCompare(item[field]) : item[field];
-      if (beforeVal !== localVal) merged[field] = item[field];
+      if (beforeVal !== localVal || explicitFields?.has(field)) merged[field] = item[field];
     }
     result.set(key, merged);
   }
@@ -1774,7 +1784,9 @@ async function saveProjectsUnlocked(reason, options = {}) {
     const latestFresh = baseline && Array.isArray(sharedProjects)
       ? mergeArrayForSave(baseline, fresh, sharedProjects, deleteIds, getItemDeleteKey)
       : fresh;
-    projects = mergeArrayForSave(baseline, latestFresh, projects, deleteIds, getItemDeleteKey);
+    projects = mergeArrayForSave(
+      baseline, latestFresh, projects, deleteIds, getItemDeleteKey, options.explicitFieldsByKey
+    );
   } else if (deleteIds.size) {
     const cleaned = projects.filter(p => !deleteIds.has(getItemDeleteKey(p)));
     if (cleaned.length !== projects.length) projects = cleaned;

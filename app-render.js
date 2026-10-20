@@ -557,11 +557,35 @@ function renderSummary() {
   document.getElementById('dueThisMonthCount').textContent = dueThisMonth.length;
 }
 
+const editProjectFieldByInputId = {
+  editCustomerName: 'customer',
+  editProjectName: 'name',
+  editProjectManager: 'manager',
+  editHealth: 'health',
+  editPmStatus: 'pmStatus',
+  editRiskReason: 'riskReason',
+  editRegion: 'region',
+  editAccountType: 'accountType',
+  editCsm: 'csm',
+  editSales: 'sales',
+  editAtLink: 'atLink',
+  editDueDateText: 'dueDate',
+  editStatusEditor: 'statusText',
+  pmNotesEditor: 'pmNotes',
+};
+const editProjectExplicitFields = new Set();
+for (const eventName of ['input', 'change']) {
+  editProjectForm.addEventListener(eventName, (event) => {
+    if (editProjectFieldByInputId[event.target.id]) editProjectExplicitFields.add(event.target.id);
+  });
+}
+
 function openEditProjectModal(itemType, itemIndex) {
   // Support legacy single-argument call: openEditProjectModal(projectIndex)
   if (itemIndex === undefined) { itemIndex = itemType; itemType = 'project'; }
   const item = itemType === 'task' ? tasks[itemIndex] : projects[itemIndex];
   if (!item) return;
+  editProjectExplicitFields.clear();
 
   editCustomerName.value = item.customer || '';
   editCustomerName.readOnly = itemType === 'task';
@@ -1319,6 +1343,12 @@ editProjectForm.addEventListener('submit', async (event) => {
   const selectedIndex = Number(editProjectForm.dataset.itemIndex ?? editProjectForm.dataset.projectIndex ?? -1);
   const selectedProject = itemType === 'task' ? tasks[selectedIndex] : projects[selectedIndex];
   if (!selectedProject) return;
+  const explicitFields = new Set(
+    [...editProjectExplicitFields].map(id => {
+      const field = editProjectFieldByInputId[id];
+      return field === 'manager' && itemType === 'task' ? 'owner' : field;
+    }).filter(Boolean)
+  );
 
   const newCustomer = editCustomerName.value.trim();
   const newName = editProjectName.value.trim();
@@ -1377,7 +1407,10 @@ editProjectForm.addEventListener('submit', async (event) => {
   if (itemType === 'task') {
     await saveTasks('edit-save');
   } else {
-    const saved = await saveProjects('edit-save');
+    const explicitFieldsByKey = new Map([
+      [getItemDeleteKey(selectedProject), explicitFields],
+    ]);
+    const saved = await saveProjects('edit-save', { explicitFieldsByKey });
     if (!saved) {
       setButtonBusy(saveEditModalBtn, false);
       return;
