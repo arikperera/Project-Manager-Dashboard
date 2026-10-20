@@ -25,8 +25,15 @@ function emailToDisplayName(email) {
 async function getCurrentUserName() {
   return emailToDisplayName(await getCurrentUserEmail());
 }
-const APP_VERSION = '1.18.13';
+const APP_VERSION = '1.18.14';
 const CHANGELOG = [
+  {
+    version: '1.18.14',
+    date: '2026-10-20',
+    features: [
+      'Fix: project saves from multiple tabs in the same browser are serialized and merge recent shared-cache changes before writing, preventing a stale tab refresh or Jira sync from reverting a project edit. Failed project saves now show an error and remain open for retry; the Activity Log records project changes only after the shared-store write succeeds.',
+    ]
+  },
   {
     version: '1.18.13',
     date: '2026-10-19',
@@ -1739,6 +1746,14 @@ const importConfirmBtn = document.getElementById('importConfirmBtn');
 const importProgress = document.getElementById('importProgress');
 
 async function saveProjects(reason, options = {}) {
+  const save = () => saveProjectsUnlocked(reason, options);
+  if (navigator.locks?.request) {
+    return navigator.locks.request('project-dashboard-projects-save', save);
+  }
+  return save();
+}
+
+async function saveProjectsUnlocked(reason, options = {}) {
   // Captured before anything below touches KV — see logSaveDiff's preSaveSnapshot comment.
   const preSaveSnapshot = _lastKnownKvState[STORAGE_KEY];
   // Merge against a fresh KV read so this tab's save can't silently drop projects added or
@@ -1755,7 +1770,11 @@ async function saveProjects(reason, options = {}) {
     (options.skipMerge || !baseline) ? Promise.resolve(null) : kvGet(STORAGE_KEY),
   ]);
   if (Array.isArray(fresh)) {
-    projects = mergeArrayForSave(baseline, fresh, projects, deleteIds, getItemDeleteKey);
+    const sharedProjects = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+    const latestFresh = baseline && Array.isArray(sharedProjects)
+      ? mergeArrayForSave(baseline, fresh, sharedProjects, deleteIds, getItemDeleteKey)
+      : fresh;
+    projects = mergeArrayForSave(baseline, latestFresh, projects, deleteIds, getItemDeleteKey);
   } else if (deleteIds.size) {
     const cleaned = projects.filter(p => !deleteIds.has(getItemDeleteKey(p)));
     if (cleaned.length !== projects.length) projects = cleaned;
@@ -1763,19 +1782,20 @@ async function saveProjects(reason, options = {}) {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(projects)); } catch {}
   // The diff's own read must finish before the write below starts (racing both on the same
   // key is exactly the 2026-09-08 bug — see buildSaveDiffEntry's comment); only the resulting
-  // log POST (reads nothing) can safely overlap with the real write.
+  // log POST (reads nothing) can safely happen after the real write.
   const diffEntry = await buildSaveDiffEntry(STORAGE_KEY, 'projects', projects, reason, preSaveSnapshot);
-  const [, ok] = await Promise.all([
-    diffEntry ? logActivity(diffEntry) : Promise.resolve(),
-    kvPutWithRetry(STORAGE_KEY, projects),
-  ]);
+  const ok = await kvPutWithRetry(STORAGE_KEY, projects);
   if (ok) {
     getPendingDeletes().filter(d => d.storeKey === STORAGE_KEY)
       .forEach(d => removePendingDelete(d.id, STORAGE_KEY));
     _saveBaseline[STORAGE_KEY] = JSON.parse(JSON.stringify(projects));
+    if (diffEntry) await logActivity(diffEntry);
   } else {
     _wasOffline = true;
+    showOfflineBanner();
+    showToast('Project changes could not be saved. Check your connection and try saving again.');
   }
+  return ok;
 }
 
 function setupRichEditorToolbar(editorEl, scopeEl, options = {}) {

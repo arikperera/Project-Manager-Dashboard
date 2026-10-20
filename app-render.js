@@ -23,6 +23,14 @@ async function trySyncLocalToKV() {
 // used at page load — so a deleted item never reappears regardless of how the refresh was triggered
 // (poll tick, Refresh Dashboard button, or a plain browser reload).
 async function refreshProjectsAndTasksFromKv() {
+  const refresh = () => refreshProjectsAndTasksFromKvUnlocked();
+  if (navigator.locks?.request) {
+    return navigator.locks.request('project-dashboard-projects-save', refresh);
+  }
+  return refresh();
+}
+
+async function refreshProjectsAndTasksFromKvUnlocked() {
   let changed = false;
 
   const freshProjects = await kvGet(STORAGE_KEY);
@@ -31,16 +39,28 @@ async function refreshProjectsAndTasksFromKv() {
     const pendingDelIds = await getCombinedDeleteIds(STORAGE_KEY);
     // Strip any pending-deleted projects that KV still has (KV write may have failed on delete)
     const kvFiltered = freshProjects.filter(p => !pendingDelIds.has(getItemDeleteKey(p)));
+    const baseline = _saveBaseline[STORAGE_KEY];
     _saveBaseline[STORAGE_KEY] = JSON.parse(JSON.stringify(kvFiltered));
-    const kvJiraKeys = new Set(kvFiltered.map(p => p.jira).filter(Boolean));
-    // Merge in local-only items for DISPLAY only (added moments ago, save still in flight) —
-    // deliberately NOT written back to KV here. A stale tab can hold a local-only item
-    // indefinitely (e.g. a leftover of something deleted elsewhere whose tombstone has since
-    // cleared); auto-pushing it back would resurrect it. Genuine offline-add persistence is
-    // handled by the save-with-retry in saveProjects/saveTasks and by trySyncLocalToKV on
-    // reconnect, both of which apply full tombstone protection.
-    const localOnly = projects.filter(p => p.jira && !kvJiraKeys.has(p.jira) && !pendingDelIds.has(getItemDeleteKey(p)));
-    const merged = localOnly.length > 0 ? [...kvFiltered, ...localOnly] : kvFiltered;
+    const sharedProjects = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+    let merged;
+    if (Array.isArray(baseline) && Array.isArray(sharedProjects)) {
+      // Another tab writes its merged cache before its KV request completes. Use changes
+      // relative to this tab's last baseline to protect them from a stale KV read, then
+      // overlay this tab's own in-flight changes.
+      const withSharedChanges = mergeArrayForSave(
+        baseline, kvFiltered, sharedProjects, pendingDelIds, getItemDeleteKey
+      );
+      merged = mergeArrayForSave(
+        baseline, withSharedChanges, projects, pendingDelIds, getItemDeleteKey
+      );
+    } else {
+      const kvJiraKeys = new Set(kvFiltered.map(p => p.jira).filter(Boolean));
+      // Keep local-only items for display while their save is still in flight.
+      const localOnly = projects.filter(p =>
+        p.jira && !kvJiraKeys.has(p.jira) && !pendingDelIds.has(getItemDeleteKey(p))
+      );
+      merged = localOnly.length > 0 ? [...kvFiltered, ...localOnly] : kvFiltered;
+    }
     if (JSON.stringify(merged) !== JSON.stringify(projects)) {
       projects = merged;
       try { localStorage.setItem(STORAGE_KEY, JSON.stringify(projects)); } catch {}
@@ -1354,7 +1374,15 @@ editProjectForm.addEventListener('submit', async (event) => {
   }
 
   setButtonBusy(saveEditModalBtn, true, 'Saving...');
-  if (itemType === 'task') { await saveTasks('edit-save'); } else { await saveProjects('edit-save'); }
+  if (itemType === 'task') {
+    await saveTasks('edit-save');
+  } else {
+    const saved = await saveProjects('edit-save');
+    if (!saved) {
+      setButtonBusy(saveEditModalBtn, false);
+      return;
+    }
+  }
   setButtonBusy(saveEditModalBtn, false);
   renderAll();
   closeEditProjectModal();
@@ -1830,4 +1858,3 @@ editHealth.addEventListener('change', () => {
   pmStatusLabel.style.display = ['Yellow', 'Red'].includes(editHealth.value) ? '' : 'none';
   riskReasonLabel.style.display = '';
 });
-
