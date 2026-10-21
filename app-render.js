@@ -570,6 +570,7 @@ const editProjectFieldByInputId = {
   editSales: 'sales',
   editAtLink: 'atLink',
   editDueDateText: 'dueDate',
+  editDueDateHidden: 'dueDate',
   editStatusEditor: 'statusText',
   pmNotesEditor: 'pmNotes',
 };

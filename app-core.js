@@ -25,8 +25,15 @@ function emailToDisplayName(email) {
 async function getCurrentUserName() {
   return emailToDisplayName(await getCurrentUserEmail());
 }
-const APP_VERSION = '1.18.16';
+const APP_VERSION = '1.18.17';
 const CHANGELOG = [
+  {
+    version: '1.18.17',
+    date: '2026-10-21',
+    features: [
+      'Fix: selecting an End Date from the calendar picker now marks the date as explicitly edited, so the optimized Jira sync does not skip the date update.',
+    ]
+  },
   {
     version: '1.18.16',
     date: '2026-10-21',
