@@ -1426,11 +1426,21 @@ editProjectForm.addEventListener('submit', async (event) => {
       const jiraWriteError = (label) => (e) => {
         console.error(`[${label}→Jira]`, e); showToast(`Jira ${label} sync failed: ${e.message}`);
       };
-      writeRiskReasonToJira(issueKey, riskOptionId || null).catch(jiraWriteError('riskReason'));
-      writeRiskRateToJira(issueKey, selectedProject.health).catch(jiraWriteError('riskRate'));
-      if (newDueDate) writeDueDateToJira(issueKey, newDueDate).catch(jiraWriteError('dueDate'));
-      if (selectedProject.region) writeRegionToJira(issueKey, selectedProject.region).catch(jiraWriteError('region'));
-      writeStatusToJira(issueKey, selectedProject.statusText).catch(jiraWriteError('status'));
+      if (explicitFields.has('riskReason')) {
+        writeRiskReasonToJira(issueKey, riskOptionId || null).catch(jiraWriteError('riskReason'));
+      }
+      if (explicitFields.has('health')) {
+        writeRiskRateToJira(issueKey, selectedProject.health).catch(jiraWriteError('riskRate'));
+      }
+      if (explicitFields.has('dueDate') && newDueDate) {
+        writeDueDateToJira(issueKey, newDueDate).catch(jiraWriteError('dueDate'));
+      }
+      if (explicitFields.has('region') && selectedProject.region) {
+        writeRegionToJira(issueKey, selectedProject.region).catch(jiraWriteError('region'));
+      }
+      if (explicitFields.has('statusText')) {
+        writeStatusToJira(issueKey, selectedProject.statusText).catch(jiraWriteError('status'));
+      }
       if (managerChanged) writeAssigneeToJira(issueKey, selectedProject.manager).catch(jiraWriteError('assignee'));
     }
   }

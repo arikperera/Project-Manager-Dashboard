@@ -25,8 +25,15 @@ function emailToDisplayName(email) {
 async function getCurrentUserName() {
   return emailToDisplayName(await getCurrentUserEmail());
 }
-const APP_VERSION = '1.18.15';
+const APP_VERSION = '1.18.16';
 const CHANGELOG = [
+  {
+    version: '1.18.16',
+    date: '2026-10-21',
+    features: [
+      'Faster project saves: the edit modal now waits for the shared project save, not the follow-up Activity Log network request. Jira sync after an edit now writes only fields changed in the modal, rather than resending unrelated fields on every save.',
+    ]
+  },
   {
     version: '1.18.15',
     date: '2026-10-20',
@@ -975,10 +982,11 @@ async function logActivity(entry) {
         headers: { 'Content-Type': 'application/json', 'X-KV-Secret': KV_SECRET },
         body,
       });
-      if (res.ok) return;
+      if (res.ok) return true;
     } catch {}
     if (attempt === 0) await new Promise(r => setTimeout(r, 800));
   }
+  return false;
 }
 
 // Label map for fields worth calling out by a friendly name in the generic diff below (used
@@ -1801,7 +1809,13 @@ async function saveProjectsUnlocked(reason, options = {}) {
     getPendingDeletes().filter(d => d.storeKey === STORAGE_KEY)
       .forEach(d => removePendingDelete(d.id, STORAGE_KEY));
     _saveBaseline[STORAGE_KEY] = JSON.parse(JSON.stringify(projects));
-    if (diffEntry) await logActivity(diffEntry);
+    if (diffEntry) {
+      logActivity(diffEntry).then((logged) => {
+        if (!logged) console.error('Project save succeeded, but its Activity Log entry could not be saved.');
+      }).catch(error => {
+        console.error('Project save succeeded, but its Activity Log entry failed.', error);
+      });
+    }
   } else {
     _wasOffline = true;
     showOfflineBanner();
