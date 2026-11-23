@@ -158,6 +158,7 @@ th { color: #bfdbfe; font-weight:600; }
 .status-form input, .status-form select, .status-form textarea { width:100%; border:1px solid var(--line); background:#0b1220; color:var(--text); border-radius:12px; padding:10px 12px; }
 .autocomplete-wrap { position: relative; }
 .autocomplete-list { position: absolute; top: 100%; left: 0; right: 0; z-index: 100; margin: 2px 0 0; padding: 4px 0; list-style: none; background: #111c30; border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 8px 24px rgba(2,6,23,0.5); max-height: 180px; overflow-y: auto; }
+.autocomplete-list.opens-up { top: auto; bottom: 100%; margin: 0 0 2px; }
 .autocomplete-list.hidden { display: none; }
 .autocomplete-list li { padding: 8px 14px; cursor: pointer; font-size: 0.95rem; color: var(--text); }
 .autocomplete-list li:hover, .autocomplete-list li.active { background: rgba(56,189,248,0.12); color: #7dd3fc; }

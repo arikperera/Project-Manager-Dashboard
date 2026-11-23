@@ -25,8 +25,22 @@ function emailToDisplayName(email) {
 async function getCurrentUserName() {
   return emailToDisplayName(await getCurrentUserEmail());
 }
-const APP_VERSION = '1.18.17';
+const APP_VERSION = '1.18.19';
 const CHANGELOG = [
+  {
+    version: '1.18.19',
+    date: '2026-10-21',
+    features: [
+      'Restore from Closed Projects now clears the independent archive and active-project tombstones in parallel and logs per-step timings in the browser console.',
+    ]
+  },
+  {
+    version: '1.18.18',
+    date: '2026-10-21',
+    features: [
+      'Backup & Delete now runs the backup save alongside independent Jira and Closed Projects reads, while still requiring the backup and archive saves to succeed before deleting. Per-step timings are logged in the browser console.',
+    ]
+  },
   {
     version: '1.18.17',
     date: '2026-10-21',
@@ -1211,6 +1225,7 @@ async function saveClosedProjects(reason) {
   } else {
     _wasOffline = true;
   }
+  return ok;
 }
 
 // This browser's own last-confirmed view of each KV key, timestamped — updated on every
@@ -1495,6 +1510,7 @@ async function saveBackups(reason) {
   } else {
     _wasOffline = true;
   }
+  return ok;
 }
 
 function formatBackupLabel(ts) {

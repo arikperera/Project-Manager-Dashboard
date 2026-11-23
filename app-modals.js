@@ -704,6 +704,25 @@ addUserBtn.addEventListener('click', () => {
 
 // Jira user search autocomplete in Add User form
 let _addUserSearchTimer = null;
+function showAddUserJiraResults() {
+  const input = document.getElementById('newUserJiraSearch');
+  const results = document.getElementById('newUserJiraResults');
+  const card = results.closest('.modal-card');
+  const actions = card.querySelector('.modal-actions');
+  const inputRect = input.getBoundingClientRect();
+  const cardRect = card.getBoundingClientRect();
+  const actionsRect = actions ? actions.getBoundingClientRect() : null;
+  const belowLimit = actionsRect && actionsRect.top > inputRect.bottom
+    ? Math.min(actionsRect.top, cardRect.bottom)
+    : cardRect.bottom;
+  const availableBelow = belowLimit - inputRect.bottom;
+  const availableAbove = inputRect.top - cardRect.top;
+  const requiredHeight = Math.min(results.scrollHeight, 180);
+
+  results.classList.toggle('opens-up', availableBelow < requiredHeight && availableAbove > availableBelow);
+  results.classList.remove('hidden');
+}
+
 document.getElementById('newUserJiraSearch').addEventListener('input', (e) => {
   clearTimeout(_addUserSearchTimer);
   const q = e.target.value.trim();
@@ -716,13 +735,17 @@ document.getElementById('newUserJiraSearch').addEventListener('input', (e) => {
       });
       if (!res.ok) return;
       const jiraUsers = await res.json();
-      if (!jiraUsers.length) { results.innerHTML = '<li style="padding:8px 14px;color:#64748b;">No users found</li>'; results.classList.remove('hidden'); return; }
+      if (!jiraUsers.length) {
+        results.innerHTML = '<li style="padding:8px 14px;color:#64748b;">No users found</li>';
+        showAddUserJiraResults();
+        return;
+      }
       results.innerHTML = jiraUsers.map(u => `
         <li data-account-id="${escapeHtml(u.accountId)}" data-display-name="${escapeHtml(u.displayName)}" data-email="${escapeHtml(u.emailAddress||'')}" style="padding:8px 14px;cursor:pointer;">
           <span style="font-weight:600;color:#eff6ff;">${escapeHtml(u.displayName)}</span>
           <span style="color:#64748b;font-size:0.85rem;margin-left:6px;">${escapeHtml(u.emailAddress||'')}</span>
         </li>`).join('');
-      results.classList.remove('hidden');
+      showAddUserJiraResults();
     } catch {}
   }, 300);
 });
@@ -1166,55 +1189,97 @@ backupAndDeleteProjectBtn.addEventListener('click', async () => {
     return;
   }
   setButtonBusy(backupAndDeleteProjectBtn, true, 'Deleting...');
-  const itemType = deleteProjectModal.dataset.itemType || 'project';
-  const item = itemType === 'task' ? tasks[deleteProjectIndex] : projects[deleteProjectIndex];
-  const latestBackup = backups[0];
-  // Match by type + a stable key (task id / project jira) — matching by name alone would
-  // wrongly match a task against its own parent project's backup entry (same name), and
-  // silently overwrite the project's snapshot with the task's data.
-  const existingIndex = latestBackup.projects.findIndex(p =>
-    itemType === 'task' ? (p.type === 'task' && p.id === item.id) : (p.type !== 'task' && p.jira === item.jira)
-  );
-  if (existingIndex >= 0) {
-    latestBackup.projects[existingIndex] = JSON.parse(JSON.stringify(item));
-  } else {
-    latestBackup.projects.push(JSON.parse(JSON.stringify(item)));
+  const startedAt = performance.now();
+  const stepTimes = {};
+  const measureStep = async (name, operation) => {
+    const stepStartedAt = performance.now();
+    try {
+      return await operation();
+    } finally {
+      stepTimes[name] = Math.round(performance.now() - stepStartedAt);
+    }
+  };
+  let completed = false;
+
+  try {
+    const itemType = deleteProjectModal.dataset.itemType || 'project';
+    const item = itemType === 'task' ? tasks[deleteProjectIndex] : projects[deleteProjectIndex];
+    const latestBackup = backups[0];
+    // Match by type + a stable key (task id / project jira) — matching by name alone would
+    // wrongly match a task against its own parent project's backup entry (same name), and
+    // silently overwrite the project's snapshot with the task's data.
+    const existingIndex = latestBackup.projects.findIndex(p =>
+      itemType === 'task' ? (p.type === 'task' && p.id === item.id) : (p.type !== 'task' && p.jira === item.jira)
+    );
+    if (existingIndex >= 0) {
+      latestBackup.projects[existingIndex] = JSON.parse(JSON.stringify(item));
+    } else {
+      latestBackup.projects.push(JSON.parse(JSON.stringify(item)));
+    }
+
+    if (itemType === 'task') {
+      const backupSaved = await measureStep('backupSaveMs', () => saveBackups('backup-and-delete'));
+      if (!backupSaved) {
+        showToast('The backup could not be saved, so the task was not deleted.', 'error');
+        return;
+      }
+      const deletedId = tasks[deleteProjectIndex]?.id;
+      tasks.splice(deleteProjectIndex, 1);
+      if (deletedId) {
+        addPendingDelete(deletedId, TASKS_KEY);
+        await measureStep('tombstoneMs', () => addKvTombstone(deletedId, TASKS_KEY));
+      }
+      await measureStep('activeStoreSaveMs', () => saveTasks('backup-and-delete'));
+    } else {
+      const closedCopy = JSON.parse(JSON.stringify(projects[deleteProjectIndex]));
+      const [backupSaved, resolutionDate, freshClosed] = await Promise.all([
+        measureStep('backupSaveMs', () => saveBackups('backup-and-delete')),
+        measureStep('jiraResolutionLookupMs', () => getJiraResolutionDate(getJiraIssueKey(closedCopy.jira))),
+        measureStep('closedProjectsRefreshMs', () => kvGet(CLOSED_PROJECTS_KEY)),
+      ]);
+      if (!backupSaved) {
+        showToast('The backup could not be saved, so the project was not deleted.', 'error');
+        return;
+      }
+      closedCopy.closedAt = resolutionDate || new Date().toISOString();
+      // Refresh from KV before mutating so this tab cannot overwrite closures added elsewhere.
+      if (Array.isArray(freshClosed)) {
+        closedProjects = freshClosed;
+        _saveBaseline[CLOSED_PROJECTS_KEY] = JSON.parse(JSON.stringify(freshClosed));
+      }
+      const closedProjectsBeforeMutation = JSON.parse(JSON.stringify(closedProjects));
+      closedProjects = closedProjects.filter(p => (p.jira || '') !== (closedCopy.jira || ''));
+      closedProjects.push(closedCopy);
+      const closedSaved = await measureStep('closedProjectsSaveMs', () => saveClosedProjects('backup-and-delete'));
+      if (!closedSaved) {
+        closedProjects = closedProjectsBeforeMutation;
+        try { localStorage.setItem(CLOSED_PROJECTS_KEY, JSON.stringify(closedProjects)); } catch {}
+        showToast('Closed Projects could not be saved, so the project was not deleted. Please retry.', 'error');
+        return;
+      }
+      const deletedKey = getItemDeleteKey(projects[deleteProjectIndex] || {});
+      projects.splice(deleteProjectIndex, 1);
+      if (deletedKey) {
+        addPendingDelete(deletedKey, STORAGE_KEY);
+        await measureStep('tombstoneMs', () => addKvTombstone(deletedKey, STORAGE_KEY));
+      }
+      await measureStep('activeStoreSaveMs', () => saveProjects('backup-and-delete'));
+    }
+    completed = true;
+  } catch (error) {
+    console.error('Backup & Delete failed.', error);
+    showToast('Backup & Delete failed. Check the project and Closed Projects before retrying.', 'error');
+  } finally {
+    console.info('[Dashboard] Backup & Delete timings', {
+      ...stepTimes,
+      totalMs: Math.round(performance.now() - startedAt),
+    });
+    setButtonBusy(backupAndDeleteProjectBtn, false);
   }
-  await saveBackups('backup-and-delete');
-  if (itemType === 'task') {
-    const deletedId = tasks[deleteProjectIndex]?.id;
-    tasks.splice(deleteProjectIndex, 1);
-    if (deletedId) {
-      addPendingDelete(deletedId, TASKS_KEY);
-      await addKvTombstone(deletedId, TASKS_KEY);
-    }
-    await saveTasks('backup-and-delete');
-  } else {
-    const deletedKey = getItemDeleteKey(projects[deleteProjectIndex] || {});
-    const closedCopy = JSON.parse(JSON.stringify(projects[deleteProjectIndex]));
-    const resolutionDate = await getJiraResolutionDate(getJiraIssueKey(closedCopy.jira));
-    closedCopy.closedAt = resolutionDate || new Date().toISOString();
-    // Refresh from KV right before mutating — a long-lived tab's in-memory copy can be
-    // stale (missing closures added by other sessions since page load), and saving it
-    // wholesale would silently wipe those out.
-    const freshClosed = await kvGet(CLOSED_PROJECTS_KEY);
-    if (Array.isArray(freshClosed)) {
-      closedProjects = freshClosed;
-      _saveBaseline[CLOSED_PROJECTS_KEY] = JSON.parse(JSON.stringify(freshClosed));
-    }
-    closedProjects = closedProjects.filter(p => (p.jira || '') !== (closedCopy.jira || ''));
-    closedProjects.push(closedCopy);
-    await saveClosedProjects('backup-and-delete');
-    projects.splice(deleteProjectIndex, 1);
-    if (deletedKey) {
-      addPendingDelete(deletedKey, STORAGE_KEY);
-      await addKvTombstone(deletedKey, STORAGE_KEY);
-    }
-    await saveProjects('backup-and-delete');
+  if (completed) {
+    renderAll();
+    closeDeleteProjectModal();
   }
-  setButtonBusy(backupAndDeleteProjectBtn, false);
-  renderAll();
-  closeDeleteProjectModal();
 });
 
 function positionTooltip(container, e) {

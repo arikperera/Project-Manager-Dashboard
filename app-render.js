@@ -1162,30 +1162,53 @@ function renderClosedProjectsPanel() {
     btn.addEventListener('click', async () => {
       const jira = btn.dataset.jira;
       setButtonBusy(btn, true, 'Restoring...');
-      // Refresh from KV right before mutating — same reasoning as backupAndDeleteProjectBtn.
-      const freshClosed = await kvGet(CLOSED_PROJECTS_KEY);
-      if (Array.isArray(freshClosed)) {
-        closedProjects = freshClosed;
-        _saveBaseline[CLOSED_PROJECTS_KEY] = JSON.parse(JSON.stringify(freshClosed));
+      const startedAt = performance.now();
+      const stepTimes = {};
+      const measureStep = async (name, operation) => {
+        const stepStartedAt = performance.now();
+        try {
+          return await operation();
+        } finally {
+          stepTimes[name] = Math.round(performance.now() - stepStartedAt);
+        }
+      };
+      try {
+        // Refresh from KV right before mutating — same reasoning as backupAndDeleteProjectBtn.
+        const freshClosed = await measureStep('closedProjectsRefreshMs', () => kvGet(CLOSED_PROJECTS_KEY));
+        if (Array.isArray(freshClosed)) {
+          closedProjects = freshClosed;
+          _saveBaseline[CLOSED_PROJECTS_KEY] = JSON.parse(JSON.stringify(freshClosed));
+        }
+        const idx = closedProjects.findIndex(p => (p.jira || '') === jira);
+        if (idx < 0) return;
+        const [restored] = closedProjects.splice(idx, 1);
+        // addPendingDelete (this browser's own local, always-available record) was missing here
+        // — same gap as backup deletion (see deleteBackupBtn), and the same fix: getCombinedDeleteIds
+        // checks both this and the remote tombstone, so a delete depended entirely on the
+        // remote tombstone fetch succeeding on every subsequent save without it.
+        if (jira) addPendingDelete(jira, CLOSED_PROJECTS_KEY);
+        delete restored.closedAt;
+        removePendingDelete(jira, STORAGE_KEY);
+        await Promise.all([
+          measureStep('closedTombstoneMs', () => jira ? addKvTombstone(jira, CLOSED_PROJECTS_KEY) : Promise.resolve()),
+          measureStep('activeTombstoneClearMs', () => removeKvTombstone(jira, STORAGE_KEY)),
+        ]);
+        projects.push(restored);
+        await measureStep('closedProjectsSaveMs', () => saveClosedProjects('restore-to-active'));
+        await measureStep('activeProjectsSaveMs', () => saveProjects('restore-from-closed'));
+        renderClosedProjectsPanel();
+        renderAll();
+        showToast(`${restored.name} restored to active projects.`, 'success');
+      } catch (error) {
+        console.error('Restore from Closed Projects failed.', error);
+        showToast('Restore failed. Check the active projects and Closed Projects before retrying.', 'error');
+      } finally {
+        console.info('[Dashboard] Restore from Closed Projects timings', {
+          ...stepTimes,
+          totalMs: Math.round(performance.now() - startedAt),
+        });
+        setButtonBusy(btn, false);
       }
-      const idx = closedProjects.findIndex(p => (p.jira || '') === jira);
-      if (idx < 0) { setButtonBusy(btn, false); return; }
-      const [restored] = closedProjects.splice(idx, 1);
-      // addPendingDelete (this browser's own local, always-available record) was missing here
-      // — same gap as backup deletion (see deleteBackupBtn), and the same fix: getCombinedDeleteIds
-      // checks both this and the remote tombstone, so a delete depended entirely on the
-      // remote tombstone fetch succeeding on every subsequent save without it.
-      if (jira) addPendingDelete(jira, CLOSED_PROJECTS_KEY);
-      if (jira) await addKvTombstone(jira, CLOSED_PROJECTS_KEY);
-      delete restored.closedAt;
-      removePendingDelete(jira, STORAGE_KEY);
-      await removeKvTombstone(jira, STORAGE_KEY);
-      projects.push(restored);
-      await saveClosedProjects('restore-to-active');
-      await saveProjects('restore-from-closed');
-      renderClosedProjectsPanel();
-      renderAll();
-      showToast(`${restored.name} restored to active projects.`, 'success');
     });
   });
 }
