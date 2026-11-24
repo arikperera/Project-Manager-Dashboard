@@ -1466,6 +1466,18 @@ editProjectForm.addEventListener('submit', async (event) => {
   if (itemType !== 'task') {
     const issueKey = getJiraIssueKey(selectedProject.jira);
     if (issueKey) {
+      const hasJiraChanges = explicitFields.has('riskReason') ||
+        explicitFields.has('health') ||
+        (explicitFields.has('dueDate') && newDueDate) ||
+        (explicitFields.has('region') && selectedProject.region) ||
+        explicitFields.has('statusText') ||
+        managerChanged;
+
+      if (hasJiraChanges && !hasJiraCredentials()) {
+        settingsBtn.click();
+        showToast('Please configure your Jira email and API token in Settings to sync your changes to Jira.', 'error');
+      }
+
       const jiraWriteError = (label) => (e) => {
         console.error(`[${label}→Jira]`, e); showToast(`Jira ${label} sync failed: ${e.message}`);
       };

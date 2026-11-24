@@ -17,8 +17,8 @@ function getJiraConfig() {
   } catch {}
   return {
     domain: 'https://kaltura.atlassian.net',
-    email: (settings?.jiraEmail || '').trim(),
-    token: (settings?.jiraToken || '').trim(),
+    email: '',
+    token: '',
   };
 }
 
