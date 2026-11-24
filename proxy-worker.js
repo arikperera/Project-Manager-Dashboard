@@ -76,6 +76,10 @@ function toBase64(str) {
   return btoa(unescape(encodeURIComponent(str)));
 }
 
+function jiraAuth(env) {
+  return 'Basic ' + toBase64(`${env.JIRA_EMAIL}:${env.JIRA_TOKEN}`);
+}
+
 function resolveJiraContext(request, env) {
   const userEmail = (request.headers.get('X-Jira-Email') || '').trim();
   const userToken = (request.headers.get('X-Jira-Token') || '').trim();
