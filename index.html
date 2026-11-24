@@ -694,9 +694,17 @@
         <div class="status-form" style="margin-top:8px;">
 
           <p class="eyebrow" style="margin-bottom:6px;">Jira API</p>
-          <p class="muted" style="margin-bottom:4px;">Generate a token at <a href="https://id.atlassian.net/manage-profile/security/api-tokens" target="_blank" rel="noreferrer" style="color:#7dd3fc;">id.atlassian.net</a>.</p>
-          <label>Jira email<input id="settingsJiraEmail" type="email" placeholder="your@email.com" /></label>
-          <label>Jira API token<input id="settingsJiraToken" type="password" placeholder="Paste your API token" /></label>
+          <div style="font-size:12px;color:var(--muted,#94a3b8);background:rgba(15,23,42,0.6);border:1px solid #334155;border-radius:6px;padding:10px 14px;line-height:1.5;margin-bottom:12px;">
+            Credentials are stored in your browser's localStorage only, and sent directly to your Jira API.
+          </div>
+          <label>Jira Cloud URL<input id="settingsJiraDomain" type="text" placeholder="https://kaltura.atlassian.net" value="https://kaltura.atlassian.net" /></label>
+          <label>Email<input id="settingsJiraEmail" type="email" placeholder="you@kaltura.com" /></label>
+          <label>API Token<input id="settingsJiraToken" type="password" placeholder="Paste your API token" /></label>
+          <p class="muted" style="margin-top:2px;margin-bottom:10px;font-size:0.78rem;">Generate at <a href="https://id.atlassian.com/manage-profile/security/api-tokens" target="_blank" rel="noreferrer" style="color:#7dd3fc;">id.atlassian.com</a>.</p>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+            <span id="jiraTestStatus" style="font-size:0.84rem;min-height:20px;font-weight:500;"></span>
+            <button type="button" id="testJiraConnectionBtn" class="ghost-btn small-btn" style="white-space:nowrap;">Test Connection</button>
+          </div>
 
           <hr style="border-color:#334155;margin:16px 0;" />
 

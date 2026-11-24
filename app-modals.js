@@ -731,7 +731,7 @@ document.getElementById('newUserJiraSearch').addEventListener('input', (e) => {
   _addUserSearchTimer = setTimeout(async () => {
     try {
       const res = await fetch(`${PROXY_BASE}/jira/user/search?query=${encodeURIComponent(q)}`, {
-        headers: { Accept: 'application/json', 'X-KV-Secret': KV_SECRET },
+        headers: getJiraHeaders(),
       });
       if (!res.ok) return;
       const jiraUsers = await res.json();
@@ -1414,7 +1414,7 @@ async function loadImportStep2(pm) {
     ? `https://pm-proxy.demo.qa.kaltura.ai/jira/search/jql?jql=${encodeURIComponent(jql)}&fields=summary,status,assignee,created${extraFields ? ',' + extraFields : ''}&maxResults=200`
     : `https://kaltura.atlassian.net/rest/api/3/search/jql?jql=${encodeURIComponent(jql)}&fields=summary,status,assignee,created${extraFields ? ',' + extraFields : ''}&maxResults=200`;
   const fetchOpts = useProxy
-    ? { headers: { Accept: 'application/json' } }
+    ? { headers: getJiraHeaders() }
     : { credentials: 'include', headers: { Accept: 'application/json' } };
 
   try {

@@ -2,6 +2,53 @@ const PROXY_BASE = 'https://pm-proxy.demo.qa.kaltura.ai';
 const KV_SECRET = 'HPZTjoBph4Cz9AMGwiSsYcJf086bdgRX';
 const PM_IDENTITY_BASE = 'https://pm-identity.demo.qa.kaltura.ai';
 
+// --- Per-User Jira Credentials & Headers ---
+function getJiraConfig() {
+  try {
+    const raw = localStorage.getItem('jiraDashCfg');
+    if (raw) {
+      const cfg = JSON.parse(raw);
+      return {
+        domain: (cfg.domain || 'https://kaltura.atlassian.net').trim().replace(/\/+$/, ''),
+        email: (cfg.email || '').trim(),
+        token: (cfg.token || '').trim(),
+      };
+    }
+  } catch {}
+  return {
+    domain: 'https://kaltura.atlassian.net',
+    email: (settings?.jiraEmail || '').trim(),
+    token: (settings?.jiraToken || '').trim(),
+  };
+}
+
+function saveJiraConfig(cfg) {
+  const domain = (cfg?.domain || 'https://kaltura.atlassian.net').trim().replace(/\/+$/, '');
+  const email = (cfg?.email || '').trim();
+  const token = (cfg?.token || '').trim();
+  try {
+    localStorage.setItem('jiraDashCfg', JSON.stringify({ domain, email, token }));
+  } catch {}
+}
+
+function hasJiraCredentials() {
+  const cfg = getJiraConfig();
+  return Boolean(cfg.email && cfg.token);
+}
+
+function getJiraHeaders(extraHeaders = {}) {
+  const cfg = getJiraConfig();
+  const headers = {
+    Accept: 'application/json',
+    'X-KV-Secret': KV_SECRET,
+    ...extraHeaders,
+  };
+  if (cfg.domain) headers['X-Jira-Domain'] = cfg.domain;
+  if (cfg.email) headers['X-Jira-Email'] = cfg.email;
+  if (cfg.token) headers['X-Jira-Token'] = cfg.token;
+  return headers;
+}
+
 // Real logged-in user, read from the K-Vibe gate session cookie via pm-identity (a private
 // K-Vibe app, unlike the public pm-proxy — the cookie only reaches apps that are
 // password-gated). Cached per page load since it doesn't change mid-session.
@@ -25,8 +72,15 @@ function emailToDisplayName(email) {
 async function getCurrentUserName() {
   return emailToDisplayName(await getCurrentUserEmail());
 }
-const APP_VERSION = '1.18.19';
+const APP_VERSION = '1.18.20';
 const CHANGELOG = [
+  {
+    version: '1.18.20',
+    date: '2026-11-24',
+    features: [
+      'Each user can now configure their own Jira credentials (Email & API token) and test their connection in Settings. All Jira writes and comments are now authenticated and recorded under the user\'s own Jira account.',
+    ]
+  },
   {
     version: '1.18.19',
     date: '2026-10-21',
@@ -2108,7 +2162,7 @@ function setupMentionAutocomplete(editorEl) {
     _mentionSearchTimer = setTimeout(async () => {
       try {
         const res = await fetch(`${PROXY_BASE}/jira/user/search?query=${encodeURIComponent(query)}`, {
-          headers: { Accept: 'application/json', 'X-KV-Secret': KV_SECRET },
+          headers: getJiraHeaders(),
         });
         if (!res.ok) { hideMentionDropdown(); return; }
         const jiraUsers = await res.json();
@@ -2433,7 +2487,7 @@ async function getJiraResolutionDate(issueKey) {
   if (!issueKey) return null;
   try {
     const res = await fetch(`${PROXY_BASE}/jira/issue/${issueKey}?fields=resolutiondate`, {
-      headers: { Accept: 'application/json' },
+      headers: getJiraHeaders(),
     });
     if (!res.ok) return null;
     const data = await res.json();
@@ -2557,7 +2611,7 @@ function deriveAccountType(vertical) {
 async function resolveJiraFieldIds() {
   const useProxy = true;
   const opts = useProxy
-    ? { headers: { Accept: 'application/json' } }
+    ? { headers: getJiraHeaders() }
     : { credentials: 'include', headers: { Accept: 'application/json' } };
 
   // First try /jira/field (lightweight)
@@ -2604,7 +2658,7 @@ async function resolveRiskRateOptions(fieldId) {
     ? `https://pm-proxy.demo.qa.kaltura.ai/jira/issue/${issueKey}/editmeta`
     : `https://kaltura.atlassian.net/rest/api/3/issue/${issueKey}/editmeta`;
   const opts = useProxy
-    ? { headers: { Accept: 'application/json' } }
+    ? { headers: getJiraHeaders() }
     : { credentials: 'include', headers: { Accept: 'application/json' } };
   try {
     const res = await fetch(url, opts);
@@ -2681,7 +2735,7 @@ async function syncProjectProgressFromJiraInner() {
           ? `https://pm-proxy.demo.qa.kaltura.ai/jira/issue/${key}?fields=${fieldsParam}`
           : `https://kaltura.atlassian.net/rest/api/3/issue/${key}?fields=${fieldsParam}`;
         const fetchOpts = useProxy
-          ? { headers: { Accept: 'application/json' } }
+          ? { headers: getJiraHeaders() }
           : { credentials: 'include', headers: { Accept: 'application/json' } };
         const response = await fetch(url, fetchOpts);
         if (!response.ok) return;
@@ -2836,7 +2890,7 @@ async function syncStatusFromJiraInner() {
           ? `https://pm-proxy.demo.qa.kaltura.ai/jira/issue/${issueKey}?fields=description,updated`
           : `https://kaltura.atlassian.net/rest/api/3/issue/${issueKey}?fields=description,updated`;
         const opts = useProxy
-          ? { headers: { Accept: 'application/json' } }
+          ? { headers: getJiraHeaders() }
           : { credentials: 'include', headers: { Accept: 'application/json' } };
         const res = await fetch(url, opts);
         if (!res.ok) return;
@@ -3156,11 +3210,11 @@ function buildProjectFromEnrichment(issue, sfData) {
 }
 
 async function pollForNewProjects() {
-  if (!settings.jiraEmail || !settings.jiraToken) return;
+  if (!hasJiraCredentials() && (!settings.jiraEmail || !settings.jiraToken)) return;
   let newIssues;
   try {
     const resp = await fetch('https://pm-proxy.demo.qa.kaltura.ai/jira/new-assignments', {
-      headers: { Accept: 'application/json' },
+      headers: getJiraHeaders(),
     });
     if (!resp.ok) return;
     newIssues = await resp.json();
@@ -3185,7 +3239,7 @@ async function pollForNewProjects() {
         const extraUrl = useProxy
           ? `https://pm-proxy.demo.qa.kaltura.ai/jira/issue/${issue.key}?fields=${fieldsParam}`
           : `https://kaltura.atlassian.net/rest/api/3/issue/${issue.key}?fields=${fieldsParam}`;
-        const extraResp = await fetch(extraUrl, useProxy ? { headers: { Accept: 'application/json' } } : { credentials: 'include', headers: { Accept: 'application/json' } });
+        const extraResp = await fetch(extraUrl, useProxy ? { headers: getJiraHeaders() } : { credentials: 'include', headers: { Accept: 'application/json' } });
         if (extraResp.ok) {
           const extraData = await extraResp.json();
           const f = extraData.fields || {};

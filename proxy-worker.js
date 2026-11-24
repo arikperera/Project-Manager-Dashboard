@@ -44,7 +44,7 @@ const KV_ALLOWED_KEYS = new Set([
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Accept, X-KV-Secret',
+  'Access-Control-Allow-Headers': 'Content-Type, Accept, X-KV-Secret, X-Jira-Domain, X-Jira-Email, X-Jira-Token',
 };
 
 // Credentialed CORS (reflects the exact origin + allows cookies) — needed only for /me,
@@ -56,7 +56,7 @@ function credentialedCorsHeaders(request) {
   return {
     'Access-Control-Allow-Origin': origin,
     'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Accept, X-KV-Secret',
+    'Access-Control-Allow-Headers': 'Content-Type, Accept, X-KV-Secret, X-Jira-Domain, X-Jira-Email, X-Jira-Token',
     'Access-Control-Allow-Credentials': 'true',
     'Vary': 'Origin',
   };
@@ -69,17 +69,62 @@ function json(data, status = 200) {
   });
 }
 
-function jiraAuth(env) {
-  return 'Basic ' + btoa(`${env.JIRA_EMAIL}:${env.JIRA_TOKEN}`);
+function toBase64(str) {
+  if (typeof Buffer !== 'undefined') {
+    return Buffer.from(str, 'utf8').toString('base64');
+  }
+  return btoa(unescape(encodeURIComponent(str)));
 }
 
-async function jiraFetch(env, path, options = {}) {
-  const url = path.startsWith('http') ? path : `${JIRA_BASE}/${path}`;
+function resolveJiraContext(request, env) {
+  const userEmail = (request.headers.get('X-Jira-Email') || '').trim();
+  const userToken = (request.headers.get('X-Jira-Token') || '').trim();
+  let userDomain = (request.headers.get('X-Jira-Domain') || '').trim();
+
+  let domain = 'https://kaltura.atlassian.net';
+  if (userDomain) {
+    if (!/^https?:\/\//i.test(userDomain)) userDomain = `https://${userDomain}`;
+    try {
+      const parsed = new URL(userDomain);
+      if (parsed.protocol === 'https:' && (parsed.hostname === 'atlassian.net' || parsed.hostname.endsWith('.atlassian.net'))) {
+        domain = parsed.origin;
+      }
+    } catch {}
+  }
+
+  const hasUserAuth = Boolean(userEmail && userToken);
+  const authHeader = hasUserAuth
+    ? 'Basic ' + toBase64(`${userEmail}:${userToken}`)
+    : (env.JIRA_EMAIL && env.JIRA_TOKEN ? 'Basic ' + toBase64(`${env.JIRA_EMAIL}:${env.JIRA_TOKEN}`) : null);
+
+  const baseUrl = `${domain}/rest/api/3`;
+  return { hasUserAuth, authHeader, baseUrl, domain };
+}
+
+async function jiraFetch(request, env, path, options = {}) {
+  const { hasUserAuth, authHeader, baseUrl } = resolveJiraContext(request, env);
+
+  const method = (options.method || 'GET').toUpperCase();
+  const isMutation = ['PUT', 'POST', 'DELETE'].includes(method);
+
+  // For write operations, require personal Jira credentials
+  if (isMutation && !hasUserAuth) {
+    return json({
+      error: 'Personal Jira credentials required. Please configure your Jira email and API token in Settings.',
+    }, 401);
+  }
+
+  if (!authHeader) {
+    return json({ error: 'Jira credentials are not configured.' }, 401);
+  }
+
+  const url = path.startsWith('http') ? path : `${baseUrl}/${path.replace(/^\/+/, '')}`;
   const res = await fetch(url, {
     ...options,
     headers: {
-      Authorization: jiraAuth(env),
+      Authorization: authHeader,
       Accept: 'application/json',
+      'User-Agent': 'pm-project-tracker/1.0',
       ...(options.headers || {}),
     },
   });
@@ -282,15 +327,20 @@ export default {
       return json({ ok: true });
     }
 
+    // GET /jira/myself (Test Connection)
+    if (method === 'GET' && path === '/jira/myself') {
+      return jiraFetch(request, env, 'myself');
+    }
+
     // GET /jira/field
     if (method === 'GET' && path === '/jira/field') {
-      return jiraFetch(env, 'field');
+      return jiraFetch(request, env, 'field');
     }
 
     // GET /jira/user/search?query=
     if (method === 'GET' && path === '/jira/user/search') {
       const query = url.searchParams.get('query') || '';
-      return jiraFetch(env, `user/search?query=${encodeURIComponent(query)}&maxResults=10`);
+      return jiraFetch(request, env, `user/search?query=${encodeURIComponent(query)}&maxResults=10`);
     }
 
     // GET /jira/new-assignments
@@ -324,30 +374,30 @@ export default {
       const jiraPath = path.substring('/jira/'.length); // e.g. issue/PSVAMB-123
       const queryString = url.search; // includes ?fields=... etc
       if (method === 'GET') {
-        return jiraFetch(env, `${jiraPath}${queryString}`);
+        return jiraFetch(request, env, `${jiraPath}${queryString}`);
       }
       if (method === 'PUT' || method === 'POST') {
         const body = await request.text();
-        return jiraFetch(env, jiraPath, {
+        return jiraFetch(request, env, jiraPath, {
           method,
           headers: { 'Content-Type': 'application/json' },
           body,
         });
       }
       if (method === 'DELETE') {
-        return jiraFetch(env, jiraPath, { method });
+        return jiraFetch(request, env, jiraPath, { method });
       }
     }
 
     // GET /jira/search/jql
     if (method === 'GET' && path === '/jira/search/jql') {
-      return jiraFetch(env, `search/jql${url.search}`);
+      return jiraFetch(request, env, `search/jql${url.search}`);
     }
 
     // Generic GET /jira/* fallback
     if (method === 'GET' && path.startsWith('/jira/')) {
       const jiraPath = path.substring('/jira/'.length);
-      return jiraFetch(env, `${jiraPath}${url.search}`);
+      return jiraFetch(request, env, `${jiraPath}${url.search}`);
     }
 
     // GET /sf/enrich?jiraKey=

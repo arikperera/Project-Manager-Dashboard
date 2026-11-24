@@ -225,12 +225,25 @@ async function writeAssigneeToJira(issueKey, displayName) {
 }
 
 async function jiraProxyPut(issueKey, body) {
+  if (!hasJiraCredentials()) {
+    settingsBtn.click();
+    showToast('Please configure your Jira email and API token in Settings to update Jira.', 'error');
+    throw new Error('Jira credentials not configured');
+  }
   const res = await fetch(`${PROXY_BASE}/jira/issue/${issueKey}`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-KV-Secret': KV_SECRET },
+    headers: getJiraHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(`Jira write failed: ${res.status}`);
+  if (!res.ok) {
+    let msg = `Jira write failed: ${res.status}`;
+    try {
+      const err = await res.json();
+      if (err.error) msg = err.error;
+      else if (err.errorMessages?.length) msg = err.errorMessages[0];
+    } catch {}
+    throw new Error(msg);
+  }
 }
 
 // The Jira write always authenticates as the shared service account, so Jira's own
@@ -716,7 +729,7 @@ async function fetchAndRenderComments(issueKey) {
   commentsList.innerHTML = '<div class="comments-list-empty">Loading…</div>';
   try {
     const res = await fetch(`${PROXY_BASE}/jira/issue/${issueKey}/comment`, {
-      headers: { Accept: 'application/json', 'X-KV-Secret': KV_SECRET },
+      headers: getJiraHeaders(),
     });
     if (!res.ok) { commentsList.innerHTML = '<div class="comments-list-empty">Failed to load comments</div>'; return; }
     const data = await res.json();
@@ -747,10 +760,15 @@ async function fetchAndRenderComments(issueKey) {
 }
 
 async function deleteJiraComment(issueKey, commentId) {
+  if (!hasJiraCredentials()) {
+    settingsBtn.click();
+    showToast('Please configure your Jira email and API token in Settings to delete comments.', 'error');
+    return false;
+  }
   try {
     const res = await fetch(`${PROXY_BASE}/jira/issue/${issueKey}/comment/${commentId}`, {
       method: 'DELETE',
-      headers: { Accept: 'application/json', 'X-KV-Secret': KV_SECRET },
+      headers: getJiraHeaders(),
     });
     return res.ok;
   } catch {
@@ -789,20 +807,21 @@ commentsList.addEventListener('click', async (event) => {
 });
 
 async function postComposerComment(issueKey) {
+  if (!hasJiraCredentials()) {
+    settingsBtn.click();
+    showToast('Please configure your Jira email and API token in Settings to post comments.', 'error');
+    return;
+  }
   const html = commentComposerEditor.getAttribute('data-placeholder-active') ? '' : commentComposerEditor.innerHTML.trim();
   if (!html || !html.replace(/<[^>]+>/g, '').trim()) {
     showToast('Comment is empty', 'error');
     return;
   }
-  const attribution = await getDashboardAttributionPrefix();
   const adf = htmlToAdf(html);
-  // Attribution goes on its own line, with the actual comment starting on the next —
-  // rather than merged into the first line of whatever the user typed.
-  adf.content.unshift({ type: 'paragraph', content: [{ type: 'text', text: `${attribution}:` }] });
   try {
     const res = await fetch(`${PROXY_BASE}/jira/issue/${issueKey}/comment`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-KV-Secret': KV_SECRET },
+      headers: getJiraHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ body: adf }),
     });
     if (!res.ok) {
@@ -1551,8 +1570,15 @@ saveAddCustomerBtn.addEventListener('click', () => {
 });
 
 settingsBtn.addEventListener('click', () => {
-  document.getElementById('settingsJiraEmail').value = settings.jiraEmail || '';
-  document.getElementById('settingsJiraToken').value = settings.jiraToken || '';
+  const jiraCfg = getJiraConfig();
+  document.getElementById('settingsJiraDomain').value = jiraCfg.domain || 'https://kaltura.atlassian.net';
+  document.getElementById('settingsJiraEmail').value = jiraCfg.email || '';
+  document.getElementById('settingsJiraToken').value = jiraCfg.token || '';
+  const testStatus = document.getElementById('jiraTestStatus');
+  if (testStatus) {
+    testStatus.textContent = '';
+    testStatus.style.color = '';
+  }
   document.getElementById('settingsPollInterval').value = settings.pollIntervalMinutes ?? 15;
   document.getElementById('settingsWatchedAssignees').value =
     (settings.watchedAssignees || ['arik.perera@kaltura.com', 'Srinivas.Duddu@kaltura.com']).join(', ');
@@ -1581,9 +1607,81 @@ openActivityLogBtn.addEventListener('click', () => {
   closeSettingsModal();
   window.open('activity-log.html', '_blank');
 });
+// Test Jira Connection in Settings
+const testJiraConnectionBtn = document.getElementById('testJiraConnectionBtn');
+if (testJiraConnectionBtn) {
+  testJiraConnectionBtn.addEventListener('click', async () => {
+    const domain = (document.getElementById('settingsJiraDomain')?.value || '').trim();
+    const email = (document.getElementById('settingsJiraEmail')?.value || '').trim();
+    const token = (document.getElementById('settingsJiraToken')?.value || '').trim();
+    const statusEl = document.getElementById('jiraTestStatus');
+
+    if (!email || !token) {
+      if (statusEl) {
+        statusEl.textContent = 'Please enter both email and API token.';
+        statusEl.style.color = '#f87171';
+      }
+      showToast('Please enter both Jira email and API token.', 'error');
+      return;
+    }
+
+    if (statusEl) {
+      statusEl.textContent = 'Testing connection…';
+      statusEl.style.color = '#94a3b8';
+    }
+    setButtonBusy(testJiraConnectionBtn, true, 'Testing…');
+
+    try {
+      const res = await fetch(`${PROXY_BASE}/jira/myself`, {
+        headers: {
+          Accept: 'application/json',
+          'X-KV-Secret': KV_SECRET,
+          'X-Jira-Domain': domain || 'https://kaltura.atlassian.net',
+          'X-Jira-Email': email,
+          'X-Jira-Token': token,
+        },
+      });
+
+      if (!res.ok) {
+        let msg = `HTTP ${res.status}`;
+        try {
+          const err = await res.json();
+          if (err.error) msg = err.error;
+          else if (err.errorMessages?.length) msg = err.errorMessages[0];
+        } catch {}
+        throw new Error(msg);
+      }
+
+      const user = await res.json();
+      const displayName = user.displayName || email;
+      if (statusEl) {
+        statusEl.textContent = `✓ Connected as ${displayName}`;
+        statusEl.style.color = '#4ade80';
+      }
+      showToast(`Connected as ${displayName}`, 'success');
+    } catch (e) {
+      if (statusEl) {
+        statusEl.textContent = `✗ Failed: ${e.message}`;
+        statusEl.style.color = '#f87171';
+      }
+      showToast(`Jira connection failed: ${e.message}`, 'error');
+    } finally {
+      setButtonBusy(testJiraConnectionBtn, false);
+    }
+  });
+}
+
 saveSettingsBtn.addEventListener('click', async () => {
-  settings.jiraEmail = document.getElementById('settingsJiraEmail').value.trim();
-  settings.jiraToken = document.getElementById('settingsJiraToken').value.trim();
+  const jiraDomain = (document.getElementById('settingsJiraDomain')?.value || '').trim();
+  const jiraEmail = (document.getElementById('settingsJiraEmail')?.value || '').trim();
+  const jiraToken = (document.getElementById('settingsJiraToken')?.value || '').trim();
+
+  // Save personal Jira credentials to local browser storage only
+  saveJiraConfig({ domain: jiraDomain, email: jiraEmail, token: jiraToken });
+
+  settings.jiraEmail = jiraEmail;
+  // Intentionally do NOT persist personal token to shared settings
+  delete settings.jiraToken;
   settings.pollIntervalMinutes = parseInt(document.getElementById('settingsPollInterval').value, 10) || 15;
   const rawAssignees = document.getElementById('settingsWatchedAssignees').value;
   settings.watchedAssignees = rawAssignees.split(',').map(s => s.trim()).filter(Boolean);
@@ -1593,7 +1691,7 @@ saveSettingsBtn.addEventListener('click', async () => {
     await fetch('https://pm-proxy.demo.qa.kaltura.ai/settings', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ jiraEmail: settings.jiraEmail, jiraToken: settings.jiraToken, watchedAssignees: settings.watchedAssignees, pollIntervalMinutes: settings.pollIntervalMinutes }),
+      body: JSON.stringify({ jiraEmail: settings.jiraEmail, watchedAssignees: settings.watchedAssignees, pollIntervalMinutes: settings.pollIntervalMinutes }),
     });
   } catch {
     console.warn('Proxy not running — start proxy.ps1 for Jira sync to work.');
